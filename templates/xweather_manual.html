@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Xweather Protect – User Manual (Terrindo Bumi Raya)</title>
+
+  <!-- Fonts (fallback to system if not available) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --xw-blue: #003A8F;        /* Vaisala-like deep blue */
+      --xw-blue-2:#0A4BBF;       /* accent */
+      --tbr-orange:#F28C28;      /* Terrindo orange */
+      --bg:#F4F7FB;
+      --card:#FFFFFF;
+      --text:#1F2937;
+      --muted:#6B7280;
+      --border:rgba(17,24,39,.10);
+      --shadow: 0 10px 30px rgba(2, 22, 55, .08);
+      --radius: 16px;
+    }
+
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color:var(--text);
+      background: linear-gradient(180deg, #EAF1FF 0%, var(--bg) 40%, #F7FAFF 100%);
+    }
+
+    /* Top bar (Xweather-like) */
+    .topbar{
+      position: sticky;
+      top:0;
+      z-index: 30;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 14px 18px;
+      background: rgba(0, 58, 143, .94);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,.15);
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width: 240px;
+    }
+    .brand img{
+      height:32px;
+      width:auto;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
+      border-radius: 8px;
+    }
+    .brand .title{
+      display:flex;
+      flex-direction:column;
+      line-height:1.1;
+      color:#fff;
+    }
+    .brand .title strong{
+      font-size:14px;
+      letter-spacing:.2px;
+    }
+    .brand .title span{
+      font-size:12px;
+      opacity:.85;
+    }
+
+    .top-actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+    }
+    .btn{
+      appearance:none;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10);
+      color:#fff;
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:13px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+      text-decoration:none;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); }
+    .btn.primary{
+      background: linear-gradient(135deg, var(--tbr-orange) 0%, #FFB565 100%);
+      border-color: rgba(255,255,255,.10);
+      color:#1A1A1A;
+    }
+    .btn.primary:hover{ background: linear-gradient(135deg, #FF9B3A 0%, #FFC27A 100%); }
+
+    /* Layout */
+    .wrap{
+      display:grid;
+      grid-template-columns: 320px 1fr;
+      gap: 18px;
+      padding: 18px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+      .sidebar{ position: relative; top:0; }
+    }
+
+    /* Sidebar */
+    .sidebar{
+      position: sticky;
+      top: 74px;
+      align-self:start;
+      background: var(--card);
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .sidebar .head{
+      padding: 14px 16px;
+      border-bottom:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
+    }
+    .sidebar .head .h{
+      font-weight:800;
+      font-size:14px;
+      color: var(--xw-blue);
+      letter-spacing:.2px;
+      margin:0;
+    }
+    .sidebar .head .s{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    .nav{
+      padding: 10px 10px 14px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .nav a{
+      text-decoration:none;
+      color: var(--text);
+      border:1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      background: #fff;
+      transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .nav a:hover{
+      transform: translateY(-1px);
+      border-color: rgba(0,58,143,.20);
+      box-shadow: 0 10px 22px rgba(0,58,143,.08);
+    }
+    .badge{
+      min-width: 26px;
+      height: 26px;
+      border-radius: 9px;
+      display:grid;
+      place-items:center;
+      font-weight:800;
+      font-size:12px;
+      color:#fff;
+      background: var(--xw-blue);
+    }
+    .nav a .meta{
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+    .nav a .meta strong{ font-size:13px; }
+    .nav a .meta span{ font-size:12px; color:var(--muted); line-height:1.35; }
+
+    /* Content */
+    .content{
+      display:flex;
+      flex-direction:column;
+      gap: 14px;
+    }
+    .card{
+      background: var(--card);
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .card-head{
+      padding: 16px 18px;
+      border-bottom:1px solid var(--border);
+      background: linear-gradient(90deg, rgba(0,58,143,.08) 0%, rgba(242,140,40,.08) 100%);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
+    }
+    .card .card-head h2{
+      margin:0;
+      font-size:16px;
+      color: var(--xw-blue);
+      letter-spacing:.2px;
+    }
+    .card .card-head p{
+      margin:6px 0 0;
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.5;
+    }
+    .chip{
+      border:1px solid rgba(0,58,143,.18);
+      background: rgba(0,58,143,.06);
+      color: var(--xw-blue);
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size:12px;
+      font-weight:700;
+      white-space:nowrap;
+      height: fit-content;
+    }
+    .card .body{
+      padding: 16px 18px 18px;
+    }
+
+    /* Steps */
+    .steps{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .step{
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 12px;
+      background: #fff;
+      display:grid;
+      grid-template-columns: 34px 1fr;
+      gap: 10px;
+    }
+    .step .n{
+      width:34px;
+      height:34px;
+      border-radius: 12px;
+      display:grid;
+      place-items:center;
+      font-weight:900;
+      color:#fff;
+      background: linear-gradient(135deg, var(--xw-blue) 0%, var(--xw-blue-2) 100%);
+    }
+    .step .t{
+      font-weight:700;
+      margin:0;
+      font-size:13px;
+    }
+    .step .d{
+      margin:6px 0 0;
+      color: var(--muted);
+      font-size:12.5px;
+      line-height:1.55;
+    }
+    .kbd{
+      display:inline-flex;
+      align-items:center;
+      padding: 2px 8px;
+      border-radius: 8px;
+      border:1px solid rgba(17,24,39,.14);
+      background: rgba(17,24,39,.04);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:12px;
+      color:#111827;
+      margin: 0 2px;
+    }
+
+    /* Images */
+    figure{ margin: 0; }
+    .shot{
+      width:100%;
+      border-radius: 14px;
+      border:1px solid var(--border);
+      box-shadow: 0 18px 30px rgba(2,22,55,.10);
+    }
+    figcaption{
+      margin-top: 8px;
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.45;
+    }
+
+    /* Callouts */
+    .callout{
+      margin-top: 12px;
+      border: 1px solid rgba(242,140,40,.30);
+      background: rgba(242,140,40,.08);
+      border-radius: 14px;
+      padding: 12px 12px;
+      color:#7A3E00;
+      font-size:12.5px;
+      line-height:1.55;
+    }
+    .callout strong{ color:#5C2F00; }
+
+    /* Footer */
+    .footer{
+      max-width: 1280px;
+      margin: 0 auto 26px;
+      padding: 0 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align:center;
+    }
+
+    /* Print / PDF */
+    @media print{
+      body{ background:#fff; }
+      .topbar, .sidebar, .top-actions .btn.print-hide{ display:none !important; }
+      .wrap{ grid-template-columns: 1fr; padding: 0; max-width: none; }
+      .card{ box-shadow:none; border: 1px solid #ddd; }
+      .card .card-head{ background: #f5f7ff; }
+      .shot{ box-shadow:none; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
+      <div class="title">
+        <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
+        <span>User Manual – Xweather Protect (Lightning Monitoring & Protection)</span>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <a class="btn print-hide" href="#quick">Quick Start</a>
+      <a class="btn print-hide" href="#monitor">Monitoring</a>
+      <a class="btn primary print-hide" href="{{ url_for('xweather_manual_pdf') }}">Download PDF</a>
+      <button class="btn print-hide" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="head">
+        <p class="h">Daftar Isi</p>
+        <p class="s">
+          Panduan step-by-step (klik ini → klik itu) untuk membuat asset, mengatur alert, monitoring, dan replay data.
+        </p>
+      </div>
+      <nav class="nav">
+        <a href="#quick"><div class="badge">0</div><div class="meta"><strong>Quick Start</strong><span>Gambaran menu & tombol penting</span></div></a>
+        <a href="#asset"><div class="badge">1</div><div class="meta"><strong>Menambahkan Asset</strong><span>Membuat protected asset (circle/area)</span></div></a>
+        <a href="#alerts"><div class="badge">2</div><div class="meta"><strong>Menambahkan Alert</strong><span>Set ring Info/Warning/Alarm + forecast</span></div></a>
+        <a href="#monitor"><div class="badge">3</div><div class="meta"><strong>Monitoring Alarm</strong><span>Melihat status, klik petir, unduh CSV</span></div></a>
+        <a href="#replay"><div class="badge">4</div><div class="meta"><strong>Replay Manual</strong><span>7-day replay, timeline, play/pause</span></div></a>
+        <a href="#extras"><div class="badge">5</div><div class="meta"><strong>Fitur Tambahan</strong><span>Notifikasi, filter event, best practice</span></div></a>
+      </nav>
+    </aside>
+
+    <!-- Content -->
+    <main class="content">
+      <!-- QUICK START -->
+      <section id="quick" class="card">
+        <div class="card-head">
+          <div>
+            <h2>0) Quick Start – Tampilan Utama & Tombol Penting</h2>
+            <p>Tujuan: mengenali lokasi menu untuk Add Asset, Map Layers, dan kontrol replay.</p>
+          </div>
+          <div class="chip">Xweather Protect</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Buka halaman Map</p>
+                <p class="d">Masuk ke Xweather Protect → pilih tab <span class="kbd">Map</span>. Pastikan Anda sudah login.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Kenali tombol <span class="kbd">Add</span> dan <span class="kbd">Map layers</span></p>
+                <p class="d">Tombol <span class="kbd">Add</span> dipakai untuk menambahkan Asset. Tombol <span class="kbd">Map layers</span> dipakai untuk menampilkan ring alert dan layer petir.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Kenali timeline replay</p>
+                <p class="d">Kontrol replay (tanggal, play/pause, timeline) berada di bagian bawah map untuk melihat ulang kejadian beberapa hari terakhir.</p>
+              </div>
+            </div>
+          </div>
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/xweather/Home.png') }}" alt="Home" />
+            <figcaption>Gambar 0. Tampilan utama Xweather (Map) – tombol Add, Map Layers, dan kontrol replay (bagian bawah).</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 1 ADD ASSET -->
+      <section id="asset" class="card">
+        <div class="card-head">
+          <div>
+            <h2>1) Cara Menambahkan Asset (Protected Area)</h2>
+            <p>Membuat area proteksi (asset) berupa circle/area operasi yang akan dipantau petirnya.</p>
+          </div>
+          <div class="chip">Setup</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Klik tombol <span class="kbd">Add</span></p>
+                <p class="d">Di halaman Map, klik <span class="kbd">Add</span> (pojok kiri atas) → pilih opsi untuk menambahkan asset/protected area.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Pilih tipe asset (icon)</p>
+                <p class="d">Pilih tipe asset yang paling sesuai (mis. site/area). Ini hanya untuk identifikasi visual pada daftar asset.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Tentukan lokasi & bentuk area</p>
+                <p class="d">Klik pada peta untuk menempatkan pusat area. Jika menggunakan circle, atur radius sesuai kebutuhan. Pastikan area mencakup pit/working area yang ingin diproteksi.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">4</div>
+              <div>
+                <p class="t">Simpan asset</p>
+                <p class="d">Isi nama asset (contoh: <span class="kbd">ZONE01</span>) → klik <span class="kbd">Save</span>. Asset akan muncul di panel daftar asset.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">5</div>
+              <div>
+                <p class="t">(Opsional) Upload file JSON/GeoJSON</p>
+                <p class="d">Jika Anda memiliki boundary area dari GIS, gunakan fitur upload JSON/GeoJSON agar bentuk area lebih presisi.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/Asset01.png') }}" alt="Asset01" />
+              <figcaption>Gambar 1.1. Panel Add/Asset – langkah awal membuat asset.</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/Asset02.png') }}" alt="Asset02" />
+              <figcaption>Gambar 1.2. Contoh asset yang sudah terbentuk pada peta.</figcaption>
+            </figure>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="TypeIconAsset" />
+              <figcaption>Gambar 1.3. Pilihan tipe/icon asset untuk identifikasi.</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/AssetUploadJson.png') }}" alt="AssetUploadJson" />
+              <figcaption>Gambar 1.4. (Opsional) Upload JSON/GeoJSON boundary untuk area yang lebih presisi.</figcaption>
+            </figure>
+          </div>
+
+          <div class="callout">
+            <strong>Catatan:</strong> Jika subscription Anda membatasi jumlah protected assets, pastikan jumlah asset yang dibuat sesuai lisensi aktif.
+          </div>
+
+          <details style="margin-top:12px">
+            <summary style="cursor:pointer; font-weight:800; color:var(--xw-blue)">Bagaimana cara menghapus asset?</summary>
+            <div style="margin-top:10px">
+              <p style="margin:0; color:var(--muted); font-size:12.5px; line-height:1.55">
+                Buka daftar asset → pilih asset yang ingin dihapus → klik menu aksi (trash/delete) → konfirmasi.
+              </p>
+              <figure style="margin-top:10px">
+                <img class="shot" src="{{ url_for('static', filename='manual/xweather/DeleteAsset.png') }}" alt="DeleteAsset" />
+                <figcaption>Gambar 1.5. Contoh opsi delete asset.</figcaption>
+              </figure>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <!-- 2 ADD ALERTS -->
+      <section id="alerts" class="card">
+        <div class="card-head">
+          <div>
+            <h2>2) Cara Menambahkan Alert/Alarm (Rings + Forecast)</h2>
+            <p>Mengatur ring Info/Warning/Alarm, clear time, dan (opsional) forecast advance time.</p>
+          </div>
+          <div class="chip">Alerts</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Pilih asset yang ingin diatur alert-nya</p>
+                <p class="d">Di daftar asset, klik asset (mis. <span class="kbd">ZONE01</span>) → masuk ke halaman konfigurasi alerts.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Aktifkan <span class="kbd">Real-time lightning</span></p>
+                <p class="d">Pada menu alerts, pastikan <span class="kbd">Real-time lightning</span> aktif. Ini adalah engine utama untuk ring Info/Warning/Alarm.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Set <span class="kbd">Alarm ring</span></p>
+                <p class="d">Atur radius Alarm (mis. 4 km) dan <span class="kbd">Clear time</span> (mis. 15 menit). Alarm biasanya dipakai untuk "stop operation" sesuai SOP.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">4</div>
+              <div>
+                <p class="t">Set <span class="kbd">Warning ring</span> & <span class="kbd">Info ring</span></p>
+                <p class="d">Atur radius Warning (mis. 10 km) dan Info (mis. 20 km), termasuk clear time masing-masing. Warning untuk pembatasan, Info untuk monitoring awal.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">5</div>
+              <div>
+                <p class="t">(Opsional) Aktifkan <span class="kbd">Forecast lightning</span></p>
+                <p class="d">Masuk ke <span class="kbd">Forecast lightning</span> → set <span class="kbd">alert lead time</span> (10–60 menit). Ini memberi estimasi kapan storm/aktivitas petir akan tiba di asset.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">6</div>
+              <div>
+                <p class="t">Simpan konfigurasi</p>
+                <p class="d">Klik <span class="kbd">Next</span> / <span class="kbd">Save</span> sampai selesai. Pastikan ring terlihat pada map sebagai verifikasi.</p>
+              </div>
+            </div>
+          </div>
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/xweather/AddProtection.png') }}" alt="AddProtection" />
+            <figcaption>Gambar 2.1. Menu konfigurasi alerts untuk asset (Real-time lightning & Forecast lightning).</figcaption>
+          </figure>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/AlarmRing.png') }}" alt="AlarmRing" />
+              <figcaption>Gambar 2.2. Contoh setting ring Alarm/Warning/Info + Clear time.</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/AlarmForecast.png') }}" alt="AlarmForecast" />
+              <figcaption>Gambar 2.3. Contoh setting Forecast alert advance time (lead time).</figcaption>
+            </figure>
+          </div>
+
+          <div class="callout">
+            <strong>Best practice:</strong> Gunakan radius ring mengikuti SOP keselamatan. Clear time umum (contoh 15 menit) memastikan status kembali "clear" setelah periode tanpa event petir.
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 MONITOR -->
+      <section id="monitor" class="card">
+        <div class="card-head">
+          <div>
+            <h2>3) Cara Monitoring Alarm yang Sudah Dibuat</h2>
+            <p>Melihat status severity, memeriksa petir di ring, dan mengunduh laporan alert.</p>
+          </div>
+          <div class="chip">Operations</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Aktifkan layer ring & petir</p>
+                <p class="d">Klik <span class="kbd">Map layers</span> → aktifkan <span class="kbd">Severe weather</span> → centang <span class="kbd">Lightning alert rings</span> dan <span class="kbd">Lightning event time</span>.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Pilih range waktu (mis. Last 60 minutes)</p>
+                <p class="d">Pada panel layer, pilih <span class="kbd">Last 60 minutes</span> atau <span class="kbd">Last 30 minutes</span> agar event petir terbaru terlihat.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Klik titik petir untuk detail</p>
+                <p class="d">Klik titik petir pada peta untuk melihat popup detail seperti tipe (CG/CC), umur event, dan strength (kA) – ini membantu validasi manual.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">4</div>
+              <div>
+                <p class="t">Validasi ring mana yang ter-trigger</p>
+                <p class="d">Bandingkan posisi titik petir terhadap ring: masuk Alarm → status Alarm; masuk Warning → status Warning; masuk Info → status Info.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">5</div>
+              <div>
+                <p class="t">Unduh laporan 30-day lightning alerts (CSV)</p>
+                <p class="d">Gunakan tombol download pada halaman alerts report untuk mendapatkan CSV log alert: waktu mulai, waktu clear, durasi, dan severity.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/manualcekCG.png') }}" alt="manualcekCG" />
+              <figcaption>Gambar 3.1. Klik titik petir untuk melihat detail (type, age, strength/kA).</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/manualcekCGmin.png') }}" alt="manualcekCGmin" />
+              <figcaption>Gambar 3.2. Panel layer: ring severity dan range waktu event petir.</figcaption>
+            </figure>
+          </div>
+
+          <div class="callout">
+            <strong>Catatan operasional:</strong> Jika customer menggunakan 3 zona besar, maka validasi detail per area kecil dilakukan secara manual dengan melihat posisi petir relatif terhadap ring/area operasional.
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 REPLAY -->
+      <section id="replay" class="card">
+        <div class="card-head">
+          <div>
+            <h2>4) Cara Melihat / Replay Data Weather Secara Manual</h2>
+            <p>Gunakan 7-day replay untuk memutar ulang kejadian (post-event analysis).</p>
+          </div>
+          <div class="chip">Replay</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Buka timeline replay</p>
+                <p class="d">Di bagian bawah map, pilih rentang tanggal (mis. hari ini – 7 hari terakhir). Pastikan mode replay aktif.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Gunakan <span class="kbd">Play</span> / <span class="kbd">Pause</span></p>
+                <p class="d">Klik tombol play untuk memutar kejadian. Gunakan pause untuk berhenti pada waktu tertentu ketika terjadi petir yang memicu alert.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Geser pointer waktu</p>
+                <p class="d">Geser slider pada timeline untuk loncat ke jam/menit tertentu. Ini efektif untuk mengecek kapan status berubah dari Info → Warning → Alarm.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">4</div>
+              <div>
+                <p class="t">Verifikasi dengan ring & event layer</p>
+                <p class="d">Tetap aktifkan layer ring & event petir agar selama replay Anda bisa melihat petir masuk ring mana, dan kapan all clear terjadi.</p>
+              </div>
+            </div>
+          </div>
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/xweather/Home.png') }}" alt="Replay" />
+            <figcaption>Gambar 4.1. Kontrol replay berada di bawah map (tanggal, play/pause, dan timeline).</figcaption>
+          </figure>
+
+          <div class="callout">
+            <strong>Tips:</strong> Jika perlu bukti visual untuk meeting internal, replay dapat direkam dengan screen recorder (Xweather tidak menyediakan fitur perekaman video bawaan).
+          </div>
+        </div>
+      </section>
+
+      <!-- 5 EXTRAS -->
+      <section id="extras" class="card">
+        <div class="card-head">
+          <div>
+            <h2>5) Fitur Tambahan yang Sering Terlupa</h2>
+            <p>Fitur pendukung operasi: notifikasi, filter tipe petir, dan praktik terbaik konfigurasi.</p>
+          </div>
+          <div class="chip">Extras</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Notification Lists</p>
+                <p class="d">Buat daftar penerima notifikasi (email/SMS sesuai paket) agar tim HSE/ops menerima informasi saat status berubah.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Filter tipe event (CG only vs All events)</p>
+                <p class="d">Pada Map layers, pilih <span class="kbd">CG only</span> jika hanya ingin menampilkan petir cloud-to-ground sesuai kebutuhan SOP.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Cloud-to-Cloud option</p>
+                <p class="d">Pada konfigurasi ring, Anda dapat mengaktifkan opsi cloud-to-cloud jika dibutuhkan untuk awareness lebih luas (tergantung kebijakan keselamatan).</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">4</div>
+              <div>
+                <p class="t">Audit operasional dengan CSV (30-day alerts report)</p>
+                <p class="d">Gunakan CSV untuk laporan downtime: Severity, waktu mulai, waktu clear, dan durasi. Ini membantu korelasi produksi menurun dengan alert petir.</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">5</div>
+              <div>
+                <p class="t">Verifikasi lisensi & jumlah protected assets</p>
+                <p class="d">Cek subscription (jumlah protected assets aktif). Jika asset melebihi limit, beberapa area tidak bisa diproteksi secara real-time.</p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/Info.png') }}" alt="Info" />
+              <figcaption>Gambar 5.1. Contoh tampilan ring dan status severity (Info).</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/Warning.png') }}" alt="Warning" />
+              <figcaption>Gambar 5.2. Contoh tampilan ring dan status severity (Warning).</figcaption>
+            </figure>
+          </div>
+
+          <div class="callout">
+            <strong>Reminder:</strong> Pastikan SOP internal (shutdown, stand-by, resume) selaras dengan ring radius dan clear time yang dikonfigurasi.
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="footer">
+    © Terrindo Bumi Raya · User Manual Xweather Protect · Generated for internal/external operational reference.
+  </div>
+
+</body>
+</html>
