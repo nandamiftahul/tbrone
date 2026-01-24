@@ -19,7 +19,3 @@ def create_app():
         return redirect(url_for("xweather_manual.xweather_manual_pdf"))
 
     return app
-
-
-# 🔥 WAJIB ADA (INI KUNCI)
-app = create_app()
