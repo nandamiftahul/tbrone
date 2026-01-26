@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Jakarta Air Quality Digital Twin – User Manual (Terrindo Bumi Raya)</title>
+
+  <!-- Fonts (fallback to system if not available) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --xw-blue: #003A8F;
+      --xw-blue-2:#0A4BBF;
+      --tbr-orange:#F28C28;
+      --bg:#F4F7FB;
+      --card:#FFFFFF;
+      --text:#1F2937;
+      --muted:#6B7280;
+      --border:rgba(17,24,39,.10);
+      --shadow: 0 10px 30px rgba(2, 22, 55, .08);
+      --radius: 16px;
+    }
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color:var(--text);
+      background: linear-gradient(180deg, #EAF1FF 0%, var(--bg) 40%, #F7FAFF 100%);
+    }
+    .topbar{
+      position: sticky; top:0; z-index: 30;
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 14px 18px;
+      background: rgba(0, 58, 143, .94);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,.15);
+    }
+    .brand{ display:flex; align-items:center; gap:12px; min-width: 240px; }
+    .brand img{ height:32px; width:auto; filter: drop-shadow(0 6px 12px rgba(0,0,0,.12)); border-radius: 8px; }
+    .brand .title{ display:flex; flex-direction:column; line-height:1.1; color:#fff; }
+    .brand .title strong{ font-size:14px; letter-spacing:.2px; }
+    .brand .title span{ font-size:12px; opacity:.85; }
+
+    .top-actions{ display:flex; align-items:center; gap:10px; flex-wrap: wrap; justify-content:flex-end; }
+    .btn{
+      appearance:none; border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10); color:#fff;
+      padding: 10px 12px; border-radius: 12px;
+      cursor:pointer; font-weight:600; font-size:13px;
+      display:inline-flex; align-items:center; gap:8px;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+      text-decoration:none; user-select:none; white-space:nowrap;
+    }
+    .btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); }
+    .btn.primary{
+      background: linear-gradient(135deg, var(--tbr-orange) 0%, #FFB565 100%);
+      border-color: rgba(255,255,255,.10); color:#1A1A1A;
+    }
+    .btn.primary:hover{ background: linear-gradient(135deg, #FF9B3A 0%, #FFC27A 100%); }
+
+    .wrap{ display:grid; grid-template-columns: 320px 1fr; gap: 18px; padding: 18px; max-width: 1280px; margin: 0 auto; }
+    @media (max-width: 980px){ .wrap{ grid-template-columns: 1fr; } .sidebar{ position: relative; top:0; } }
+
+    .sidebar{
+      position: sticky; top: 74px; align-self:start;
+      background: var(--card); border:1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden;
+    }
+    .sidebar .head{
+      padding: 14px 16px; border-bottom:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
+    }
+    .sidebar .head .h{ font-weight:800; font-size:14px; color: var(--xw-blue); letter-spacing:.2px; margin:0; }
+    .sidebar .head .s{ margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.4; }
+    .nav{ padding: 10px 10px 14px; display:flex; flex-direction:column; gap:8px; }
+    .nav a{
+      text-decoration:none; color: var(--text);
+      border:1px solid var(--border); border-radius: 12px;
+      padding: 10px 12px; display:flex; gap:10px; align-items:flex-start;
+      background: #fff; transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .nav a:hover{ transform: translateY(-1px); border-color: rgba(0,58,143,.20); box-shadow: 0 10px 22px rgba(0,58,143,.08); }
+    .badge{ min-width: 26px; height: 26px; border-radius: 9px; display:grid; place-items:center; font-weight:800; font-size:12px; color:#fff; background: var(--xw-blue); }
+    .nav a .meta{ display:flex; flex-direction:column; gap:3px; }
+    .nav a .meta strong{ font-size:13px; }
+    .nav a .meta span{ font-size:12px; color:var(--muted); line-height:1.35; }
+
+    .content{ display:flex; flex-direction:column; gap: 14px; }
+    .card{ background: var(--card); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden; }
+    .card .card-head{
+      padding: 16px 18px; border-bottom:1px solid var(--border);
+      background: linear-gradient(90deg, rgba(0,58,143,.08) 0%, rgba(242,140,40,.08) 100%);
+      display:flex; align-items:flex-start; justify-content:space-between; gap: 12px;
+    }
+    .card .card-head h2{ margin:0; font-size:16px; color: var(--xw-blue); letter-spacing:.2px; }
+    .card .card-head p{ margin:6px 0 0; font-size:12px; color: var(--muted); line-height:1.5; }
+    .chip{ border:1px solid rgba(0,58,143,.18); background: rgba(0,58,143,.06); color: var(--xw-blue);
+      padding: 8px 10px; border-radius: 999px; font-size:12px; font-weight:700; white-space:nowrap; height: fit-content;
+    }
+    .card .body{ padding: 16px 18px 18px; }
+
+    .steps{ display:flex; flex-direction:column; gap:10px; }
+    .step{
+      border:1px solid var(--border); border-radius: 14px;
+      padding: 12px 12px; background: #fff;
+      display:grid; grid-template-columns: 34px 1fr; gap: 10px;
+    }
+    .step .n{
+      width:34px; height:34px; border-radius: 12px;
+      display:grid; place-items:center; font-weight:900; color:#fff;
+      background: linear-gradient(135deg, var(--xw-blue) 0%, var(--xw-blue-2) 100%);
+    }
+    .step .t{ font-weight:700; margin:0; font-size:13px; }
+    .step .d{ margin:6px 0 0; color: var(--muted); font-size:12.5px; line-height:1.55; }
+    figure{ margin: 0; }
+    .shot{ width:100%; border-radius: 14px; border:1px solid var(--border); box-shadow: 0 18px 30px rgba(2,22,55,.10); }
+    figcaption{ margin-top: 8px; font-size:12px; color: var(--muted); line-height:1.45; }
+    .callout{
+      margin-top: 12px; border: 1px solid rgba(242,140,40,.30);
+      background: rgba(242,140,40,.08); border-radius: 14px;
+      padding: 12px 12px; color:#7A3E00; font-size:12.5px; line-height:1.55;
+    }
+    .callout strong{ color:#5C2F00; }
+    .footer{ max-width: 1280px; margin: 0 auto 26px; padding: 0 18px; color: var(--muted); font-size: 12px; text-align:center; }
+
+    @media print{
+      body{ background:#fff; }
+      .topbar, .sidebar, .top-actions .btn.print-hide{ display:none !important; }
+      .wrap{ grid-template-columns: 1fr; padding: 0; max-width: none; }
+      .card{ box-shadow:none; border: 1px solid #ddd; }
+      .card .card-head{ background: #f5f7ff; }
+      .shot{ box-shadow:none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='manual/twincityjakarta/logo.png') }}" alt="Jakarta AQT" onerror="this.style.display='none'" />
+      <div class="title">
+        <strong>Terrindo Bumi Raya · Jakarta Air Quality Digital Twin</strong>
+        <span>User Manual – Penjelasan per Slide (v2026-01-26)</span>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <a class="btn print-hide" href="#s1">Mulai</a>
+      <a class="btn print-hide" href="#s11">Arsitektur</a>
+      <a class="btn print-hide" href="#s17">Kesimpulan</a>
+      <a class="btn primary print-hide" href="{{ url_for('twincityjakarta_manual_pdf') }}">Download PDF</a>
+      <button class="btn print-hide" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <aside class="sidebar">
+      <div class="head">
+        <p class="h">Daftar Isi (Per Slide)</p>
+        <p class="s">
+          Catatan belajar yang lebih jelas & detail untuk setiap slide. Cocok untuk latihan presentasi dan briefing internal.
+        </p>
+      </div>
+      <nav class="nav">
+        <a href="#s1"><div class="badge">1</div><div class="meta"><strong>Slide 1</strong><span>Judul</span></div></a><a href="#s2"><div class="badge">2</div><div class="meta"><strong>Slide 2</strong><span>Latar belakang</span></div></a><a href="#s3"><div class="badge">3</div><div class="meta"><strong>Slide 3</strong><span>Tujuan</span></div></a><a href="#s4"><div class="badge">4</div><div class="meta"><strong>Slide 4</strong><span>Konsep Twin</span></div></a><a href="#s5"><div class="badge">5</div><div class="meta"><strong>Slide 5</strong><span>Polutan & Indikator</span></div></a><a href="#s6"><div class="badge">6</div><div class="meta"><strong>Slide 6</strong><span>Data Observasi</span></div></a><a href="#s7"><div class="badge">7</div><div class="meta"><strong>Slide 7</strong><span>Inventori Emisi</span></div></a><a href="#s8"><div class="badge">8</div><div class="meta"><strong>Slide 8</strong><span>Meteorologi</span></div></a><a href="#s9"><div class="badge">9</div><div class="meta"><strong>Slide 9</strong><span>Pemodelan</span></div></a><a href="#s10"><div class="badge">10</div><div class="meta"><strong>Slide 10</strong><span>QC & Asimilasi</span></div></a><a href="#s11"><div class="badge">11</div><div class="meta"><strong>Slide 11</strong><span>Arsitektur</span></div></a><a href="#s12"><div class="badge">12</div><div class="meta"><strong>Slide 12</strong><span>Dashboard</span></div></a><a href="#s13"><div class="badge">13</div><div class="meta"><strong>Slide 13</strong><span>Early Warning</span></div></a><a href="#s14"><div class="badge">14</div><div class="meta"><strong>Slide 14</strong><span>What-if Policy</span></div></a><a href="#s15"><div class="badge">15</div><div class="meta"><strong>Slide 15</strong><span>Roadmap</span></div></a><a href="#s16"><div class="badge">16</div><div class="meta"><strong>Slide 16</strong><span>Governance</span></div></a><a href="#s17"><div class="badge">17</div><div class="meta"><strong>Slide 17</strong><span>Kesimpulan</span></div></a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      
+      <section id="s1" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 1) Judul & konteks proyek</h2>
+            <p>Tujuan slide ini: membuka presentasi dan menyamakan persepsi bahwa proyek ini adalah sistem pemantauan + prediksi kualitas udara berbasis Digital Twin.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Apa itu proyek AQT Twin</p>
+                <p class="d">Sebutkan bahwa AQT Twin adalah “kembaran digital” kondisi kualitas udara Jakarta yang menggabungkan data sensor, data meteorologi, dan model numerik untuk monitoring & forecasting.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Kenapa penting</p>
+                <p class="d">Kualitas udara berdampak langsung ke kesehatan, aktivitas ekonomi, dan kebijakan. Digital Twin dipakai agar respons lebih cepat dan berbasis sains.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Output utama</p>
+                <p class="d">Real-time map, indeks kualitas udara, prediksi 24–72 jam, dan alat evaluasi kebijakan (what-if).</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Slide pembuka ini menjelaskan bahwa Jakarta Air Quality Digital Twin adalah sistem terintegrasi untuk memantau dan memprediksi kualitas udara. Bukan hanya menampilkan data sensor, tetapi juga menggabungkan model atmosfer sehingga kita bisa memahami penyebaran polutan, membuat peringatan dini, dan membantu kebijakan pengendalian emisi.”
+          </div>
+
+          
+          <div class="callout">
+            <strong>Checklist presenter:</strong>
+            <ul style="margin:8px 0 0 18px; padding:0; line-height:1.6;">
+              <li>Sebutkan tujuan: monitoring + prediksi</li><li>Tekankan nilai untuk pemerintah & publik</li><li>Sebutkan output: peta, indeks, forecast, skenario</li>
+            </ul>
+          </div>
+        
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_1.jpg') }}" alt="Slide 1" />
+            <figcaption>Gambar Slide 1. (File: JAKARTA-Air Quality Digital Twin Project Presentation_1.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s2" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 2) Latar belakang kualitas udara Jakarta</h2>
+            <p>Tujuan slide ini: menjelaskan konteks masalah dan urgensi (polusi tinggi, variatif, dan berdampak luas).</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Masalahnya kompleks</p>
+                <p class="d">Polutan bervariasi per waktu dan lokasi (jam sibuk, musim kemarau/hujan, daerah padat lalu lintas, kawasan industri).</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Tidak cukup hanya data titik</p>
+                <p class="d">Stasiun/sensor hanya mewakili titik tertentu, sementara publik butuh gambaran menyeluruh per wilayah.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Butuh sistem yang bisa “menjelaskan” dan “memprediksi”</p>
+                <p class="d">Digital Twin menjawab gap: memahami sebab-akibat (emisi + cuaca) dan memproyeksikan kondisi ke depan.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Di Jakarta, kualitas udara bukan masalah statis. Ia berubah cepat dipengaruhi emisi dan kondisi meteorologi. Dengan sensor saja kita tahu angka di titik tertentu, tapi sulit menjelaskan penyebaran dan penyebabnya. Karena itu dibutuhkan Digital Twin yang menggabungkan observasi dan pemodelan untuk analisis dan prediksi.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_2.jpg') }}" alt="Slide 2" />
+            <figcaption>Gambar Slide 2. (File: JAKARTA-Air Quality Digital Twin Project Presentation_2.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s3" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 3) Tujuan & sasaran proyek</h2>
+            <p>Tujuan slide ini: merinci target sistem yang ingin dibangun (operasional, kebijakan, dan layanan publik).</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Monitoring real-time yang konsisten</p>
+                <p class="d">Menyediakan status kualitas udara terkini per wilayah (peta, grafik waktu, ringkasan harian).</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Forecast & early warning</p>
+                <p class="d">Memberikan prediksi polusi (mis. PM2.5) untuk 24–72 jam agar pemerintah dapat melakukan mitigasi lebih cepat.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Decision support</p>
+                <p class="d">Menyediakan modul untuk analisis sumber/kontributor dan simulasi skenario kebijakan (pembatasan kendaraan, pengaturan industri, dsb.).</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Target proyek ini ada tiga: pertama, monitoring real-time yang stabil dan mudah dipahami. Kedua, prediksi dan peringatan dini supaya respons tidak terlambat. Ketiga, decision support—artinya sistem membantu evaluasi kebijakan dan skenario pengendalian polusi.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_3.jpg') }}" alt="Slide 3" />
+            <figcaption>Gambar Slide 3. (File: JAKARTA-Air Quality Digital Twin Project Presentation_3.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s4" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 4) Konsep Digital Twin untuk kualitas udara</h2>
+            <p>Tujuan slide ini: menjelaskan definisi Digital Twin dan bagaimana konsepnya diterapkan pada atmosfer kota.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Definisi sederhana</p>
+                <p class="d">Digital Twin = representasi digital sistem nyata yang terus diperbarui oleh data real-time.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Komponen utama</p>
+                <p class="d">Data observasi (sensor, satelit), data meteorologi, inventori emisi, dan model dispersi/kimia atmosfer.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Loop pembaruan</p>
+                <p class="d">Model dipaksa “dekat dengan kondisi nyata” melalui update data (QC + asimilasi), sehingga hasilnya relevan untuk operasi harian.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Digital Twin adalah kembaran digital yang selalu mengikuti kondisi nyata. Dalam kasus kualitas udara, kita menggabungkan sensor dan meteorologi dengan model penyebaran polutan. Karena ada pembaruan terus-menerus, sistem bisa memberi gambaran yang lebih utuh daripada data titik.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_4.jpg') }}" alt="Slide 4" />
+            <figcaption>Gambar Slide 4. (File: JAKARTA-Air Quality Digital Twin Project Presentation_4.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s5" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 5) Polutan yang dipantau & indikator</h2>
+            <p>Tujuan slide ini: menyebutkan parameter yang jadi fokus dan bagaimana outputnya disajikan agar mudah dipakai.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Polutan utama</p>
+                <p class="d">Umumnya PM2.5/PM10 (partikulat), NO₂, SO₂, O₃, CO—disesuaikan dengan ketersediaan sensor dan kebutuhan regulasi.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Indeks kualitas udara</p>
+                <p class="d">Data polutan diterjemahkan menjadi indeks/kelas (baik–sedang–tidak sehat) untuk komunikasi publik.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Metode ringkasan</p>
+                <p class="d">Tampilkan nilai real-time, rata-rata jam-an, harian, serta tren dan anomali (lonjakan mendadak).</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Slide ini menjelaskan apa yang kita pantau: partikulat dan gas utama. Selain nilai konsentrasi, sistem juga menyajikan indeks agar mudah dipahami publik dan operator. Yang penting: tidak hanya angka, tapi juga tren dan peringatan jika ada lonjakan.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_5.jpg') }}" alt="Slide 5" />
+            <figcaption>Gambar Slide 5. (File: JAKARTA-Air Quality Digital Twin Project Presentation_5.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s6" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 6) Sumber data observasi</h2>
+            <p>Tujuan slide ini: memperlihatkan input data yang digunakan untuk membuat kondisi real-time lebih akurat.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Stasiun referensi & sensor jaringan</p>
+                <p class="d">Menggabungkan stasiun kualitas udara (referensi) dengan sensor tambahan (dense network) untuk resolusi spasial lebih baik.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Data meteorologi permukaan</p>
+                <p class="d">Angin, suhu, kelembapan, hujan—penting untuk interpretasi naik/turunnya polutan.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Data satelit (opsional)</p>
+                <p class="d">Aerosol optical depth/produk terkait dapat membantu ‘mengisi celah’ area yang minim sensor (dengan batasan tertentu).</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Akurasi Digital Twin sangat bergantung pada data input. Karena itu kita gabungkan stasiun referensi dan sensor jaringan agar detail per wilayah meningkat, ditambah data meteorologi yang menentukan penyebaran dan akumulasi polutan.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_6.jpg') }}" alt="Slide 6" />
+            <figcaption>Gambar Slide 6. (File: JAKARTA-Air Quality Digital Twin Project Presentation_6.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s7" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 7) Inventori emisi & sumber polusi</h2>
+            <p>Tujuan slide ini: menjelaskan bahwa model butuh data emisi untuk memahami asal polutan dan simulasi kebijakan.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Kategori sumber</p>
+                <p class="d">Transportasi, industri, pembakaran domestik/komersial, konstruksi, dan sumber alami.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Kenapa inventori emisi penting</p>
+                <p class="d">Tanpa inventori emisi, model sulit memisahkan ‘sebab’ dan hanya mengandalkan korelasi.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Basis untuk skenario</p>
+                <p class="d">Skenario kebijakan (mis. pengurangan emisi transport 10%) bisa diuji dampaknya pada PM2.5/NO₂.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Agar Digital Twin bisa menjawab ‘polusi ini dari mana’, kita perlu inventori emisi. Ini juga kunci untuk simulasi kebijakan—kita bisa tes skenario pengurangan emisi dan melihat dampaknya sebelum diterapkan.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_7.jpg') }}" alt="Slide 7" />
+            <figcaption>Gambar Slide 7. (File: JAKARTA-Air Quality Digital Twin Project Presentation_7.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s8" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 8) Meteorologi sebagai penggerak utama dispersi</h2>
+            <p>Tujuan slide ini: menegaskan bahwa cuaca menentukan kapan polusi menyebar atau ‘terkunci’ di dekat permukaan.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Angin & arah angin</p>
+                <p class="d">Menentukan transport polutan antarkawasan (mis. dari pinggiran ke pusat kota atau sebaliknya).</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Stabilitas atmosfer & boundary layer</p>
+                <p class="d">Saat atmosfer stabil dan boundary layer rendah, polutan mudah menumpuk → risiko episode polusi.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Hujan & pembersihan atmosfer</p>
+                <p class="d">Hujan membantu mengurangi partikulat, tapi dampaknya berbeda per jenis polutan.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Tidak semua episode polusi disebabkan emisi naik. Banyak kasus karena kondisi meteorologi yang membuat polutan ‘terperangkap’. Karena itu Digital Twin harus memasukkan parameter angin, stabilitas, dan boundary layer agar prediksi lebih realistis.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_8.jpg') }}" alt="Slide 8" />
+            <figcaption>Gambar Slide 8. (File: JAKARTA-Air Quality Digital Twin Project Presentation_8.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s9" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 9) Mesin pemodelan: dispersi & kimia atmosfer</h2>
+            <p>Tujuan slide ini: menjelaskan peran model numerik dalam digital twin dan apa yang dihitung oleh model.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Apa yang dimodelkan</p>
+                <p class="d">Pergerakan polutan (adveksi), pencampuran (difusi), deposisi, dan untuk beberapa gas—reaksi kimia (mis. O₃).</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Resolusi & domain</p>
+                <p class="d">Domain mencakup Jakarta dan sekitarnya; resolusi disesuaikan agar cukup detail tapi tetap operasional.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Keluaran model</p>
+                <p class="d">Peta konsentrasi per jam, profil waktu, hotspot, dan prediksi kejadian ekstrem.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Di bagian ini kita jelaskan ‘otak’ Digital Twin: model numerik. Model menghitung bagaimana polutan bergerak, bercampur, dan untuk beberapa senyawa, bereaksi secara kimia. Keluaran model kemudian dipakai untuk peta dan prediksi.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_9.jpg') }}" alt="Slide 9" />
+            <figcaption>Gambar Slide 9. (File: JAKARTA-Air Quality Digital Twin Project Presentation_9.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s10" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 10) Quality Control (QC) & Data Assimilation</h2>
+            <p>Tujuan slide ini: menunjukkan langkah memastikan data dan model tidak ‘melenceng’ (outlier, missing, bias).</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">QC data sensor</p>
+                <p class="d">Deteksi outlier, sensor drift, missing data, dan konsistensi antar-sensor. Data yang buruk akan merusak hasil model.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Bias correction</p>
+                <p class="d">Kalibrasi antara sensor low-cost dan stasiun referensi agar skala konsentrasi konsisten.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Asimilasi data</p>
+                <p class="d">Menggunakan observasi untuk ‘mengoreksi’ keadaan model secara berkala sehingga hasil prediksi lebih dekat kondisi nyata.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Agar Digital Twin dapat dipercaya, ada dua kunci: QC dan asimilasi. QC memastikan data sensor bersih dan konsisten. Asimilasi memastikan model selalu dikoreksi oleh kondisi nyata, sehingga prediksi ke depan tidak menyimpang.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_10.jpg') }}" alt="Slide 10" />
+            <figcaption>Gambar Slide 10. (File: JAKARTA-Air Quality Digital Twin Project Presentation_10.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s11" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 11) Arsitektur sistem end-to-end</h2>
+            <p>Tujuan slide ini: menjelaskan alur sistem dari data masuk → proses → model → dashboard → pengguna.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Data ingestion</p>
+                <p class="d">Mengambil data dari sensor, API, file stream, atau gateway—disatukan ke pipeline yang konsisten.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Processing layer</p>
+                <p class="d">Normalisasi format, QC, penyimpanan (database/time-series), dan penyiapan input model.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Serving & dashboard</p>
+                <p class="d">API untuk peta/grafik, dashboard web, serta export (CSV/PDF) untuk laporan.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Slide ini adalah peta besar sistem. Data masuk melalui ingestion, dibersihkan dan disimpan, lalu dipakai oleh model. Outputnya disajikan via API dan dashboard sehingga operator dan pemangku kebijakan bisa mengakses cepat.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_11.jpg') }}" alt="Slide 11" />
+            <figcaption>Gambar Slide 11. (File: JAKARTA-Air Quality Digital Twin Project Presentation_11.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s12" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 12) Dashboard & visualisasi</h2>
+            <p>Tujuan slide ini: menunjukkan bagaimana pengguna (operator/publik) berinteraksi dengan output sistem.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Peta real-time</p>
+                <p class="d">Heatmap/contour per polutan, layer per wilayah, dan legenda indeks kualitas udara.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Grafik time-series</p>
+                <p class="d">Tren per jam/hari untuk lokasi tertentu, termasuk perbandingan antar-wilayah.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Mode analisis</p>
+                <p class="d">Filter waktu, overlay meteorologi (angin/hujan), dan penanda episode polusi untuk investigasi cepat.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Output utama Digital Twin harus mudah dipakai. Karena itu dashboard menyediakan peta real-time dan grafik tren. Operator bisa memfilter waktu, memilih lokasi, dan melihat overlay meteorologi untuk memahami penyebab perubahan kualitas udara.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_12.jpg') }}" alt="Slide 12" />
+            <figcaption>Gambar Slide 12. (File: JAKARTA-Air Quality Digital Twin Project Presentation_12.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s13" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 13) Use case: Early warning & operasi harian</h2>
+            <p>Tujuan slide ini: menghubungkan sistem ke kebutuhan operasional nyata (peringatan dini, SOP, komunikasi).</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Peringatan dini</p>
+                <p class="d">Notifikasi ketika prediksi melampaui ambang tertentu (mis. PM2.5 tinggi) dalam 6–24 jam ke depan.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Dukungan SOP</p>
+                <p class="d">Membantu menentukan langkah mitigasi: penyemprotan jalan, pengaturan lalu lintas, advis kesehatan.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Komunikasi publik</p>
+                <p class="d">Menyediakan informasi yang konsisten dan mudah dipahami (status, rekomendasi aktivitas).</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Ini contoh pemakaian paling nyata: early warning. Ketika sistem memprediksi kualitas udara memburuk, pemerintah bisa menyiapkan mitigasi dan komunikasi publik lebih cepat. Digital Twin membuat respons menjadi proaktif, bukan reaktif.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_13.jpg') }}" alt="Slide 13" />
+            <figcaption>Gambar Slide 13. (File: JAKARTA-Air Quality Digital Twin Project Presentation_13.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s14" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 14) Use case: evaluasi kebijakan (what-if)</h2>
+            <p>Tujuan slide ini: menjelaskan kemampuan simulasi skenario untuk menilai dampak kebijakan sebelum diterapkan.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Skenario emisi</p>
+                <p class="d">Contoh: pengurangan emisi transport 10–30%, pembatasan kendaraan di zona tertentu, atau kontrol emisi industri.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Output evaluasi</p>
+                <p class="d">Bandingkan baseline vs skenario: perubahan konsentrasi PM2.5/NO₂ dan jumlah hari ‘tidak sehat’.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Mendukung kebijakan berbasis bukti</p>
+                <p class="d">Hasil simulasi bisa menjadi bahan rapat kebijakan dan pelaporan dampak program.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Fitur yang membedakan Digital Twin adalah kemampuan what-if. Kita bisa mensimulasikan kebijakan, misalnya pengurangan emisi transport, lalu melihat dampaknya pada polutan utama. Ini membantu pengambilan keputusan yang lebih terukur dan berbasis data.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_14.jpg') }}" alt="Slide 14" />
+            <figcaption>Gambar Slide 14. (File: JAKARTA-Air Quality Digital Twin Project Presentation_14.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s15" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 15) Tahapan implementasi & roadmap</h2>
+            <p>Tujuan slide ini: menjelaskan fase pekerjaan dari pilot hingga operasional penuh.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Fase 1 – Pilot</p>
+                <p class="d">Setup pipeline data, dashboard dasar, QC awal, dan validasi di area prioritas.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Fase 2 – Integrasi model</p>
+                <p class="d">Menjalankan model operasional, asimilasi, dan forecast + early warning.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Fase 3 – Skalasi & kebijakan</p>
+                <p class="d">Perluasan sensor, peningkatan resolusi, modul what-if, dan integrasi dengan workflow pemerintah.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Roadmap dibuat bertahap supaya cepat menghasilkan manfaat. Mulai dari pilot monitoring yang stabil, lalu integrasi model untuk forecast, dan terakhir skalasi serta modul kebijakan. Dengan tahapan ini, sistem bisa deliver value sejak awal.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_15.jpg') }}" alt="Slide 15" />
+            <figcaption>Gambar Slide 15. (File: JAKARTA-Air Quality Digital Twin Project Presentation_15.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s16" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 16) Governance, stakeholder, dan keberlanjutan</h2>
+            <p>Tujuan slide ini: memastikan sistem dapat dipakai jangka panjang (operasional, pemeliharaan, peran pihak terkait).</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Peran stakeholder</p>
+                <p class="d">Operator data & dashboard, tim model, tim IT/infra, dan pemangku kebijakan (pemilik kebutuhan).</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">SLA & maintenance</p>
+                <p class="d">Atur standar uptime, jadwal kalibrasi sensor, prosedur penanganan data hilang, dan versi model.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Transparansi & audit</p>
+                <p class="d">Log perubahan konfigurasi, histori data, dan dokumentasi supaya hasil dapat ditelusuri.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Agar Digital Twin berkelanjutan, kita perlu governance yang jelas. Siapa mengoperasikan, siapa menjaga sensor, siapa memelihara model, dan bagaimana standar layanan dijaga. Dengan transparansi dan audit trail, sistem lebih dipercaya dan mudah dikembangkan.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_16.jpg') }}" alt="Slide 16" />
+            <figcaption>Gambar Slide 16. (File: JAKARTA-Air Quality Digital Twin Project Presentation_16.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+      <section id="s17" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Slide 17) Kesimpulan & nilai tambah</h2>
+            <p>Tujuan slide ini: menutup dengan ringkasan manfaat dan ajakan next step.</p>
+          </div>
+          <div class="chip">AQT Twin</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Ringkasan nilai utama</p>
+                <p class="d">Digital Twin mengubah monitoring menjadi prediktif: peta real-time + forecast + decision support.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Manfaat langsung</p>
+                <p class="d">Early warning, investigasi episode polusi, dan dukungan kebijakan berbasis bukti.</p>
+              </div>
+            </div>
+        
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">Next step</p>
+                <p class="d">Finalisasi integrasi data, pilot operasional, definisi KPI (akurasi, latency, coverage), dan rencana skalasi.</p>
+              </div>
+            </div>
+        
+          </div>
+
+          <div class="callout" style="margin-top:12px">
+            <strong>Narasi singkat (±30–45 detik):</strong><br>
+            “Sebagai penutup, Digital Twin memberi nilai tambah karena menggabungkan data dan model sehingga kita bisa memantau, memprediksi, dan mengevaluasi kebijakan. Langkah selanjutnya adalah memastikan pipeline stabil, menjalankan pilot, dan menetapkan KPI agar sistem dapat dioperasikan secara konsisten.”
+          </div>
+
+          
+
+          <figure style="margin-top:14px">
+            <img class="shot" src="{{ url_for('static', filename='manual/twincityjakarta/slides/JAKARTA-Air Quality Digital Twin Project Presentation_17.jpg') }}" alt="Slide 17" />
+            <figcaption>Gambar Slide 17. (File: JAKARTA-Air Quality Digital Twin Project Presentation_17.jpg)</figcaption>
+          </figure>
+        </div>
+      </section>
+    
+    </main>
+  </div>
+
+  <div class="footer">
+    © Terrindo Bumi Raya · Jakarta Air Quality Digital Twin Manual · Print-ready (A4 via browser print).
+  </div>
+</body>
+</html>

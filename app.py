@@ -1,5 +1,6 @@
 from flask import Flask, redirect, url_for
 from xweather_manual_routes import xweather_manual_bp
+from twincityjakarta_manual_routes import twincityjakarta_manual_bp
 
 
 def create_app():
@@ -9,6 +10,7 @@ def create_app():
     app.config["TEMPLATES_AUTO_RELOAD"] = True
 
     app.register_blueprint(xweather_manual_bp)
+    app.register_blueprint(twincityjakarta_manual_bp)
 
     @app.route("/")
     def index():
@@ -17,5 +19,10 @@ def create_app():
     @app.route("/xweather/manual.pdf", endpoint="xweather_manual_pdf")
     def xweather_manual_pdf_alias():
         return redirect(url_for("xweather_manual.xweather_manual_pdf"))
+
+    @app.route("/twincityjakarta/manual.pdf", endpoint="twincityjakarta_manual_pdf")
+    def twincityjakarta_manual_pdf_alias():
+        return redirect(url_for("twincityjakarta_manual.twincityjakarta_manual_pdf"))
+
 
     return app
