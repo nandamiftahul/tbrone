@@ -418,7 +418,7 @@
         <a href="#alerts"><div class="badge">2</div><div class="meta"><strong>Menambahkan Alert</strong><span>Set ring Info/Warning/Alarm + forecast</span></div></a>
 
         <!-- ✅ Tambahan: Page Menambahkan User -->
-        <a href="#user"><div class="badge">U</div><div class="meta"><strong>Menambahkan User</strong><span>Membuat akun user & role (Admin/User)</span></div></a>
+        <a href="#user"><div class="badge">U</div><div class="meta"><strong>Menambahkan User</strong><span>Membuat akun user, role, dan verifikasi email</span></div></a>
 
         <a href="#monitor"><div class="badge">3</div><div class="meta"><strong>Monitoring Alarm</strong><span>Melihat status, klik petir, unduh CSV</span></div></a>
         <a href="#replay"><div class="badge">4</div><div class="meta"><strong>Replay Manual</strong><span>7-day replay, timeline, play/pause</span></div></a>
@@ -635,12 +635,12 @@
         </div>
       </section>
 
-      <!-- ✅ NEW: ADD USER -->
+      <!-- ✅ UPDATED: ADD USER + VERIFICATION (only this part changed) -->
       <section id="user" class="card">
         <div class="card-head">
           <div>
-            <h2>Menambahkan User (User Management)</h2>
-            <p>Menambahkan akun user baru, mengatur role (Admin/User), dan memastikan user bisa akses map/asset/alert sesuai kewenangan.</p>
+            <h2>Menambahkan User (User Management) + Verifikasi Email</h2>
+            <p>Menambahkan akun user baru, mengatur role (Admin/User), lalu memandu proses verifikasi email sampai user berhasil login.</p>
           </div>
           <div class="chip">Users</div>
         </div>
@@ -657,6 +657,7 @@
                 </p>
               </div>
             </div>
+
             <div class="step">
               <div class="n">2</div>
               <div>
@@ -664,13 +665,26 @@
                 <p class="d">
                   Pada form <span class="kbd">Add user</span>, isi:
                   <span class="kbd">Name</span> (nama user),
-                  <span class="kbd">Email</span> (email login),
+                  <span class="kbd">Email</span> (email yang akan dipakai login),
                   dan pilih <span class="kbd">Role</span> (mis. Admin/User).
                 </p>
               </div>
             </div>
+
             <div class="step">
               <div class="n">3</div>
+              <div>
+                <p class="t">Pilih <span class="kbd">Role</span> yang sesuai (Admin/User)</p>
+                <p class="d">
+                  Klik dropdown <span class="kbd">Role</span> → pilih:
+                  <span class="kbd">Admin</span> (bisa manage asset/alert/users) atau
+                  <span class="kbd">User</span> (umumnya untuk monitoring & akses terbatas, tergantung kebijakan platform).
+                </p>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="n">4</div>
               <div>
                 <p class="t">(Opsional) Tambah lebih dari 1 user sekaligus</p>
                 <p class="d">
@@ -679,18 +693,75 @@
                 </p>
               </div>
             </div>
+
             <div class="step">
-              <div class="n">4</div>
+              <div class="n">5</div>
               <div>
-                <p class="t">Klik <span class="kbd">Review</span> → simpan</p>
+                <p class="t">Klik <span class="kbd">Review</span> → cek ulang data</p>
                 <p class="d">
                   Setelah semua data terisi, klik tombol <span class="kbd">Review</span> (bagian bawah).
-                  Pastikan data benar, lalu submit/simpan sampai selesai.
+                  Pastikan nama, email, dan role sudah benar sebelum mengirim undangan.
+                </p>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="n">6</div>
+              <div>
+                <p class="t">Klik <span class="kbd">Send invites</span> / submit undangan</p>
+                <p class="d">
+                  Pada halaman Review, klik <span class="kbd">Send invites</span>.
+                  Sistem akan mengirim email verifikasi/aktivasi ke alamat email user yang didaftarkan.
+                </p>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="n">7</div>
+              <div>
+                <p class="t">User membuka email undangan dari Xweather</p>
+                <p class="d">
+                  Minta user membuka inbox email → cari email dari <span class="kbd">Vaisala Xweather</span>
+                  dengan subject verifikasi (contoh: “Please confirm your email address”).
+                </p>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="n">8</div>
+              <div>
+                <p class="t">Klik link <span class="kbd">Verify email</span> di dalam email</p>
+                <p class="d">
+                  Di body email undangan, klik <span class="kbd">Verify email</span>.
+                  Browser akan membuka halaman konfirmasi bahwa email user valid.
+                </p>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="n">9</div>
+              <div>
+                <p class="t">Pastikan muncul halaman “Congratulations / email confirmed”</p>
+                <p class="d">
+                  Jika verifikasi sukses, akan muncul halaman konfirmasi.
+                  Setelah itu klik <span class="kbd">Login now</span> untuk masuk ke platform.
+                </p>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="n">10</div>
+              <div>
+                <p class="t">Login ke platform Xweather</p>
+                <p class="d">
+                  Pada halaman login, user memasukkan email yang tadi didaftarkan → klik <span class="kbd">Continue</span>
+                  dan lanjut sesuai metode autentikasi yang digunakan (SSO/password).
                 </p>
               </div>
             </div>
           </div>
 
+          <!-- Images (user add) -->
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px">
             <figure>
               <img class="shot" src="{{ url_for('static', filename='manual/xweather/User2.png') }}" alt="User2" />
@@ -702,8 +773,57 @@
             </figure>
           </div>
 
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User3.png') }}" alt="User3" />
+              <figcaption>Gambar U.3. Contoh pengisian Name, Email, dan pilihan Role.</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User4.png') }}" alt="User4" />
+              <figcaption>Gambar U.4. Dropdown Role (Admin/User) untuk menentukan hak akses.</figcaption>
+            </figure>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User6.png') }}" alt="User6" />
+              <figcaption>Gambar U.5. Halaman Review untuk cek ulang data sebelum undangan dikirim.</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User7.png') }}" alt="User7" />
+              <figcaption>Gambar U.6. Contoh inbox: email undangan/verifikasi dari Vaisala Xweather masuk ke Gmail.</figcaption>
+            </figure>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User8.png') }}" alt="User8" />
+              <figcaption>Gambar U.7. Isi email undangan: klik link <b>Verify email</b> untuk aktivasi.</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User5.png') }}" alt="User5" />
+              <figcaption>Gambar U.8. Konfirmasi verifikasi berhasil (“Congratulations / email confirmed”).</figcaption>
+            </figure>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User9.png') }}" alt="User9" />
+              <figcaption>Gambar U.9. Halaman login Xweather: masukkan email user → <b>Continue</b>.</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User6.png') }}" alt="User6b" />
+              <figcaption>Gambar U.10. (Referensi) Review lagi jika diperlukan sebelum mengirim ulang invite.</figcaption>
+            </figure>
+          </div>
+
           <div class="callout">
-            <strong>Catatan:</strong> Role menentukan akses. Jika user hanya perlu monitoring (tanpa edit asset/alert), gunakan role yang paling terbatas sesuai kebijakan internal.
+            <strong>Catatan:</strong> Jika user tidak menerima email, cek folder <strong>Spam/Promotions</strong> dan pastikan domain email tidak memblokir email eksternal.
+            Jika tetap tidak masuk, lakukan <strong>re-invite</strong> dari User management (Admin).
+          </div>
+
+          <div class="callout">
+            <strong>Catatan akses:</strong> Role menentukan hak akses. Jika user hanya butuh monitoring (tanpa edit asset/alert/users), gunakan role paling terbatas sesuai kebijakan internal.
           </div>
         </div>
       </section>
