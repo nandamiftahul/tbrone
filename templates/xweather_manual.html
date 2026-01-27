@@ -45,6 +45,7 @@
       background: rgba(0, 58, 143, .94);
       backdrop-filter: blur(8px);
       border-bottom: 1px solid rgba(255,255,255,.15);
+      gap: 12px;
     }
     .brand{
       display:flex;
@@ -222,7 +223,7 @@
     .card .card-head p{
       margin:6px 0 0;
       font-size:12px;
-      color: var(--muted);
+      color:var(--muted);
       line-height:1.5;
     }
     .chip{
@@ -327,6 +328,23 @@
       text-align:center;
     }
 
+    /* ✅ Mobile friendly (tambahan) */
+    @media (max-width: 640px){
+      .topbar{ padding: 12px 12px; }
+      .brand{ min-width: 0; }
+      .brand img{ height:28px; }
+      .brand .title strong{ font-size:13px; }
+      .brand .title span{ font-size:11.5px; }
+      .btn{ padding: 9px 10px; font-size:12.5px; border-radius: 11px; }
+      .wrap{ padding: 12px; gap: 12px; }
+      .card .card-head{ padding: 14px 14px; }
+      .card .body{ padding: 14px 14px 16px; }
+      .step{ grid-template-columns: 1fr; }
+      .step .n{ width:32px; height:32px; border-radius: 11px; }
+      .nav a{ padding: 10px 10px; }
+      .badge{ min-width:24px; height:24px; border-radius: 8px; font-size:11px; }
+    }
+
     /* Print / PDF */
     @media print{
       body{ background:#fff; }
@@ -371,6 +389,10 @@
         <a href="#quick"><div class="badge">0</div><div class="meta"><strong>Quick Start</strong><span>Gambaran menu & tombol penting</span></div></a>
         <a href="#asset"><div class="badge">1</div><div class="meta"><strong>Menambahkan Asset</strong><span>Membuat protected asset (circle/area)</span></div></a>
         <a href="#alerts"><div class="badge">2</div><div class="meta"><strong>Menambahkan Alert</strong><span>Set ring Info/Warning/Alarm + forecast</span></div></a>
+
+        <!-- ✅ Tambahan: Page Menambahkan User -->
+        <a href="#user"><div class="badge">U</div><div class="meta"><strong>Menambahkan User</strong><span>Membuat akun user & role (Admin/User)</span></div></a>
+
         <a href="#monitor"><div class="badge">3</div><div class="meta"><strong>Monitoring Alarm</strong><span>Melihat status, klik petir, unduh CSV</span></div></a>
         <a href="#replay"><div class="badge">4</div><div class="meta"><strong>Replay Manual</strong><span>7-day replay, timeline, play/pause</span></div></a>
         <a href="#extras"><div class="badge">5</div><div class="meta"><strong>Fitur Tambahan</strong><span>Notifikasi, filter event, best practice</span></div></a>
@@ -582,6 +604,79 @@
 
           <div class="callout">
             <strong>Best practice:</strong> Gunakan radius ring mengikuti SOP keselamatan. Clear time umum (contoh 15 menit) memastikan status kembali "clear" setelah periode tanpa event petir.
+          </div>
+        </div>
+      </section>
+
+      <!-- ✅ NEW: ADD USER -->
+      <section id="user" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Menambahkan User (User Management)</h2>
+            <p>Menambahkan akun user baru, mengatur role (Admin/User), dan memastikan user bisa akses map/asset/alert sesuai kewenangan.</p>
+          </div>
+          <div class="chip">Users</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step">
+              <div class="n">1</div>
+              <div>
+                <p class="t">Buka menu <span class="kbd">Add</span> → pilih <span class="kbd">User</span></p>
+                <p class="d">
+                  Dari halaman Map, klik tombol <span class="kbd">Add</span> (pojok kiri atas).
+                  Pada dropdown, klik <span class="kbd">User</span> untuk membuka form penambahan user.
+                  (Jika ingin melihat daftar akun yang sudah ada, pilih <span class="kbd">User list</span>.)
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">2</div>
+              <div>
+                <p class="t">Isi data user (Name, Email, Role)</p>
+                <p class="d">
+                  Pada form <span class="kbd">Add user</span>, isi:
+                  <span class="kbd">Name</span> (nama user),
+                  <span class="kbd">Email</span> (email login),
+                  dan pilih <span class="kbd">Role</span> (mis. Admin/User).
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">3</div>
+              <div>
+                <p class="t">(Opsional) Tambah lebih dari 1 user sekaligus</p>
+                <p class="d">
+                  Jika ingin menambahkan beberapa akun sekaligus, klik <span class="kbd">Add another user</span>
+                  lalu isi baris berikutnya (name/email/role).
+                </p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="n">4</div>
+              <div>
+                <p class="t">Klik <span class="kbd">Review</span> → simpan</p>
+                <p class="d">
+                  Setelah semua data terisi, klik tombol <span class="kbd">Review</span> (bagian bawah).
+                  Pastikan data benar, lalu submit/simpan sampai selesai.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px">
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User2.png') }}" alt="User2" />
+              <figcaption>Gambar U.1. Menu Add → pilihan User dan User list.</figcaption>
+            </figure>
+            <figure>
+              <img class="shot" src="{{ url_for('static', filename='manual/xweather/User1.png') }}" alt="User1" />
+              <figcaption>Gambar U.2. Form Add user untuk input Name, Email, dan Role.</figcaption>
+            </figure>
+          </div>
+
+          <div class="callout">
+            <strong>Catatan:</strong> Role menentukan akses. Jika user hanya perlu monitoring (tanpa edit asset/alert), gunakan role yang paling terbatas sesuai kebijakan internal.
           </div>
         </div>
       </section>
