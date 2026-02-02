@@ -303,12 +303,11 @@ def api_import_monthly_report_csv():
         return jsonify({"ok": False, "error": "mode must be append or replace"}), 400
 
     filename = f.filename.lower()
-
-    # =========================
-    # READ DATA (CSV or XLSX)
-    # =========================
     rows_data = []
 
+    # =========================
+    # READ FILE
+    # =========================
     if filename.endswith(".csv"):
         raw = f.read()
         try:
@@ -326,17 +325,12 @@ def api_import_monthly_report_csv():
         wb = load_workbook(f, data_only=True)
         ws = wb.active
 
-        headers = []
-        for c in ws[1]:
-            headers.append(str(c.value).strip() if c.value else "")
-
+        headers = [str(c.value).strip() if c.value else "" for c in ws[1]]
         if not headers or not headers[0]:
             return jsonify({"ok": False, "error": "Excel header row missing"}), 400
 
         for r in ws.iter_rows(min_row=2, values_only=True):
-            row = {}
-            for i, h in enumerate(headers):
-                row[h] = r[i] if i < len(r) else None
+            row = {headers[i]: r[i] if i < len(r) else None for i in range(len(headers))}
             rows_data.append(row)
 
     else:
@@ -344,5 +338,95 @@ def api_import_monthly_report_csv():
             "ok": False,
             "error": "Unsupported file type. Use CSV, XLS, or XLSX"
         }), 400
+
+    # =========================
+    # HEADER MAPPING
+    # =========================
+    if not rows_data:
+        return jsonify({"ok": False, "error": "No data rows found"}), 400
+
+    header_map = {k.strip().lower(): k for k in rows_data[0].keys()}
+
+    def h(*names):
+        for n in names:
+            if n.lower() in header_map:
+                return header_map[n.lower()]
+        return None
+
+    H_SEV = h("Severity")
+    H_ASSET = h("Asset name", "Asset")
+    H_EXT = h("Extent (km)", "Extent")
+    H_FIRST = h("First event time")
+    H_ACTIVE = h("Active time")
+    H_LAST = h("Last event time")
+    H_CLEAR = h("Clear time")
+    H_DUR = h("Duration (min)", "Duration")
+    H_KA = h("Strength (kA)", "Strength")
+    H_TYPE = h("Type", "Event type")
+
+    if not H_SEV or not H_ASSET:
+        return jsonify({
+            "ok": False,
+            "error": "CSV/Excel must contain at least: Severity, Asset name"
+        }), 400
+
+    def to_float(v):
+        try: return float(v)
+        except: return None
+
+    def to_int(v):
+        try: return int(float(v))
+        except: return None
+
+    db = get_db()
+
+    if mode == "replace":
+        db.execute("DELETE FROM monthly_lightning_alerts WHERE report_month = ?", (report_month,))
+        db.commit()
+
+    inserted, skipped = 0, 0
+
+    try:
+        db.execute("BEGIN")
+        for row in rows_data:
+            asset = str(row.get(H_ASSET) or "").strip()
+            if not asset:
+                skipped += 1
+                continue
+
+            db.execute("""
+                INSERT INTO monthly_lightning_alerts(
+                    report_month, severity, asset_name, extent_km,
+                    first_event_time, active_time, last_event_time, clear_time,
+                    duration_min, strength_ka, event_type, created_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                report_month,
+                _norm_sev(row.get(H_SEV)),
+                asset,
+                to_float(row.get(H_EXT)),
+                str(row.get(H_FIRST) or "").strip(),
+                str(row.get(H_ACTIVE) or "").strip(),
+                str(row.get(H_LAST) or "").strip(),
+                str(row.get(H_CLEAR) or "").strip(),
+                to_int(row.get(H_DUR)),
+                to_float(row.get(H_KA)),
+                str(row.get(H_TYPE) or "").strip(),
+                _now_iso()
+            ))
+            inserted += 1
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return jsonify({"ok": False, "error": f"import failed: {e}"}), 500
+
+    return jsonify({
+        "ok": True,
+        "mode": mode,
+        "report_month": report_month,
+        "inserted": inserted,
+        "skipped": skipped
+    })
 
 
