@@ -1,7 +1,7 @@
 from flask import Flask, redirect, url_for
 from xweather_manual_routes import xweather_manual_bp
 from twincityjakarta_manual_routes import twincityjakarta_manual_bp
-from xweather_report_routes import xweather_report_bp
+#from xweather_report_routes import xweather_report_bp
 from xweather_monthly_report_sqlite_routes import xweather_report_bp
 
 
