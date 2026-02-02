@@ -115,18 +115,20 @@
       display:grid; place-items:center;
       font-weight:800; font-size:12px; color:#fff;
       background:var(--xw-blue);
+      flex: 0 0 auto;
     }
     .nav a .meta{display:flex; flex-direction:column; gap:3px;}
     .nav a .meta strong{font-size:13px;}
     .nav a .meta span{font-size:12px; color:var(--muted); line-height:1.35;}
 
-    .content{display:flex; flex-direction:column; gap:14px;}
+    .content{display:flex; flex-direction:column; gap:14px; min-width:0;}
     .card{
       background:var(--card);
       border:1px solid var(--border);
       border-radius:var(--radius);
       box-shadow:var(--shadow);
       overflow:hidden;
+      min-width:0;
     }
     .card .card-head{
       padding:16px 18px;
@@ -146,6 +148,7 @@
       font-weight:700;
       white-space:nowrap;
       height:fit-content;
+      flex:0 0 auto;
     }
     .card .body{padding:16px 18px 18px;}
 
@@ -158,6 +161,7 @@
       font-size:13px;
       outline:none;
       background:#fff;
+      width:100%;
     }
     .input:focus{border-color:rgba(0,58,143,.25); box-shadow:0 10px 22px rgba(0,58,143,.08);}
 
@@ -166,16 +170,18 @@
       align-items:flex-end; justify-content:space-between;
       margin-bottom:12px;
     }
-    .left-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+    .left-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; min-width:0;}
     .right-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
 
     .table-wrap{
       overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
       border:1px solid var(--border);
       border-radius:14px;
       background:#fff;
+      max-width:100%;
     }
-    table.report-table{width:100%; border-collapse:collapse; font-size:13px;}
+    table.report-table{width:100%; border-collapse:collapse; font-size:13px; min-width:1100px;}
     .report-table th,.report-table td{
       border-bottom:1px solid rgba(17,24,39,.08);
       padding:10px 10px; text-align:center; white-space:nowrap;
@@ -272,6 +278,7 @@
       border-top:1px solid var(--border);
       display:flex; justify-content:flex-end; gap:10px; align-items:center;
       background:#fff;
+      flex-wrap:wrap;
     }
 
     .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
@@ -301,14 +308,112 @@
       position: relative;
       overflow: hidden;
     }
-    
     .upload-btn input[type="file"]{
       position: absolute;
       inset: 0;
       opacity: 0;
       cursor: pointer;
     }
-    
+
+    /* ✅ MOBILE IMPROVEMENTS ONLY */
+    @media (max-width: 640px){
+      .topbar{
+        padding: 10px 12px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .brand{ min-width: 0; width: 100%; }
+      .brand img{ height:28px; flex:0 0 auto; }
+      .brand .title{ min-width:0; }
+      .brand .title strong,
+      .brand .title span{
+        display:block;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+      .brand .title strong{ font-size:13px; }
+      .brand .title span{ font-size:11.5px; }
+
+      .top-actions{
+        width:100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 8px;
+        justify-content: flex-start;
+        padding-bottom: 2px;
+      }
+      .top-actions::-webkit-scrollbar{ height:0; }
+
+      .btn{
+        padding: 9px 10px;
+        font-size:12.5px;
+        border-radius: 11px;
+        flex:0 0 auto;
+      }
+
+      .wrap{ padding: 12px; gap: 12px; }
+      .card .card-head{
+        padding: 12px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .card .body{ padding: 12px 12px 14px; }
+
+      .row-actions{
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .left-actions{
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .right-actions{
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        align-items: stretch;
+      }
+      .right-actions .btn,
+      .right-actions a.btn{
+        width: 100%;
+        justify-content: center;
+      }
+      .right-actions .upload-btn{
+        width: 100%;
+        justify-content: center;
+        display: inline-flex;
+      }
+
+      .field{ min-width: 0 !important; width: 100%; }
+
+      .report-table th,.report-table td{
+        padding: 9px 8px;
+        font-size: 12.5px;
+      }
+
+      .modal-backdrop{ padding: 12px; }
+      .modal .mh{ padding: 12px 12px; }
+      .modal .mb{ padding: 12px 12px 14px; }
+      .modal .mf{
+        padding: 12px 12px;
+        justify-content: stretch;
+      }
+      .modal .mf .btn{
+        width: 100%;
+        justify-content: center;
+      }
+    }
+    @media (max-width: 380px){
+      .right-actions{ grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 
@@ -383,17 +488,17 @@
             </div>        
             <div class="right-actions">
               <button class="btn" onclick="loadMonth()">🔄 Load</button>
-            
-              <!-- ✅ Upload CSV -->
-              <div class="btn upload-btn">
-                ⬆ Upload CSV / Excel
-                <input
-                  id="csvFile"
-                  type="file"
-                  accept=".csv,.xls,.xlsx"
-                  onchange="uploadCSV(event)">
-              </div>
-            
+
+<div class="btn upload-btn">
+  <span class="upload-icon">📤</span>
+  <span class="upload-text">Upload CSV / Excel</span>
+  <input
+    id="csvFile"
+    type="file"
+    accept=".csv,.xls,.xlsx"
+    onchange="uploadCSV(event)">
+</div>
+
               <button class="btn primary" onclick="openModalNew()">＋ Add Row</button>
               <a class="btn primary" id="btnCsv" href="#">⬇ Download CSV</a>
             </div>
@@ -435,7 +540,6 @@
     © Terrindo Bumi Raya · Xweather Monthly Report Editor · SQLite-backed.
   </div>
 
-  <!-- Modal -->
   <div class="modal-backdrop" id="modalBackdrop" onclick="closeModalIfBackdrop(event)">
     <div class="modal" onclick="event.stopPropagation()">
       <div class="mh">
@@ -516,9 +620,6 @@
   </div>
 
   <script>
-    // =========================
-    // State
-    // =========================
     let rows = [];
     let editingId = null;
 
@@ -544,9 +645,6 @@
       document.getElementById("btnCsvTop").href = url;
     }
 
-    // =========================
-    // Load month
-    // =========================
     async function loadMonth(){
       const month = document.getElementById("month").value.trim();
       if (!month){
@@ -565,9 +663,6 @@
       render();
     }
 
-    // =========================
-    // Render
-    // =========================
     function renderAssetFilter(){
       const select = document.getElementById("filterAsset");
       const current = select.value;
@@ -605,9 +700,6 @@
       applyFilters();
     }
 
-    // =========================
-    // Filters
-    // =========================
     function applyFilters(){
       const q = norm(document.getElementById("q").value);
       const sev = norm(document.getElementById("filterSev").value);
@@ -633,9 +725,6 @@
       document.getElementById("rowCount").innerText = `Rows shown: ${shown} / ${trs.length}`;
     }
 
-    // =========================
-    // Modal
-    // =========================
     function openModal(){ document.getElementById("modalBackdrop").style.display = "flex"; }
     function closeModal(){ document.getElementById("modalBackdrop").style.display = "none"; }
     function closeModalIfBackdrop(e){ if (e.target && e.target.id === "modalBackdrop") closeModal(); }
@@ -684,9 +773,6 @@
       openModal();
     }
 
-    // =========================
-    // CRUD (API)
-    // =========================
     async function saveModal(){
       const month = document.getElementById("month").value.trim();
       if (!month){
@@ -699,10 +785,7 @@
         return;
       }
 
-      const payload = {
-        report_month: month,
-        ...f
-      };
+      const payload = { report_month: month, ...f };
 
       let res, js;
       if (editingId === null){
@@ -744,9 +827,6 @@
       await loadMonth();
     }
 
-    // =========================
-    // Init default month (current UTC YYYY-MM)
-    // =========================
     (function init(){
       const d = new Date();
       const y = d.getUTCFullYear();
@@ -757,57 +837,55 @@
       loadMonth();
     })();
 
-  async function uploadCSV(event){
-    const file = event.target.files?.[0];
-    if (!file) return;
+    async function uploadCSV(event){
+      const file = event.target.files?.[0];
+      if (!file) return;
 
-    const month = document.getElementById("month").value.trim();
-    if (!month){
-      alert("Please input month (YYYY-MM) first.");
-      event.target.value = "";
-      return;
-    }
-
-    // pilih mode
-    const replace = confirm(
-      "Upload mode:\n\nOK = REPLACE (hapus data bulan ini lalu isi dari CSV)\nCancel = APPEND (tambah ke data bulan ini)"
-    );
-    const mode = replace ? "replace" : "append";
-
-    const statusEl = document.getElementById("importStatus");
-    if (statusEl) statusEl.innerText = "Uploading CSV...";
-
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("report_month", month);
-    fd.append("mode", mode);
-
-    try{
-      const res = await fetch("/api/xweather/monthly-report/import-csv", {
-        method: "POST",
-        body: fd
-      });
-      const js = await res.json();
-      if (!js.ok){
-        alert(js.error || "Upload failed");
-        if (statusEl) statusEl.innerText = "";
+      const month = document.getElementById("month").value.trim();
+      if (!month){
+        alert("Please input month (YYYY-MM) first.");
         event.target.value = "";
         return;
       }
 
-      if (statusEl){
-        statusEl.innerText = `✅ Import success (${js.mode}) — inserted: ${js.inserted}, skipped: ${js.skipped}`;
-      }
+      const replace = confirm(
+        "Upload mode:\n\nOK = REPLACE (hapus data bulan ini lalu isi dari CSV)\nCancel = APPEND (tambah ke data bulan ini)"
+      );
+      const mode = replace ? "replace" : "append";
 
-      // reload tabel bulan ini
-      await loadMonth();
-    }catch(e){
-      alert("Upload failed: " + e);
-      if (statusEl) statusEl.innerText = "";
-    }finally{
-      event.target.value = "";
+      const statusEl = document.getElementById("importStatus");
+      if (statusEl) statusEl.innerText = "Uploading CSV...";
+
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("report_month", month);
+      fd.append("mode", mode);
+
+      try{
+        const res = await fetch("/api/xweather/monthly-report/import-csv", {
+          method: "POST",
+          body: fd
+        });
+        const js = await res.json();
+        if (!js.ok){
+          alert(js.error || "Upload failed");
+          if (statusEl) statusEl.innerText = "";
+          event.target.value = "";
+          return;
+        }
+
+        if (statusEl){
+          statusEl.innerText = `✅ Import success (${js.mode}) — inserted: ${js.inserted}, skipped: ${js.skipped}`;
+        }
+
+        await loadMonth();
+      }catch(e){
+        alert("Upload failed: " + e);
+        if (statusEl) statusEl.innerText = "";
+      }finally{
+        event.target.value = "";
+      }
     }
-  }
   </script>
 </body>
 </html>
