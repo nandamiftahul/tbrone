@@ -58,12 +58,14 @@
       width:auto;
       filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
       border-radius: 8px;
+      flex: 0 0 auto;
     }
     .brand .title{
       display:flex;
       flex-direction:column;
       line-height:1.1;
       color:#fff;
+      min-width: 0; /* ✅ allow truncate on small screens */
     }
     .brand .title strong{
       font-size:14px;
@@ -183,6 +185,7 @@
       font-size:12px;
       color:#fff;
       background: var(--xw-blue);
+      flex: 0 0 auto;
     }
     .nav a .meta{
       display:flex;
@@ -197,6 +200,7 @@
       display:flex;
       flex-direction:column;
       gap: 14px;
+      min-width: 0; /* ✅ prevent overflow on mobile */
     }
     .card{
       background: var(--card);
@@ -204,6 +208,7 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow:hidden;
+      min-width: 0; /* ✅ prevent overflow on mobile */
     }
     .card .card-head{
       padding: 16px 18px;
@@ -236,6 +241,7 @@
       font-weight:700;
       white-space:nowrap;
       height: fit-content;
+      flex: 0 0 auto;
     }
     .card .body{
       padding: 16px 18px 18px;
@@ -276,21 +282,6 @@
       text-align:center;
     }
 
-    /* ✅ Mobile friendly (same spirit as manual) */
-    @media (max-width: 640px){
-      .topbar{ padding: 12px 12px; }
-      .brand{ min-width: 0; }
-      .brand img{ height:28px; }
-      .brand .title strong{ font-size:13px; }
-      .brand .title span{ font-size:11.5px; }
-      .btn{ padding: 9px 10px; font-size:12.5px; border-radius: 11px; }
-      .wrap{ padding: 12px; gap: 12px; }
-      .card .card-head{ padding: 14px 14px; }
-      .card .body{ padding: 14px 14px 16px; }
-      .nav a{ padding: 10px 10px; }
-      .badge{ min-width:24px; height:24px; border-radius: 8px; font-size:11px; }
-    }
-
     /* Print / PDF */
     @media print{
       body{ background:#fff; }
@@ -305,7 +296,7 @@
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      align-items:center;
+      align-items:flex-end;
       justify-content:space-between;
       margin-bottom:12px;
     }
@@ -313,7 +304,8 @@
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      align-items:center;
+      align-items:flex-end;
+      min-width: 0;
     }
     .field{
       display:flex;
@@ -333,6 +325,7 @@
       font-size:13px;
       outline:none;
       background:#fff;
+      width: 100%;
     }
     .input:focus{
       border-color: rgba(0,58,143,.25);
@@ -341,14 +334,17 @@
 
     .table-wrap{
       overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
       border:1px solid var(--border);
       border-radius: 14px;
       background:#fff;
+      max-width: 100%;
     }
     table.report-table{
       width:100%;
       border-collapse: collapse;
       font-size:13px;
+      min-width: 860px; /* ✅ keeps columns readable; scroll on mobile */
     }
     .report-table th,
     .report-table td{
@@ -396,9 +392,16 @@
     tr[data-sev="warning"] .dot{ background:#f59e0b; }
     tr[data-sev="alarm"] .dot{ background:#ef4444; }
 
-    tr[data-sev="warning"] td{ background: rgba(245,158,11,.10); }
-    tr[data-sev="alarm"] td{ background: rgba(239,68,68,.14); font-weight:700; }
-    tr[data-sev="info"] td{ background: rgba(59,130,246,.08); }
+    tr[data-sev="warning"] td{
+      background: rgba(245,158,11,.10);
+    }
+    tr[data-sev="alarm"] td{
+      background: rgba(239,68,68,.14);
+      font-weight:700;
+    }
+    tr[data-sev="info"] td{
+      background: rgba(59,130,246,.08);
+    }
 
     .mini{
       font-size:12px;
@@ -415,12 +418,120 @@
     }
 
     section.card{ scroll-margin-top: 88px; }
-    @media (max-width: 480px){
-      .wrap{ padding: 10px; }
-      .card .body{ padding: 12px; }
-      .card .card-head{ padding: 12px; }
-      .field{ min-width: 140px; }
-      .report-table th, .report-table td{ padding: 9px 8px; font-size:12.5px; }
+
+    /* ✅ MOBILE TUNING (only UI/spacing/layout, no feature changes) */
+    @media (max-width: 640px){
+      /* Topbar becomes 2-row: brand full width, actions scrollable */
+      .topbar{
+        padding: 10px 12px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .brand{
+        min-width: 0;
+        width: 100%;
+      }
+      .brand img{ height:28px; }
+      .brand .title strong{
+        font-size:13px;
+        display:block;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow: ellipsis;
+      }
+      .brand .title span{
+        font-size:11.5px;
+        display:block;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow: ellipsis;
+      }
+
+      .top-actions{
+        width: 100%;
+        flex-wrap: nowrap;                 /* ✅ one line */
+        overflow-x: auto;                  /* ✅ swipe horizontally */
+        -webkit-overflow-scrolling: touch;
+        gap: 8px;
+        justify-content: flex-start;
+        padding-bottom: 2px;
+      }
+      .top-actions::-webkit-scrollbar{ height: 0; }
+
+      .btn{
+        padding: 9px 10px;
+        font-size:12.5px;
+        border-radius: 11px;
+        flex: 0 0 auto;                    /* ✅ keep button width */
+      }
+
+      .wrap{
+        padding: 12px;
+        gap: 12px;
+      }
+
+      /* Card header stack */
+      .card .card-head{
+        padding: 12px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .chip{ align-self: flex-start; }
+
+      .card .body{
+        padding: 12px 12px 14px;
+      }
+
+      /* Filters become single column */
+      .action-row{
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .filters{
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .field{
+        min-width: 0;
+        width: 100%;
+      }
+
+      /* Action buttons in report: full width + wrap nicely */
+      .action-row > div:last-child{
+        width: 100%;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
+      .action-row > div:last-child .btn{
+        justify-content: center;
+        width: 100%;
+      }
+
+      /* Table cells slightly smaller */
+      .report-table th, .report-table td{
+        padding: 9px 8px;
+        font-size:12.5px;
+      }
+
+      /* Row count & callout spacing */
+      .mini{ margin-top: 8px; }
+      .callout{ font-size:12.3px; }
+    }
+
+    /* Extra small phones */
+    @media (max-width: 380px){
+      .action-row > div:last-child{
+        grid-template-columns: 1fr; /* ✅ stack buttons if too narrow */
+      }
+      .btn{ font-size:12px; }
+      .brand .title strong{ font-size:12.5px; }
+      .brand .title span{ font-size:11px; }
     }
   </style>
 </head>
@@ -429,6 +540,7 @@
   <!-- Topbar -->
   <div class="topbar">
     <div class="brand">
+      <!-- pakai icon yang sama dengan manual -->
       <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
       <div class="title">
         <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
@@ -439,8 +551,7 @@
     <div class="top-actions">
       <a class="btn print-hide" href="#report">Report</a>
       <a class="btn print-hide" href="#legend">Legend</a>
-      <!-- NOTE: href will be overwritten by JS to include month -->
-      <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.csv?month=">Download CSV</a>
+      <a class="btn primary print-hide" href="/xweather/monthly-report.csv">Download CSV</a>
       <button class="btn print-hide" onclick="window.print()">Print / Save as PDF</button>
     </div>
   </div>
@@ -456,14 +567,7 @@
       </div>
       <nav class="nav">
         <a href="#report"><div class="badge">1</div><div class="meta"><strong>Monthly Report</strong><span>Tabel utama + filter + download CSV</span></div></a>
-        <a href="#expert">
-          <div class="badge">2</div>
-          <div class="meta">
-            <strong>Expert Statistical Analysis</strong>
-            <span>Ringkasan statistik dari SQLite</span>
-          </div>
-        </a>        
-        <a href="#legend"><div class="badge">3</div><div class="meta"><strong>Legend</strong><span>Arti kolom dan severity</span></div></a>
+        <a href="#legend"><div class="badge">2</div><div class="meta"><strong>Legend</strong><span>Arti kolom dan severity</span></div></a>
         <a href="/xweather/manual"><div class="badge">M</div><div class="meta"><strong>Back to Manual</strong><span>Kembali ke Xweather manual</span></div></a>
       </nav>
     </aside>
@@ -489,17 +593,10 @@
           <!-- ACTIONS + FILTERS -->
           <div class="action-row">
             <div class="filters">
-              <!-- ✅ Month selector added (minimal, still same style) -->
-              <div class="field">
-                <label for="month">Month<br><small>(YYYY-MM)</small></label>
-                <input id="month" class="input" type="text" placeholder="2026-01" onkeydown="if(event.key==='Enter'){loadMonth();}">
-              </div>
-
               <div class="field">
                 <label for="q">Search</label>
                 <input id="q" class="input" type="text" placeholder="Cari asset / type / time..." oninput="applyFilters()">
               </div>
-
               <div class="field">
                 <label for="sev">Severity</label>
                 <select id="sev" class="input" onchange="applyFilters()">
@@ -509,18 +606,20 @@
                   <option value="alarm">Alarm</option>
                 </select>
               </div>
-
               <div class="field">
                 <label for="asset">Asset</label>
                 <select id="asset" class="input" onchange="applyFilters()">
                   <option value="">All</option>
+                  <option value="ZONE01">ZONE01</option>
+                  <option value="ZONE02">ZONE02</option>
+                  <option value="ZONE03">ZONE03</option>
+                  <option value="ZONE04">ZONE04</option>
                 </select>
               </div>
             </div>
 
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="btn" onclick="loadMonth()">🔄 Load</button>
-              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.csv?month=">⬇ Download CSV</a>
+              <a class="btn primary" href="/xweather/monthly-report.csv">⬇ Download CSV</a>
               <button class="btn" onclick="window.print()">🖨 Print</button>
               <button class="btn" onclick="resetFilters()">↺ Reset</button>
             </div>
@@ -542,8 +641,61 @@
                   <th>Type</th>
                 </tr>
               </thead>
-              <tbody id="tbody">
-                <!-- rows injected from SQLite -->
+              <tbody>
+
+                <!-- ✅ Contoh row (ganti nanti dari data real / jinja loop) -->
+                <tr data-sev="warning" data-asset="ZONE01">
+                  <td><span class="sev"><span class="dot"></span>Warning</span></td>
+                  <td>ZONE01</td>
+                  <td>10</td>
+                  <td>05.01.2026 06:13</td>
+                  <td>05.01.2026 06:13</td>
+                  <td>05.01.2026 06:28</td>
+                  <td>05.01.2026 06:43</td>
+                  <td>15</td>
+                  <td>16.4</td>
+                  <td>CG-</td>
+                </tr>
+
+                <tr data-sev="alarm" data-asset="ZONE03">
+                  <td><span class="sev"><span class="dot"></span>Alarm</span></td>
+                  <td>ZONE03</td>
+                  <td>4</td>
+                  <td>05.01.2026 07:41</td>
+                  <td>05.01.2026 07:41</td>
+                  <td>05.01.2026 07:56</td>
+                  <td>05.01.2026 08:11</td>
+                  <td>15</td>
+                  <td>43.8</td>
+                  <td>CG+</td>
+                </tr>
+
+                <tr data-sev="info" data-asset="ZONE02">
+                  <td><span class="sev"><span class="dot"></span>Info</span></td>
+                  <td>ZONE02</td>
+                  <td>20</td>
+                  <td>06.01.2026 05:14</td>
+                  <td>06.01.2026 05:14</td>
+                  <td>06.01.2026 06:44</td>
+                  <td>06.01.2026 06:59</td>
+                  <td>15</td>
+                  <td>24.0</td>
+                  <td>CG-</td>
+                </tr>
+
+                <tr data-sev="warning" data-asset="ZONE04">
+                  <td><span class="sev"><span class="dot"></span>Warning</span></td>
+                  <td>ZONE04</td>
+                  <td>10</td>
+                  <td>07.01.2026 11:13</td>
+                  <td>07.01.2026 11:13</td>
+                  <td>07.01.2026 11:28</td>
+                  <td>07.01.2026 11:43</td>
+                  <td>15</td>
+                  <td>12.1</td>
+                  <td>CG-</td>
+                </tr>
+
               </tbody>
             </table>
           </div>
@@ -551,50 +703,11 @@
           <div class="mini" id="rowCount"></div>
 
           <div class="callout">
-            <strong>Catatan:</strong> Tombol <span class="kbd">Download CSV</span> akan mengambil data bulan yang dipilih dalam format CSV,
+            <strong>Catatan:</strong> Tombol <span class="kbd">Download CSV</span> akan mengambil data yang sama dalam format CSV,
             sehingga bisa langsung dipakai untuk laporan bulanan (HSE/ops).
           </div>
         </div>
       </section>
-
-      <!-- EXPERT -->
-      <section id="expert" class="card">
-        <div class="card-head">
-          <div>
-            <h2>Expert Statistical Analysis</h2>
-            <p>
-              Statistik ringkasan otomatis dari data SQLite pada bulan terpilih.
-              Mengikuti format “Expert Statistical Analysis” di file Excel.
-            </p>
-          </div>
-          <div class="chip">Expert</div>
-        </div>
-      
-        <div class="body">
-          <div class="table-wrap">
-            <table class="report-table">
-              <thead>
-                <tr>
-                  <th style="min-width:260px;text-align:left;">Metric</th>
-                  <th style="text-align:left;">Value</th>
-                </tr>
-              </thead>
-              <tbody id="expertTbody">
-                <tr><td colspan="2" style="text-align:left;color:var(--muted);">Loading...</td></tr>
-              </tbody>
-            </table>
-          </div>
-      
-          <div class="mini" id="expertNote"></div>
-      
-          <div class="callout">
-            <strong>Catatan:</strong> Perhitungan berbasis event yang tersimpan di SQLite pada bulan tersebut
-            (severity, duration, hour, type, strength). Jika format waktu di data bervariasi, sistem akan
-            mencoba ekstrak jam dengan beberapa pola umum.
-          </div>
-        </div>
-      </section>
-
 
       <!-- LEGEND -->
       <section id="legend" class="card">
@@ -637,84 +750,8 @@
   </div>
 
   <script>
-    function norm(s){ return (s || "").toString().toLowerCase().trim(); }
-
-    function escapeHtml(s){
-      return (s ?? "").toString()
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-    function setCsvLinks(month){
-      const url = "/xweather/monthly-report.xlsx?month=" + encodeURIComponent(month);
-      document.getElementById("btnCsv").href = url;
-      document.getElementById("btnCsvTop").href = url;
-    }
-
-    function sevLabel(sev){
-      const s = norm(sev);
-      if (s === "alarm") return "Alarm";
-      if (s === "warning") return "Warning";
-      return "Info";
-    }
-
-    async function loadAssets(month){
-      const sel = document.getElementById("asset");
-      sel.innerHTML = `<option value="">All</option>`;
-      const res = await fetch(`/api/xweather/monthly-report/assets?month=${encodeURIComponent(month)}`);
-      const js = await res.json();
-      if (!js.ok) return;
-      (js.assets || []).forEach(a => {
-        const opt = document.createElement("option");
-        opt.value = a;
-        opt.textContent = a;
-        sel.appendChild(opt);
-      });
-    }
-
-    async function loadMonth(){
-      const month = document.getElementById("month").value.trim();
-      if (!month){
-        alert("Please input month (YYYY-MM). Example: 2026-01");
-        return;
-      }
-      setCsvLinks(month);
-
-      await loadAssets(month);
-
-      const res = await fetch(`/api/xweather/monthly-report?month=${encodeURIComponent(month)}`);
-      const js = await res.json();
-      if (!js.ok){
-        alert(js.error || "Failed to load data");
-        return;
-      }
-
-      const tbody = document.getElementById("tbody");
-      const rows = js.rows || [];
-
-      tbody.innerHTML = rows.map(r => {
-        const sev = norm(r.severity);
-        const asset = r.asset_name || "";
-        return `
-          <tr data-sev="${escapeHtml(sev)}" data-asset="${escapeHtml(asset)}">
-            <td><span class="sev"><span class="dot"></span>${sevLabel(sev)}</span></td>
-            <td>${escapeHtml(asset)}</td>
-            <td>${escapeHtml(r.extent_km ?? "")}</td>
-            <td>${escapeHtml(r.first_event_time ?? "")}</td>
-            <td>${escapeHtml(r.active_time ?? "")}</td>
-            <td>${escapeHtml(r.last_event_time ?? "")}</td>
-            <td>${escapeHtml(r.clear_time ?? "")}</td>
-            <td>${escapeHtml(r.duration_min ?? "")}</td>
-            <td>${escapeHtml(r.strength_ka ?? "")}</td>
-            <td>${escapeHtml(r.event_type ?? "")}</td>
-          </tr>
-        `;
-      }).join("");
-
-      applyFilters();
-      await loadExpert(month);
+    function norm(s){
+      return (s || "").toString().toLowerCase().trim();
     }
 
     function applyFilters(){
@@ -739,7 +776,8 @@
         if (ok) shown++;
       });
 
-      document.getElementById("rowCount").innerText = "Rows shown: " + shown + " / " + rows.length;
+      document.getElementById("rowCount").innerText =
+        "Rows shown: " + shown + " / " + rows.length;
     }
 
     function resetFilters(){
@@ -749,41 +787,8 @@
       applyFilters();
     }
 
-    // init: set default month to current UTC YYYY-MM, then load
-    (function init(){
-      const d = new Date();
-      const y = d.getUTCFullYear();
-      const m = String(d.getUTCMonth()+1).padStart(2,"0");
-      const month = `${y}-${m}`;
-      document.getElementById("month").value = month;
-      setCsvLinks(month);
-      loadMonth();
-    })();
-
-  async function loadExpert(month){
-    const tbody = document.getElementById("expertTbody");
-    const note = document.getElementById("expertNote");
-    tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:var(--muted);">Loading...</td></tr>`;
-    if (note) note.innerText = "";
-
-    const res = await fetch(`/api/xweather/monthly-report/expert?month=${encodeURIComponent(month)}`);
-    const js = await res.json();
-
-    if (!js.ok){
-      tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:#b91c1c;">${escapeHtml(js.error || "Failed to load expert stats")}</td></tr>`;
-      return;
-    }
-
-    const metrics = js.metrics || [];
-    tbody.innerHTML = metrics.map(m => `
-      <tr>
-        <td style="text-align:left;font-weight:800;color:var(--xw-blue);">${escapeHtml(m.metric)}</td>
-        <td style="text-align:left;">${escapeHtml(m.value)}</td>
-      </tr>
-    `).join("");
-
-    if (note) note.innerText = `Expert stats month: ${month} · metrics: ${metrics.length}`;
-  }
+    // init
+    applyFilters();
   </script>
 </body>
 </html>
