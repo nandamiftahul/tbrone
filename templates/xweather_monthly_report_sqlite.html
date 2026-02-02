@@ -197,6 +197,7 @@
       display:flex;
       flex-direction:column;
       gap: 14px;
+      min-width: 0; /* ✅ mobile overflow guard */
     }
     .card{
       background: var(--card);
@@ -204,6 +205,7 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow:hidden;
+      min-width: 0; /* ✅ mobile overflow guard */
     }
     .card .card-head{
       padding: 16px 18px;
@@ -236,6 +238,7 @@
       font-weight:700;
       white-space:nowrap;
       height: fit-content;
+      flex: 0 0 auto;
     }
     .card .body{
       padding: 16px 18px 18px;
@@ -276,21 +279,6 @@
       text-align:center;
     }
 
-    /* ✅ Mobile friendly (same spirit as manual) */
-    @media (max-width: 640px){
-      .topbar{ padding: 12px 12px; }
-      .brand{ min-width: 0; }
-      .brand img{ height:28px; }
-      .brand .title strong{ font-size:13px; }
-      .brand .title span{ font-size:11.5px; }
-      .btn{ padding: 9px 10px; font-size:12.5px; border-radius: 11px; }
-      .wrap{ padding: 12px; gap: 12px; }
-      .card .card-head{ padding: 14px 14px; }
-      .card .body{ padding: 14px 14px 16px; }
-      .nav a{ padding: 10px 10px; }
-      .badge{ min-width:24px; height:24px; border-radius: 8px; font-size:11px; }
-    }
-
     /* Print / PDF */
     @media print{
       body{ background:#fff; }
@@ -314,6 +302,7 @@
       gap:10px;
       flex-wrap:wrap;
       align-items:center;
+      min-width: 0;
     }
     .field{
       display:flex;
@@ -333,6 +322,7 @@
       font-size:13px;
       outline:none;
       background:#fff;
+      width: 100%;
     }
     .input:focus{
       border-color: rgba(0,58,143,.25);
@@ -341,14 +331,17 @@
 
     .table-wrap{
       overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
       border:1px solid var(--border);
       border-radius: 14px;
       background:#fff;
+      max-width: 100%;
     }
     table.report-table{
       width:100%;
       border-collapse: collapse;
       font-size:13px;
+      min-width: 900px; /* ✅ readable columns; scroll on mobile */
     }
     .report-table th,
     .report-table td{
@@ -415,12 +408,101 @@
     }
 
     section.card{ scroll-margin-top: 88px; }
-    @media (max-width: 480px){
-      .wrap{ padding: 10px; }
-      .card .body{ padding: 12px; }
-      .card .card-head{ padding: 12px; }
-      .field{ min-width: 140px; }
-      .report-table th, .report-table td{ padding: 9px 8px; font-size:12.5px; }
+
+    /* ✅ MOBILE IMPROVEMENTS ONLY (no feature/structure changes) */
+    @media (max-width: 640px){
+      /* Topbar becomes 2-row: brand then actions (scrollable) */
+      .topbar{
+        padding: 10px 12px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .brand{
+        min-width: 0;
+        width: 100%;
+      }
+      .brand img{ height:28px; flex: 0 0 auto; }
+      .brand .title{ min-width:0; }
+      .brand .title strong,
+      .brand .title span{
+        display:block;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow: ellipsis;
+      }
+      .brand .title strong{ font-size:13px; }
+      .brand .title span{ font-size:11.5px; }
+
+      .top-actions{
+        width:100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap:8px;
+        justify-content:flex-start;
+        padding-bottom: 2px;
+      }
+      .top-actions::-webkit-scrollbar{ height:0; }
+
+      .btn{
+        padding: 9px 10px;
+        font-size:12.5px;
+        border-radius: 11px;
+        flex: 0 0 auto;
+      }
+
+      .wrap{ padding: 12px; gap: 12px; }
+      .card .card-head{
+        padding: 12px 12px;
+        flex-direction: column;
+        align-items:flex-start;
+        gap: 8px;
+      }
+      .card .body{ padding: 12px 12px 14px; }
+
+      /* Filters stack */
+      .action-row{
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .filters{
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .field{ min-width: 0; width: 100%; }
+
+      /* Action buttons row: compact grid */
+      .action-row > div:last-child{
+        width: 100%;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .action-row > div:last-child .btn{
+        width:100%;
+        justify-content:center;
+      }
+      /* keep 4 buttons: 2x2 grid */
+      .action-row > div:last-child .btn:nth-child(3),
+      .action-row > div:last-child .btn:nth-child(4){
+        grid-column: span 1;
+      }
+
+      /* Table spacing */
+      .report-table th, .report-table td{
+        padding: 9px 8px;
+        font-size:12.5px;
+      }
+    }
+
+    @media (max-width: 380px){
+      .action-row > div:last-child{
+        grid-template-columns: 1fr; /* stack on very small */
+      }
     }
   </style>
 </head>
@@ -569,7 +651,7 @@
           </div>
           <div class="chip">Expert</div>
         </div>
-      
+
         <div class="body">
           <div class="table-wrap">
             <table class="report-table">
@@ -584,9 +666,9 @@
               </tbody>
             </table>
           </div>
-      
+
           <div class="mini" id="expertNote"></div>
-      
+
           <div class="callout">
             <strong>Catatan:</strong> Perhitungan berbasis event yang tersimpan di SQLite pada bulan tersebut
             (severity, duration, hour, type, strength). Jika format waktu di data bervariasi, sistem akan
