@@ -13,7 +13,7 @@ def create_app():
 
     app.register_blueprint(xweather_manual_bp)
     app.register_blueprint(twincityjakarta_manual_bp)
-    app.register_blueprint(xweather_report_bp)
+    #app.register_blueprint(xweather_report_bp)
     app.config["XWEATHER_DB_PATH"] = "xweather_reports.db"  # boleh diganti path lain
     app.register_blueprint(xweather_report_bp)
 
