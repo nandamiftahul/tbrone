@@ -3,370 +3,506 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Xweather Protect – Monthly Report Editor (SQLite)</title>
+  <title>Xweather Protect – Monthly Report (Terrindo Bumi Raya)</title>
 
+  <!-- Fonts (fallback to system if not available) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
     :root{
-      --xw-blue:#003A8F;
-      --xw-blue-2:#0A4BBF;
-      --tbr-orange:#F28C28;
+      --xw-blue: #003A8F;        /* Vaisala-like deep blue */
+      --xw-blue-2:#0A4BBF;       /* accent */
+      --tbr-orange:#F28C28;      /* Terrindo orange */
       --bg:#F4F7FB;
       --card:#FFFFFF;
       --text:#1F2937;
       --muted:#6B7280;
       --border:rgba(17,24,39,.10);
-      --shadow:0 10px 30px rgba(2,22,55,.08);
-      --radius:16px;
+      --shadow: 0 10px 30px rgba(2, 22, 55, .08);
+      --radius: 16px;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
+
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; }
     body{
       margin:0;
-      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       color:var(--text);
-      background:linear-gradient(180deg,#EAF1FF 0%, var(--bg) 40%, #F7FAFF 100%);
+      background: linear-gradient(180deg, #EAF1FF 0%, var(--bg) 40%, #F7FAFF 100%);
     }
 
+    /* Top bar (Xweather-like) */
     .topbar{
-      position:sticky; top:0; z-index:30;
-      display:flex; align-items:center; justify-content:space-between;
-      padding:14px 18px;
-      background:rgba(0,58,143,.94);
+      position: sticky;
+      top:0;
+      z-index: 30;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 14px 18px;
+      background: rgba(0, 58, 143, .94);
       backdrop-filter: blur(8px);
-      border-bottom:1px solid rgba(255,255,255,.15);
-      gap:12px;
+      border-bottom: 1px solid rgba(255,255,255,.15);
+      gap: 12px;
     }
-    .brand{display:flex; align-items:center; gap:12px; min-width:240px;}
-    .brand img{height:32px; border-radius:8px; filter:drop-shadow(0 6px 12px rgba(0,0,0,.12))}
-    .brand .title{display:flex; flex-direction:column; line-height:1.1; color:#fff;}
-    .brand .title strong{font-size:14px; letter-spacing:.2px}
-    .brand .title span{font-size:12px; opacity:.85}
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width: 240px;
+    }
+    .brand img{
+      height:32px;
+      width:auto;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
+      border-radius: 8px;
+    }
+    .brand .title{
+      display:flex;
+      flex-direction:column;
+      line-height:1.1;
+      color:#fff;
+    }
+    .brand .title strong{
+      font-size:14px;
+      letter-spacing:.2px;
+    }
+    .brand .title span{
+      font-size:12px;
+      opacity:.85;
+    }
 
-    .top-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;}
+    .top-actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+    }
     .btn{
       appearance:none;
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10);
       color:#fff;
-      padding:10px 12px;
-      border-radius:12px;
+      padding: 10px 12px;
+      border-radius: 12px;
       cursor:pointer;
       font-weight:600;
       font-size:13px;
       display:inline-flex;
       align-items:center;
       gap:8px;
-      transition:transform .12s ease, background .12s ease, border-color .12s ease;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
       text-decoration:none;
       user-select:none;
       white-space:nowrap;
     }
-    .btn:hover{transform:translateY(-1px); background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.24);}
+    .btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); }
     .btn.primary{
-      background:linear-gradient(135deg,var(--tbr-orange) 0%, #FFB565 100%);
-      border-color:rgba(255,255,255,.10);
+      background: linear-gradient(135deg, var(--tbr-orange) 0%, #FFB565 100%);
+      border-color: rgba(255,255,255,.10);
       color:#1A1A1A;
     }
-    .btn.primary:hover{background:linear-gradient(135deg,#FF9B3A 0%, #FFC27A 100%);}
+    .btn.primary:hover{ background: linear-gradient(135deg, #FF9B3A 0%, #FFC27A 100%); }
 
+    /* Layout */
     .wrap{
       display:grid;
-      grid-template-columns:320px 1fr;
-      gap:18px;
-      padding:18px;
-      max-width:1280px;
-      margin:0 auto;
+      grid-template-columns: 320px 1fr;
+      gap: 18px;
+      padding: 18px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+      .sidebar{ position: relative; top:0; }
     }
 
+    /* Sidebar */
     .sidebar{
-      position:sticky;
-      top:74px;
+      position: sticky;
+      top: 74px;
       align-self:start;
-      background:var(--card);
+      background: var(--card);
       border:1px solid var(--border);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
       overflow:hidden;
     }
     .sidebar .head{
-      padding:14px 16px;
+      padding: 14px 16px;
       border-bottom:1px solid var(--border);
-      background:linear-gradient(180deg, rgba(0,58,143,.06), rgba(0,58,143,0));
+      background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
     }
-    .sidebar .head .h{margin:0; font-weight:800; font-size:14px; color:var(--xw-blue);}
-    .sidebar .head .s{margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.4;}
-    .nav{padding:10px 10px 14px; display:flex; flex-direction:column; gap:8px;}
+    .sidebar .head .h{
+      font-weight:800;
+      font-size:14px;
+      color: var(--xw-blue);
+      letter-spacing:.2px;
+      margin:0;
+    }
+    .sidebar .head .s{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    .nav{
+      padding: 10px 10px 14px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
     .nav a{
-      text-decoration:none; color:var(--text);
+      text-decoration:none;
+      color: var(--text);
       border:1px solid var(--border);
-      border-radius:12px;
-      padding:10px 12px;
-      display:flex; gap:10px; align-items:flex-start;
-      background:#fff;
-      transition:transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+      border-radius: 12px;
+      padding: 10px 12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      background: #fff;
+      transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
     }
-    .nav a:hover{transform:translateY(-1px); border-color:rgba(0,58,143,.20); box-shadow:0 10px 22px rgba(0,58,143,.08);}
+    .nav a:hover{
+      transform: translateY(-1px);
+      border-color: rgba(0,58,143,.20);
+      box-shadow: 0 10px 22px rgba(0,58,143,.08);
+    }
     .badge{
-      min-width:26px; height:26px; border-radius:9px;
-      display:grid; place-items:center;
-      font-weight:800; font-size:12px; color:#fff;
-      background:var(--xw-blue);
+      min-width: 26px;
+      height: 26px;
+      border-radius: 9px;
+      display:grid;
+      place-items:center;
+      font-weight:800;
+      font-size:12px;
+      color:#fff;
+      background: var(--xw-blue);
     }
-    .nav a .meta{display:flex; flex-direction:column; gap:3px;}
-    .nav a .meta strong{font-size:13px;}
-    .nav a .meta span{font-size:12px; color:var(--muted); line-height:1.35;}
+    .nav a .meta{
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+    .nav a .meta strong{ font-size:13px; }
+    .nav a .meta span{ font-size:12px; color:var(--muted); line-height:1.35; }
 
-    .content{display:flex; flex-direction:column; gap:14px;}
+    /* Content */
+    .content{
+      display:flex;
+      flex-direction:column;
+      gap: 14px;
+    }
     .card{
-      background:var(--card);
+      background: var(--card);
       border:1px solid var(--border);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
       overflow:hidden;
     }
     .card .card-head{
-      padding:16px 18px;
+      padding: 16px 18px;
       border-bottom:1px solid var(--border);
-      background:linear-gradient(90deg, rgba(0,58,143,.08), rgba(242,140,40,.08));
-      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+      background: linear-gradient(90deg, rgba(0,58,143,.08) 0%, rgba(242,140,40,.08) 100%);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
     }
-    .card .card-head h2{margin:0; font-size:16px; color:var(--xw-blue); letter-spacing:.2px;}
-    .card .card-head p{margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.5;}
+    .card .card-head h2{
+      margin:0;
+      font-size:16px;
+      color: var(--xw-blue);
+      letter-spacing:.2px;
+    }
+    .card .card-head p{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+    }
     .chip{
       border:1px solid rgba(0,58,143,.18);
-      background:rgba(0,58,143,.06);
-      color:var(--xw-blue);
-      padding:8px 10px;
-      border-radius:999px;
+      background: rgba(0,58,143,.06);
+      color: var(--xw-blue);
+      padding: 8px 10px;
+      border-radius: 999px;
       font-size:12px;
       font-weight:700;
       white-space:nowrap;
-      height:fit-content;
+      height: fit-content;
     }
-    .card .body{padding:16px 18px 18px;}
+    .card .body{
+      padding: 16px 18px 18px;
+    }
 
-    .field{display:flex; flex-direction:column; gap:6px; min-width:180px;}
-    .field label{font-size:12px; color:var(--muted); font-weight:700;}
-    .input{
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:10px 12px;
-      font-size:13px;
-      outline:none;
-      background:#fff;
-    }
-    .input:focus{border-color:rgba(0,58,143,.25); box-shadow:0 10px 22px rgba(0,58,143,.08);}
-
-    .row-actions{
-      display:flex; gap:10px; flex-wrap:wrap;
-      align-items:flex-end; justify-content:space-between;
-      margin-bottom:12px;
-    }
-    .left-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
-    .right-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
-
-    .table-wrap{
-      overflow-x:auto;
-      border:1px solid var(--border);
-      border-radius:14px;
-      background:#fff;
-    }
-    table.report-table{width:100%; border-collapse:collapse; font-size:13px;}
-    .report-table th,.report-table td{
-      border-bottom:1px solid rgba(17,24,39,.08);
-      padding:10px 10px; text-align:center; white-space:nowrap;
-    }
-    .report-table th{
-      position:sticky; top:0; z-index:2;
-      background:linear-gradient(180deg, rgba(0,58,143,.12), rgba(0,58,143,.05));
-      color:var(--xw-blue);
-      font-weight:800;
-    }
-    .report-table td:first-child,.report-table th:first-child{text-align:left; padding-left:14px;}
-    .report-table td:nth-child(2),.report-table th:nth-child(2){text-align:left;}
-    .report-table tbody tr:nth-child(even){background:#F8FAFF;}
-
-    .sev{display:inline-flex; align-items:center; gap:8px; font-weight:800; font-size:12.5px;}
-    .dot{width:9px; height:9px; border-radius:999px; display:inline-block;}
-    tr[data-sev="info"] .dot{background:#3b82f6;}
-    tr[data-sev="warning"] .dot{background:#f59e0b;}
-    tr[data-sev="alarm"] .dot{background:#ef4444;}
-    tr[data-sev="warning"] td{background:rgba(245,158,11,.10);}
-    tr[data-sev="alarm"] td{background:rgba(239,68,68,.14); font-weight:700;}
-    tr[data-sev="info"] td{background:rgba(59,130,246,.08);}
-
-    .btn-mini{
-      border:1px solid rgba(0,58,143,.18);
-      background:rgba(0,58,143,.06);
-      color:var(--xw-blue);
-      padding:7px 10px;
-      border-radius:10px;
-      cursor:pointer;
-      font-weight:800;
+    .kbd{
+      display:inline-flex;
+      align-items:center;
+      padding: 2px 8px;
+      border-radius: 8px;
+      border:1px solid rgba(17,24,39,.14);
+      background: rgba(17,24,39,.04);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size:12px;
-      white-space:nowrap;
-      transition:transform .12s ease, box-shadow .12s ease;
-    }
-    .btn-mini:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(0,58,143,.08);}
-    .btn-mini.danger{
-      border-color:rgba(239,68,68,.25);
-      background:rgba(239,68,68,.10);
-      color:#b91c1c;
+      color:#111827;
+      margin: 0 2px;
     }
 
-    .mini{font-size:12px; color:var(--muted); margin-top:10px; line-height:1.45;}
     .callout{
-      margin-top:12px;
-      border:1px solid rgba(242,140,40,.30);
-      background:rgba(242,140,40,.08);
-      border-radius:14px;
-      padding:12px;
+      margin-top: 12px;
+      border: 1px solid rgba(242,140,40,.30);
+      background: rgba(242,140,40,.08);
+      border-radius: 14px;
+      padding: 12px 12px;
       color:#7A3E00;
       font-size:12.5px;
       line-height:1.55;
     }
-    .kbd{
-      display:inline-flex; align-items:center;
-      padding:2px 8px;
-      border-radius:8px;
-      border:1px solid rgba(17,24,39,.14);
-      background:rgba(17,24,39,.04);
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      font-size:12px;
-      color:#111827;
-      margin:0 2px;
-    }
+    .callout strong{ color:#5C2F00; }
 
-    /* Modal */
-    .modal-backdrop{
-      position:fixed; inset:0; z-index:60;
-      background:rgba(2,6,23,.45);
-      display:none;
-      align-items:center;
-      justify-content:center;
-      padding:16px;
-    }
-    .modal{
-      width:min(920px, 100%);
-      background:#fff;
-      border:1px solid var(--border);
-      border-radius:18px;
-      box-shadow:0 25px 60px rgba(2,6,23,.45);
-      overflow:hidden;
-    }
-    .modal .mh{
-      padding:14px 16px;
-      border-bottom:1px solid var(--border);
-      background:linear-gradient(90deg, rgba(0,58,143,.08), rgba(242,140,40,.08));
-      display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
-    }
-    .modal .mh h3{margin:0; color:var(--xw-blue); font-size:15px; letter-spacing:.2px;}
-    .modal .mh p{margin:6px 0 0; font-size:12px; color:var(--muted);}
-    .modal .mb{padding:14px 16px 16px;}
-    .modal .mf{
-      padding:14px 16px;
-      border-top:1px solid var(--border);
-      display:flex; justify-content:flex-end; gap:10px; align-items:center;
-      background:#fff;
-    }
-
-    .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
-    .grid-3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
-
-    @media (max-width:980px){ .wrap{grid-template-columns:1fr;} .sidebar{position:relative; top:0;} }
-    @media (max-width:720px){ .grid-2,.grid-3{grid-template-columns:1fr;} .field{min-width:140px;} }
-
-    @media print{
-      body{background:#fff;}
-      .topbar,.sidebar,.row-actions,.callout,.btn-mini{display:none !important;}
-      .wrap{grid-template-columns:1fr; padding:0; max-width:none;}
-      .card{box-shadow:none; border:1px solid #ddd;}
-      .card .card-head{background:#f5f7ff;}
-    }
-
+    /* Footer */
     .footer{
-      max-width:1280px;
-      margin:0 auto 26px;
-      padding:0 18px;
-      color:var(--muted);
-      font-size:12px;
+      max-width: 1280px;
+      margin: 0 auto 26px;
+      padding: 0 18px;
+      color: var(--muted);
+      font-size: 12px;
       text-align:center;
     }
 
-    .upload-btn{
-      position: relative;
-      overflow: hidden;
+    /* ✅ Mobile friendly (same spirit as manual) */
+    @media (max-width: 640px){
+      .topbar{ padding: 12px 12px; }
+      .brand{ min-width: 0; }
+      .brand img{ height:28px; }
+      .brand .title strong{ font-size:13px; }
+      .brand .title span{ font-size:11.5px; }
+      .btn{ padding: 9px 10px; font-size:12.5px; border-radius: 11px; }
+      .wrap{ padding: 12px; gap: 12px; }
+      .card .card-head{ padding: 14px 14px; }
+      .card .body{ padding: 14px 14px 16px; }
+      .nav a{ padding: 10px 10px; }
+      .badge{ min-width:24px; height:24px; border-radius: 8px; font-size:11px; }
     }
-    
-    .upload-btn input[type="file"]{
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
+
+    /* Print / PDF */
+    @media print{
+      body{ background:#fff; }
+      .topbar, .sidebar, .top-actions .btn.print-hide{ display:none !important; }
+      .wrap{ grid-template-columns: 1fr; padding: 0; max-width: none; }
+      .card{ box-shadow:none; border: 1px solid #ddd; }
+      .card .card-head{ background: #f5f7ff; }
     }
-    
+
+    /* === Monthly Report: Table + Controls === */
+    .action-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:12px;
+    }
+    .filters{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width: 180px;
+    }
+    .field label{
+      font-size:12px;
+      color: var(--muted);
+      font-weight:700;
+    }
+    .input{
+      border:1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size:13px;
+      outline:none;
+      background:#fff;
+    }
+    .input:focus{
+      border-color: rgba(0,58,143,.25);
+      box-shadow: 0 10px 22px rgba(0,58,143,.08);
+    }
+
+    .table-wrap{
+      overflow-x:auto;
+      border:1px solid var(--border);
+      border-radius: 14px;
+      background:#fff;
+    }
+    table.report-table{
+      width:100%;
+      border-collapse: collapse;
+      font-size:13px;
+    }
+    .report-table th,
+    .report-table td{
+      border-bottom:1px solid rgba(17,24,39,.08);
+      padding:10px 10px;
+      text-align:center;
+      white-space:nowrap;
+    }
+    .report-table th{
+      position: sticky;
+      top: 0;
+      background: linear-gradient(180deg, rgba(0,58,143,.12), rgba(0,58,143,.05));
+      color: var(--xw-blue);
+      font-weight:800;
+      z-index: 2;
+    }
+    .report-table tbody tr:nth-child(even){
+      background:#F8FAFF;
+    }
+    .report-table td:first-child,
+    .report-table th:first-child{
+      text-align:left;
+      padding-left:14px;
+    }
+    .report-table td:nth-child(2),
+    .report-table th:nth-child(2){
+      text-align:left;
+    }
+
+    /* Severity highlight */
+    .sev{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-weight:800;
+      font-size:12.5px;
+    }
+    .dot{
+      width:9px;
+      height:9px;
+      border-radius: 999px;
+      display:inline-block;
+    }
+    tr[data-sev="info"] .dot{ background:#3b82f6; }
+    tr[data-sev="warning"] .dot{ background:#f59e0b; }
+    tr[data-sev="alarm"] .dot{ background:#ef4444; }
+
+    tr[data-sev="warning"] td{ background: rgba(245,158,11,.10); }
+    tr[data-sev="alarm"] td{ background: rgba(239,68,68,.14); font-weight:700; }
+    tr[data-sev="info"] td{ background: rgba(59,130,246,.08); }
+
+    .mini{
+      font-size:12px;
+      color: var(--muted);
+      margin-top:10px;
+      line-height:1.45;
+    }
+
+    /* Sidebar responsive (same manual behavior) */
+    @media (max-width: 980px){
+      .sidebar{ display:none; }
+      body.nav-open .sidebar{ display:block; }
+      .wrap{ grid-template-columns: 1fr; }
+    }
+
+    section.card{ scroll-margin-top: 88px; }
+    @media (max-width: 480px){
+      .wrap{ padding: 10px; }
+      .card .body{ padding: 12px; }
+      .card .card-head{ padding: 12px; }
+      .field{ min-width: 140px; }
+      .report-table th, .report-table td{ padding: 9px 8px; font-size:12.5px; }
+    }
   </style>
 </head>
 
 <body>
+  <!-- Topbar -->
   <div class="topbar">
     <div class="brand">
       <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
       <div class="title">
         <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
-        <span>Monthly Report Editor (SQLite)</span>
+        <span>Monthly Lightning Alert Report (CSV Download)</span>
       </div>
     </div>
 
     <div class="top-actions">
-      <a class="btn" href="/xweather/monthly-report-editor">Editor</a>
-      <a class="btn primary" id="btnCsvTop" href="#">Download CSV</a>
-      <button class="btn" onclick="window.print()">Print</button>
+      <a class="btn print-hide" href="#report">Report</a>
+      <a class="btn print-hide" href="#legend">Legend</a>
+      <!-- NOTE: href will be overwritten by JS to include month -->
+      <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.csv?month=">Download CSV</a>
+      <button class="btn print-hide" onclick="window.print()">Print / Save as PDF</button>
     </div>
   </div>
 
   <div class="wrap">
+    <!-- Sidebar -->
     <aside class="sidebar">
       <div class="head">
         <p class="h">Daftar Isi</p>
-        <p class="s">Kelola data laporan bulanan (tersimpan di SQLite server).</p>
+        <p class="s">
+          Laporan bulanan alert petir per asset: severity, durasi, dan strength (kA).
+        </p>
       </div>
       <nav class="nav">
-        <a href="#editor"><div class="badge">1</div><div class="meta"><strong>Editor</strong><span>Add/Edit/Delete + filter per bulan</span></div></a>
-        <a href="/xweather/manual"><div class="badge">M</div><div class="meta"><strong>Manual</strong><span>Kembali ke Xweather manual</span></div></a>
+        <a href="#report"><div class="badge">1</div><div class="meta"><strong>Monthly Report</strong><span>Tabel utama + filter + download CSV</span></div></a>
+        <a href="#expert">
+          <div class="badge">2</div>
+          <div class="meta">
+            <strong>Expert Statistical Analysis</strong>
+            <span>Ringkasan statistik dari SQLite</span>
+          </div>
+        </a>        
+        <a href="#legend"><div class="badge">3</div><div class="meta"><strong>Legend</strong><span>Arti kolom dan severity</span></div></a>
+        <a href="/xweather/manual"><div class="badge">M</div><div class="meta"><strong>Back to Manual</strong><span>Kembali ke Xweather manual</span></div></a>
       </nav>
     </aside>
 
+    <!-- Content -->
     <main class="content">
-      <section id="editor" class="card">
+
+      <!-- REPORT -->
+      <section id="report" class="card">
         <div class="card-head">
           <div>
-            <h2>Monthly Report Editor (SQLite)</h2>
-            <p>Data tersimpan di server. Pilih bulan <span class="kbd">YYYY-MM</span>, lalu kelola row (add/edit/delete).</p>
+            <h2>Monthly Lightning Alert Report</h2>
+            <p>
+              Tabel ini menampilkan log alert petir (Info/Warning/Alarm) per asset.
+              Gunakan filter untuk mempermudah pencarian, lalu unduh sebagai CSV.
+            </p>
           </div>
-          <div class="chip">Server-Side</div>
+          <div class="chip">Monthly Report</div>
         </div>
 
         <div class="body">
-          <div class="row-actions">
-            <div class="left-actions">
-              <div class="field" style="min-width:170px">
-                <label>Report Month (YYYY-MM)</label>
-                <input id="month" class="input" placeholder="2026-01">
+
+          <!-- ACTIONS + FILTERS -->
+          <div class="action-row">
+            <div class="filters">
+              <!-- ✅ Month selector added (minimal, still same style) -->
+              <div class="field">
+                <label for="month">Month<br><small>(YYYY-MM)</small></label>
+                <input id="month" class="input" type="text" placeholder="2026-01" onkeydown="if(event.key==='Enter'){loadMonth();}">
               </div>
 
-              <div class="field" style="min-width:220px">
-                <label>Search</label>
+              <div class="field">
+                <label for="q">Search</label>
                 <input id="q" class="input" type="text" placeholder="Cari asset / type / time..." oninput="applyFilters()">
               </div>
 
-              <div class="field" style="min-width:160px">
-                <label>Severity</label>
-                <select id="filterSev" class="input" onchange="applyFilters()">
+              <div class="field">
+                <label for="sev">Severity</label>
+                <select id="sev" class="input" onchange="applyFilters()">
                   <option value="">All</option>
                   <option value="info">Info</option>
                   <option value="warning">Warning</option>
@@ -374,28 +510,19 @@
                 </select>
               </div>
 
-              <div class="field" style="min-width:160px">
-                <label>Asset</label>
-                <select id="filterAsset" class="input" onchange="applyFilters()">
+              <div class="field">
+                <label for="asset">Asset</label>
+                <select id="asset" class="input" onchange="applyFilters()">
                   <option value="">All</option>
                 </select>
               </div>
-            </div>        
-            <div class="right-actions">
+            </div>
+
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn" onclick="loadMonth()">🔄 Load</button>
-            
-              <!-- ✅ Upload CSV -->
-              <div class="btn upload-btn">
-                ⬆ Upload CSV / Excel
-                <input
-                  id="csvFile"
-                  type="file"
-                  accept=".csv,.xls,.xlsx"
-                  onchange="uploadCSV(event)">
-              </div>
-            
-              <button class="btn primary" onclick="openModalNew()">＋ Add Row</button>
-              <a class="btn primary" id="btnCsv" href="#">⬇ Download CSV</a>
+              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.csv?month=">⬇ Download CSV</a>
+              <button class="btn" onclick="window.print()">🖨 Print</button>
+              <button class="btn" onclick="resetFilters()">↺ Reset</button>
             </div>
           </div>
 
@@ -405,124 +532,113 @@
                 <tr>
                   <th>Severity</th>
                   <th>Asset name</th>
-                  <th>Extent (km)</th>
+                  <th>Extent<br>(km)</th>
                   <th>First event time</th>
                   <th>Active time</th>
                   <th>Last event time</th>
                   <th>Clear time</th>
-                  <th>Duration (min)</th>
-                  <th>Strength (kA)</th>
+                  <th>Duration<br>(min)</th>
+                  <th>Strength<br>(kA)</th>
                   <th>Type</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
-              <tbody id="tbody"></tbody>
+              <tbody id="tbody">
+                <!-- rows injected from SQLite -->
+              </tbody>
             </table>
           </div>
 
           <div class="mini" id="rowCount"></div>
-          <div class="mini" id="importStatus"></div>
 
           <div class="callout">
-            <strong>Catatan:</strong> CSV selalu mengikuti bulan yang dipilih. Pastikan input bulan valid: <span class="kbd">YYYY-MM</span>.
+            <strong>Catatan:</strong> Tombol <span class="kbd">Download CSV</span> akan mengambil data bulan yang dipilih dalam format CSV,
+            sehingga bisa langsung dipakai untuk laporan bulanan (HSE/ops).
           </div>
         </div>
       </section>
+
+      <!-- EXPERT -->
+      <section id="expert" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Expert Statistical Analysis</h2>
+            <p>
+              Statistik ringkasan otomatis dari data SQLite pada bulan terpilih.
+              Mengikuti format “Expert Statistical Analysis” di file Excel.
+            </p>
+          </div>
+          <div class="chip">Expert</div>
+        </div>
+      
+        <div class="body">
+          <div class="table-wrap">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th style="min-width:260px;text-align:left;">Metric</th>
+                  <th style="text-align:left;">Value</th>
+                </tr>
+              </thead>
+              <tbody id="expertTbody">
+                <tr><td colspan="2" style="text-align:left;color:var(--muted);">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+      
+          <div class="mini" id="expertNote"></div>
+      
+          <div class="callout">
+            <strong>Catatan:</strong> Perhitungan berbasis event yang tersimpan di SQLite pada bulan tersebut
+            (severity, duration, hour, type, strength). Jika format waktu di data bervariasi, sistem akan
+            mencoba ekstrak jam dengan beberapa pola umum.
+          </div>
+        </div>
+      </section>
+
+
+      <!-- LEGEND -->
+      <section id="legend" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Legend & Penjelasan Kolom</h2>
+            <p>Ringkasan arti kolom pada laporan dan aturan severity.</p>
+          </div>
+          <div class="chip">Help</div>
+        </div>
+
+        <div class="body">
+          <div class="callout" style="margin-top:0">
+            <strong>Severity:</strong>
+            <span class="kbd">Info</span> (monitoring awal),
+            <span class="kbd">Warning</span> (lebih dekat),
+            <span class="kbd">Alarm</span> (zona kritis/SOP stop).
+          </div>
+
+          <div style="margin-top:12px; color:var(--muted); font-size:12.8px; line-height:1.7">
+            <ul style="margin:0; padding-left:18px">
+              <li><b>Extent (km)</b>: radius ring/area yang ter-trigger (contoh: 20 km / 10 km / 4 km).</li>
+              <li><b>First event time</b>: waktu pertama kali event petir memicu severity itu.</li>
+              <li><b>Active time</b>: waktu status mulai aktif (umumnya sama dengan first event time).</li>
+              <li><b>Last event time</b>: waktu event petir terakhir sebelum status menuju clear.</li>
+              <li><b>Clear time</b>: waktu status kembali aman setelah tidak ada event (mengikuti clear time setting).</li>
+              <li><b>Duration (min)</b>: total durasi status aktif (menit).</li>
+              <li><b>Strength (kA)</b>: kekuatan petir (kiloampere), biasanya peak current.</li>
+              <li><b>Type</b>: tipe petir (misal <span class="kbd">CG-</span>, <span class="kbd">CG+</span>, dst).</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
   <div class="footer">
-    © Terrindo Bumi Raya · Xweather Monthly Report Editor · SQLite-backed.
-  </div>
-
-  <!-- Modal -->
-  <div class="modal-backdrop" id="modalBackdrop" onclick="closeModalIfBackdrop(event)">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div class="mh">
-        <div>
-          <h3 id="modalTitle">Add Row</h3>
-          <p>Isi kolom, lalu Save (akan tersimpan ke SQLite).</p>
-        </div>
-        <button class="btn" onclick="closeModal()">✕ Close</button>
-      </div>
-
-      <div class="mb">
-        <div class="grid-3">
-          <div class="field">
-            <label>Severity</label>
-            <select id="fSeverity" class="input">
-              <option value="info">Info</option>
-              <option value="warning">Warning</option>
-              <option value="alarm">Alarm</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Asset name</label>
-            <input id="fAsset" class="input" placeholder="ZONE01">
-          </div>
-          <div class="field">
-            <label>Extent (km)</label>
-            <input id="fExtent" class="input" type="number" step="0.1" placeholder="10">
-          </div>
-        </div>
-
-        <div class="grid-2" style="margin-top:12px">
-          <div class="field">
-            <label>First event time</label>
-            <input id="fFirst" class="input" placeholder="05.01.2026 06:13">
-          </div>
-          <div class="field">
-            <label>Active time</label>
-            <input id="fActive" class="input" placeholder="05.01.2026 06:13">
-          </div>
-        </div>
-
-        <div class="grid-2" style="margin-top:12px">
-          <div class="field">
-            <label>Last event time</label>
-            <input id="fLast" class="input" placeholder="05.01.2026 06:28">
-          </div>
-          <div class="field">
-            <label>Clear time</label>
-            <input id="fClear" class="input" placeholder="05.01.2026 06:43">
-          </div>
-        </div>
-
-        <div class="grid-3" style="margin-top:12px">
-          <div class="field">
-            <label>Duration (min)</label>
-            <input id="fDuration" class="input" type="number" step="1" placeholder="15">
-          </div>
-          <div class="field">
-            <label>Strength (kA)</label>
-            <input id="fStrength" class="input" type="number" step="0.1" placeholder="16.4">
-          </div>
-          <div class="field">
-            <label>Type</label>
-            <input id="fType" class="input" placeholder="CG-">
-          </div>
-        </div>
-
-        <div class="callout">
-          <strong>Tips:</strong> month ikut field di atas (Report Month). Row akan tersimpan sebagai data bulan tersebut.
-        </div>
-      </div>
-
-      <div class="mf">
-        <button class="btn" onclick="closeModal()">Cancel</button>
-        <button class="btn primary" onclick="saveModal()">Save</button>
-      </div>
-    </div>
+    © Terrindo Bumi Raya · Xweather Monthly Report · For operational and reporting purposes.
   </div>
 
   <script>
-    // =========================
-    // State
-    // =========================
-    let rows = [];
-    let editingId = null;
+    function norm(s){ return (s || "").toString().toLowerCase().trim(); }
 
-    function norm(s){ return (s ?? "").toString().toLowerCase().trim(); }
     function escapeHtml(s){
       return (s ?? "").toString()
         .replaceAll("&","&amp;")
@@ -531,6 +647,13 @@
         .replaceAll('"',"&quot;")
         .replaceAll("'","&#039;");
     }
+
+    function setCsvLinks(month){
+      const url = "/xweather/monthly-report.csv?month=" + encodeURIComponent(month);
+      document.getElementById("btnCsv").href = url;
+      document.getElementById("btnCsvTop").href = url;
+    }
+
     function sevLabel(sev){
       const s = norm(sev);
       if (s === "alarm") return "Alarm";
@@ -538,49 +661,43 @@
       return "Info";
     }
 
-    function setCsvLinks(month){
-      const url = "/xweather/monthly-report.xlsx?month=" + encodeURIComponent(month);
-      document.getElementById("btnCsv").href = url;
-      document.getElementById("btnCsvTop").href = url;
+    async function loadAssets(month){
+      const sel = document.getElementById("asset");
+      sel.innerHTML = `<option value="">All</option>`;
+      const res = await fetch(`/api/xweather/monthly-report/assets?month=${encodeURIComponent(month)}`);
+      const js = await res.json();
+      if (!js.ok) return;
+      (js.assets || []).forEach(a => {
+        const opt = document.createElement("option");
+        opt.value = a;
+        opt.textContent = a;
+        sel.appendChild(opt);
+      });
     }
 
-    // =========================
-    // Load month
-    // =========================
     async function loadMonth(){
       const month = document.getElementById("month").value.trim();
       if (!month){
-        alert("Please input month (YYYY-MM)");
+        alert("Please input month (YYYY-MM). Example: 2026-01");
         return;
       }
       setCsvLinks(month);
 
+      await loadAssets(month);
+
       const res = await fetch(`/api/xweather/monthly-report?month=${encodeURIComponent(month)}`);
       const js = await res.json();
       if (!js.ok){
-        alert(js.error || "Failed to load");
+        alert(js.error || "Failed to load data");
         return;
       }
-      rows = js.rows || [];
-      render();
-    }
 
-    // =========================
-    // Render
-    // =========================
-    function renderAssetFilter(){
-      const select = document.getElementById("filterAsset");
-      const current = select.value;
-      const assets = Array.from(new Set(rows.map(r => r.asset_name).filter(Boolean))).sort();
-      select.innerHTML = `<option value="">All</option>` + assets.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join("");
-      select.value = assets.map(x => norm(x)).includes(norm(current)) ? current : "";
-    }
-
-    function render(){
       const tbody = document.getElementById("tbody");
+      const rows = js.rows || [];
+
       tbody.innerHTML = rows.map(r => {
         const sev = norm(r.severity);
-        const asset = r.asset_name ?? "";
+        const asset = r.asset_name || "";
         return `
           <tr data-sev="${escapeHtml(sev)}" data-asset="${escapeHtml(asset)}">
             <td><span class="sev"><span class="dot"></span>${sevLabel(sev)}</span></td>
@@ -593,30 +710,23 @@
             <td>${escapeHtml(r.duration_min ?? "")}</td>
             <td>${escapeHtml(r.strength_ka ?? "")}</td>
             <td>${escapeHtml(r.event_type ?? "")}</td>
-            <td style="display:flex; gap:8px; justify-content:center;">
-              <button class="btn-mini" onclick="openModalEdit(${r.id})">Edit</button>
-              <button class="btn-mini danger" onclick="deleteRow(${r.id})">Delete</button>
-            </td>
           </tr>
         `;
       }).join("");
 
-      renderAssetFilter();
       applyFilters();
+      await loadExpert(month);
     }
 
-    // =========================
-    // Filters
-    // =========================
     function applyFilters(){
       const q = norm(document.getElementById("q").value);
-      const sev = norm(document.getElementById("filterSev").value);
-      const asset = norm(document.getElementById("filterAsset").value);
+      const sev = norm(document.getElementById("sev").value);
+      const asset = norm(document.getElementById("asset").value);
 
-      const trs = Array.from(document.querySelectorAll("#reportTable tbody tr"));
+      const rows = Array.from(document.querySelectorAll("#reportTable tbody tr"));
       let shown = 0;
 
-      trs.forEach(tr => {
+      rows.forEach(tr => {
         const trSev = norm(tr.getAttribute("data-sev"));
         const trAsset = norm(tr.getAttribute("data-asset"));
         const text = norm(tr.innerText);
@@ -630,123 +740,17 @@
         if (ok) shown++;
       });
 
-      document.getElementById("rowCount").innerText = `Rows shown: ${shown} / ${trs.length}`;
+      document.getElementById("rowCount").innerText = "Rows shown: " + shown + " / " + rows.length;
     }
 
-    // =========================
-    // Modal
-    // =========================
-    function openModal(){ document.getElementById("modalBackdrop").style.display = "flex"; }
-    function closeModal(){ document.getElementById("modalBackdrop").style.display = "none"; }
-    function closeModalIfBackdrop(e){ if (e.target && e.target.id === "modalBackdrop") closeModal(); }
-
-    function setForm(r){
-      document.getElementById("fSeverity").value = norm(r.severity) || "info";
-      document.getElementById("fAsset").value = r.asset_name ?? "";
-      document.getElementById("fExtent").value = r.extent_km ?? "";
-      document.getElementById("fFirst").value = r.first_event_time ?? "";
-      document.getElementById("fActive").value = r.active_time ?? "";
-      document.getElementById("fLast").value = r.last_event_time ?? "";
-      document.getElementById("fClear").value = r.clear_time ?? "";
-      document.getElementById("fDuration").value = r.duration_min ?? "";
-      document.getElementById("fStrength").value = r.strength_ka ?? "";
-      document.getElementById("fType").value = r.event_type ?? "";
+    function resetFilters(){
+      document.getElementById("q").value = "";
+      document.getElementById("sev").value = "";
+      document.getElementById("asset").value = "";
+      applyFilters();
     }
 
-    function getForm(){
-      return {
-        severity: norm(document.getElementById("fSeverity").value) || "info",
-        asset_name: (document.getElementById("fAsset").value || "").trim(),
-        extent_km: (document.getElementById("fExtent").value || "").trim(),
-        first_event_time: (document.getElementById("fFirst").value || "").trim(),
-        active_time: (document.getElementById("fActive").value || "").trim(),
-        last_event_time: (document.getElementById("fLast").value || "").trim(),
-        clear_time: (document.getElementById("fClear").value || "").trim(),
-        duration_min: (document.getElementById("fDuration").value || "").trim(),
-        strength_ka: (document.getElementById("fStrength").value || "").trim(),
-        event_type: (document.getElementById("fType").value || "").trim(),
-      };
-    }
-
-    function openModalNew(){
-      editingId = null;
-      document.getElementById("modalTitle").innerText = "Add Row";
-      setForm({severity:"info"});
-      openModal();
-    }
-
-    function openModalEdit(id){
-      const r = rows.find(x => x.id === id);
-      if (!r) return;
-      editingId = id;
-      document.getElementById("modalTitle").innerText = "Edit Row";
-      setForm(r);
-      openModal();
-    }
-
-    // =========================
-    // CRUD (API)
-    // =========================
-    async function saveModal(){
-      const month = document.getElementById("month").value.trim();
-      if (!month){
-        alert("Please input month (YYYY-MM) first.");
-        return;
-      }
-      const f = getForm();
-      if (!f.asset_name){
-        alert("Asset name is required.");
-        return;
-      }
-
-      const payload = {
-        report_month: month,
-        ...f
-      };
-
-      let res, js;
-      if (editingId === null){
-        res = await fetch("/api/xweather/monthly-report", {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify(payload)
-        });
-        js = await res.json();
-        if (!js.ok){
-          alert(js.error || "Create failed");
-          return;
-        }
-      } else {
-        res = await fetch(`/api/xweather/monthly-report/${editingId}`, {
-          method: "PUT",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify(payload)
-        });
-        js = await res.json();
-        if (!js.ok){
-          alert(js.error || "Update failed");
-          return;
-        }
-      }
-
-      closeModal();
-      await loadMonth();
-    }
-
-    async function deleteRow(id){
-      if (!confirm("Delete this row?")) return;
-      const res = await fetch(`/api/xweather/monthly-report/${id}`, { method: "DELETE" });
-      const js = await res.json();
-      if (!js.ok){
-        alert(js.error || "Delete failed");
-        return;
-      }
-      await loadMonth();
-    }
-
-    // =========================
-    // Init default month (current UTC YYYY-MM)
-    // =========================
+    // init: set default month to current UTC YYYY-MM, then load
     (function init(){
       const d = new Date();
       const y = d.getUTCFullYear();
@@ -757,56 +761,29 @@
       loadMonth();
     })();
 
-  async function uploadCSV(event){
-    const file = event.target.files?.[0];
-    if (!file) return;
+  async function loadExpert(month){
+    const tbody = document.getElementById("expertTbody");
+    const note = document.getElementById("expertNote");
+    tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:var(--muted);">Loading...</td></tr>`;
+    if (note) note.innerText = "";
 
-    const month = document.getElementById("month").value.trim();
-    if (!month){
-      alert("Please input month (YYYY-MM) first.");
-      event.target.value = "";
+    const res = await fetch(`/api/xweather/monthly-report/expert?month=${encodeURIComponent(month)}`);
+    const js = await res.json();
+
+    if (!js.ok){
+      tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:#b91c1c;">${escapeHtml(js.error || "Failed to load expert stats")}</td></tr>`;
       return;
     }
 
-    // pilih mode
-    const replace = confirm(
-      "Upload mode:\n\nOK = REPLACE (hapus data bulan ini lalu isi dari CSV)\nCancel = APPEND (tambah ke data bulan ini)"
-    );
-    const mode = replace ? "replace" : "append";
+    const metrics = js.metrics || [];
+    tbody.innerHTML = metrics.map(m => `
+      <tr>
+        <td style="text-align:left;font-weight:800;color:var(--xw-blue);">${escapeHtml(m.metric)}</td>
+        <td style="text-align:left;">${escapeHtml(m.value)}</td>
+      </tr>
+    `).join("");
 
-    const statusEl = document.getElementById("importStatus");
-    if (statusEl) statusEl.innerText = "Uploading CSV...";
-
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("report_month", month);
-    fd.append("mode", mode);
-
-    try{
-      const res = await fetch("/api/xweather/monthly-report/import-csv", {
-        method: "POST",
-        body: fd
-      });
-      const js = await res.json();
-      if (!js.ok){
-        alert(js.error || "Upload failed");
-        if (statusEl) statusEl.innerText = "";
-        event.target.value = "";
-        return;
-      }
-
-      if (statusEl){
-        statusEl.innerText = `✅ Import success (${js.mode}) — inserted: ${js.inserted}, skipped: ${js.skipped}`;
-      }
-
-      // reload tabel bulan ini
-      await loadMonth();
-    }catch(e){
-      alert("Upload failed: " + e);
-      if (statusEl) statusEl.innerText = "";
-    }finally{
-      event.target.value = "";
-    }
+    if (note) note.innerText = `Expert stats month: ${month} · metrics: ${metrics.length}`;
   }
   </script>
 </body>
