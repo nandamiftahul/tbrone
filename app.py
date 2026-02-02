@@ -2,6 +2,7 @@ from flask import Flask, redirect, url_for
 from xweather_manual_routes import xweather_manual_bp
 from twincityjakarta_manual_routes import twincityjakarta_manual_bp
 from xweather_report_routes import xweather_report_bp
+from xweather_monthly_report_sqlite_routes import xweather_report_bp
 
 
 def create_app():
@@ -13,6 +14,9 @@ def create_app():
     app.register_blueprint(xweather_manual_bp)
     app.register_blueprint(twincityjakarta_manual_bp)
     app.register_blueprint(xweather_report_bp)
+    app.config["XWEATHER_DB_PATH"] = "xweather_reports.db"  # boleh diganti path lain
+    app.register_blueprint(xweather_report_bp)
+
 
     @app.route("/")
     def index():
