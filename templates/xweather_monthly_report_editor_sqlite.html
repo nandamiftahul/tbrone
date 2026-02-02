@@ -367,10 +367,17 @@
                   <option value="">All</option>
                 </select>
               </div>
-            </div>
-
+            </div>        
             <div class="right-actions">
               <button class="btn" onclick="loadMonth()">🔄 Load</button>
+            
+              <!-- ✅ Upload CSV -->
+              <label class="btn" style="cursor:pointer;">
+                ⬆ Upload CSV
+                <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none"
+                       onchange="uploadCSV(event)">
+              </label>
+            
               <button class="btn primary" onclick="openModalNew()">＋ Add Row</button>
               <a class="btn primary" id="btnCsv" href="#">⬇ Download CSV</a>
             </div>
@@ -398,6 +405,7 @@
           </div>
 
           <div class="mini" id="rowCount"></div>
+          <div class="mini" id="importStatus"></div>
 
           <div class="callout">
             <strong>Catatan:</strong> CSV selalu mengikuti bulan yang dipilih. Pastikan input bulan valid: <span class="kbd">YYYY-MM</span>.
@@ -732,6 +740,58 @@
       setCsvLinks(month);
       loadMonth();
     })();
+
+  async function uploadCSV(event){
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const month = document.getElementById("month").value.trim();
+    if (!month){
+      alert("Please input month (YYYY-MM) first.");
+      event.target.value = "";
+      return;
+    }
+
+    // pilih mode
+    const replace = confirm(
+      "Upload mode:\n\nOK = REPLACE (hapus data bulan ini lalu isi dari CSV)\nCancel = APPEND (tambah ke data bulan ini)"
+    );
+    const mode = replace ? "replace" : "append";
+
+    const statusEl = document.getElementById("importStatus");
+    if (statusEl) statusEl.innerText = "Uploading CSV...";
+
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("report_month", month);
+    fd.append("mode", mode);
+
+    try{
+      const res = await fetch("/api/xweather/monthly-report/import-csv", {
+        method: "POST",
+        body: fd
+      });
+      const js = await res.json();
+      if (!js.ok){
+        alert(js.error || "Upload failed");
+        if (statusEl) statusEl.innerText = "";
+        event.target.value = "";
+        return;
+      }
+
+      if (statusEl){
+        statusEl.innerText = `✅ Import success (${js.mode}) — inserted: ${js.inserted}, skipped: ${js.skipped}`;
+      }
+
+      // reload tabel bulan ini
+      await loadMonth();
+    }catch(e){
+      alert("Upload failed: " + e);
+      if (statusEl) statusEl.innerText = "";
+    }finally{
+      event.target.value = "";
+    }
+  }
   </script>
 </body>
 </html>

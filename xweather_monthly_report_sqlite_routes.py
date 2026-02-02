@@ -286,3 +286,154 @@ def xweather_monthly_report_viewer():
     return render_template("xweather_monthly_report_sqlite.html")
 
 
+@xweather_report_bp.route("/api/xweather/monthly-report/import-csv", methods=["POST"])
+def api_import_monthly_report_csv():
+    init_db()
+
+    # multipart/form-data:
+    # - file: csv
+    # - report_month: "YYYY-MM"
+    # - mode: "append" | "replace"
+    f = request.files.get("file")
+    report_month = (request.form.get("report_month") or "").strip()
+    mode = (request.form.get("mode") or "append").strip().lower()
+
+    if not f:
+        return jsonify({"ok": False, "error": "missing file"}), 400
+    if not report_month:
+        return jsonify({"ok": False, "error": "report_month required (YYYY-MM)"}), 400
+    if mode not in ("append", "replace"):
+        return jsonify({"ok": False, "error": "mode must be append or replace"}), 400
+
+    # Read CSV (handle UTF-8 BOM)
+    raw = f.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except Exception:
+        # fallback
+        text = raw.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return jsonify({"ok": False, "error": "CSV has no header"}), 400
+
+    # Expected headers (case-insensitive)
+    # Severity, Asset name, Extent (km), First event time, Active time, Last event time,
+    # Clear time, Duration (min), Strength (kA), Type
+    header_map = {h.strip().lower(): h for h in reader.fieldnames}
+
+    def hget(*names):
+        for n in names:
+            key = n.strip().lower()
+            if key in header_map:
+                return header_map[key]
+        return None
+
+    H_SEV = hget("Severity")
+    H_ASSET = hget("Asset name", "Asset", "Asset_name")
+    H_EXTENT = hget("Extent (km)", "Extent")
+    H_FIRST = hget("First event time", "First")
+    H_ACTIVE = hget("Active time", "Active")
+    H_LAST = hget("Last event time", "Last")
+    H_CLEAR = hget("Clear time", "Clear")
+    H_DUR = hget("Duration (min)", "Duration")
+    H_KA = hget("Strength (kA)", "Strength")
+    H_TYPE = hget("Type", "Event type")
+
+    if not H_SEV or not H_ASSET:
+        return jsonify({
+            "ok": False,
+            "error": "CSV header not recognized. Need at least: Severity, Asset name"
+        }), 400
+
+    def _to_float(v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        if s == "":
+            return None
+        try:
+            return float(s)
+        except:
+            return None
+
+    def _to_int(v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        if s == "":
+            return None
+        try:
+            return int(float(s))
+        except:
+            return None
+
+    db = get_db()
+
+    # Replace mode: delete all rows for that month first
+    if mode == "replace":
+        db.execute("DELETE FROM monthly_lightning_alerts WHERE report_month = ?", (report_month,))
+        db.commit()
+
+    inserted = 0
+    skipped = 0
+    errors = []
+
+    try:
+        db.execute("BEGIN")
+        for i, row in enumerate(reader, start=2):  # start=2 because row 1 is header
+            sev_raw = (row.get(H_SEV) or "").strip()
+            asset = (row.get(H_ASSET) or "").strip()
+
+            if not asset:
+                skipped += 1
+                continue
+
+            severity = _norm_sev(sev_raw)
+
+            extent_km = _to_float(row.get(H_EXTENT)) if H_EXTENT else None
+            first_event_time = (row.get(H_FIRST) or "").strip() if H_FIRST else ""
+            active_time = (row.get(H_ACTIVE) or "").strip() if H_ACTIVE else ""
+            last_event_time = (row.get(H_LAST) or "").strip() if H_LAST else ""
+            clear_time = (row.get(H_CLEAR) or "").strip() if H_CLEAR else ""
+            duration_min = _to_int(row.get(H_DUR)) if H_DUR else None
+            strength_ka = _to_float(row.get(H_KA)) if H_KA else None
+            event_type = (row.get(H_TYPE) or "").strip() if H_TYPE else ""
+
+            db.execute("""
+                INSERT INTO monthly_lightning_alerts(
+                    report_month, severity, asset_name, extent_km,
+                    first_event_time, active_time, last_event_time, clear_time,
+                    duration_min, strength_ka, event_type, created_at
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (
+                report_month,
+                severity,
+                asset,
+                extent_km,
+                first_event_time,
+                active_time,
+                last_event_time,
+                clear_time,
+                duration_min,
+                strength_ka,
+                event_type,
+                _now_iso()
+            ))
+            inserted += 1
+
+        db.commit()
+    except Exception as e:
+        db.execute("ROLLBACK")
+        return jsonify({"ok": False, "error": f"import failed: {str(e)}"}), 500
+
+    return jsonify({
+        "ok": True,
+        "report_month": report_month,
+        "mode": mode,
+        "inserted": inserted,
+        "skipped": skipped,
+        "errors": errors
+    })
+
+
