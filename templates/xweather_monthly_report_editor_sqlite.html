@@ -539,7 +539,7 @@
     }
 
     function setCsvLinks(month){
-      const url = `/xweather/monthly-report.csv?month=${encodeURIComponent(month)}`;
+      const url = "/xweather/monthly-report.xlsx?month=" + encodeURIComponent(month);
       document.getElementById("btnCsv").href = url;
       document.getElementById("btnCsvTop").href = url;
     }

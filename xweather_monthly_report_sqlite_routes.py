@@ -9,6 +9,8 @@ from collections import Counter
 import psycopg
 from psycopg.rows import dict_row
 from openpyxl import load_workbook
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
@@ -685,3 +687,224 @@ def api_monthly_report_expert():
         metrics.append({"metric": "Maximum |peak current| (kA)", "value": f"{max_abs_ka:.2f}"})
 
     return jsonify({"ok": True, "month": month, "metrics": metrics})
+
+
+@xweather_report_bp.route("/xweather/monthly-report.xlsx", methods=["GET"])
+def monthly_report_xlsx():
+    init_db()
+    month = (request.args.get("month") or "").strip()
+    if not month:
+        return "missing month (YYYY-MM)", 400
+
+    db = get_db()
+    with db.cursor() as cur:
+        # 1) data report
+        cur.execute("""
+            SELECT severity, asset_name, extent_km, first_event_time, active_time,
+                   last_event_time, clear_time, duration_min, strength_ka, event_type
+            FROM monthly_lightning_alerts
+            WHERE report_month = %s
+            ORDER BY id DESC
+        """, (month,))
+        report_rows = cur.fetchall()
+
+        # 2) data expert (ambil data mentah yang dibutuhkan)
+        cur.execute("""
+            SELECT severity, first_event_time, duration_min, strength_ka, event_type
+            FROM monthly_lightning_alerts
+            WHERE report_month = %s
+        """, (month,))
+        expert_rows = cur.fetchall()
+
+    # ===== Build Expert Metrics (mengikuti logic expert yang sudah ada) =====
+    total = len(expert_rows)
+
+    def _percentile(sorted_vals, p):
+        if not sorted_vals:
+            return None
+        if len(sorted_vals) == 1:
+            return float(sorted_vals[0])
+        k = (len(sorted_vals) - 1) * (p / 100.0)
+        f = int(k)
+        c = min(f + 1, len(sorted_vals) - 1)
+        if f == c:
+            return float(sorted_vals[f])
+        return float(sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f))
+
+    def _parse_hour_utc(s: str):
+        if not s:
+            return None
+        s = str(s).strip()
+        fmts = [
+            "%d.%m.%Y %H:%M",
+            "%d.%m.%Y %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%dT%H:%M:%SZ",
+            "%Y-%m-%dT%H:%M:%S",
+        ]
+        for f in fmts:
+            try:
+                return datetime.strptime(s, f).hour
+            except Exception:
+                pass
+        m = re.search(r"\b([01]?\d|2[0-3])[:.]\d{2}\b", s)
+        if m:
+            try:
+                return int(m.group(1))
+            except Exception:
+                return None
+        return None
+
+    sev_counts = Counter([(r["severity"] or "").strip().lower() for r in expert_rows])
+    alarm = sev_counts.get("alarm", 0)
+    warning = sev_counts.get("warning", 0)
+    info = sev_counts.get("info", 0)
+
+    durations = []
+    for r in expert_rows:
+        v = r.get("duration_min")
+        if v is None:
+            continue
+        try:
+            durations.append(float(v))
+        except Exception:
+            pass
+    durations.sort()
+
+    dmin = durations[0] if durations else None
+    dmax = durations[-1] if durations else None
+    dmed = _percentile(durations, 50) if durations else None
+    dmean = (sum(durations) / len(durations)) if durations else None
+    q25 = _percentile(durations, 25) if durations else None
+    q75 = _percentile(durations, 75) if durations else None
+    iqr = (q75 - q25) if (q25 is not None and q75 is not None) else None
+    p90 = _percentile(durations, 90) if durations else None
+
+    hours = []
+    for r in expert_rows:
+        h = _parse_hour_utc(r.get("first_event_time"))
+        if h is not None:
+            hours.append(h)
+    hour_counts = Counter(hours)
+    most_hour = hour_counts.most_common(1)[0][0] if hour_counts else None
+
+    busiest_window = None
+    busiest_count = None
+    if hour_counts:
+        counts = [hour_counts.get(h, 0) for h in range(24)]
+        best_h, best_sum = 0, -1
+        for h in range(24):
+            s3 = counts[h] + counts[(h + 1) % 24] + counts[(h + 2) % 24]
+            if s3 > best_sum:
+                best_sum = s3
+                best_h = h
+        busiest_window = f"{best_h:02d}:00–{(best_h + 3) % 24:02d}:00"
+        busiest_count = best_sum
+
+    types = []
+    cg_minus = 0
+    for r in expert_rows:
+        t = (r.get("event_type") or "").strip()
+        if not t:
+            continue
+        tn = t.lower().replace(" ", "")
+        types.append(t)
+        if "cg-" in tn:
+            cg_minus += 1
+    dominant_type = Counter(types).most_common(1)[0][0] if types else None
+    cg_minus_share = (cg_minus / total * 100.0) if total else 0.0
+
+    strengths = []
+    for r in expert_rows:
+        v = r.get("strength_ka")
+        if v is None:
+            continue
+        try:
+            strengths.append(abs(float(v)))
+        except Exception:
+            pass
+    min_abs_ka = min(strengths) if strengths else None
+    max_abs_ka = max(strengths) if strengths else None
+    avg_abs_ka = (sum(strengths) / len(strengths)) if strengths else None
+
+    expert_metrics = [
+        ("Total events", total),
+        ("Period (UTC)", month),
+        ("Fixed ring logic", "Info=20 km; Warning=10 km; Alarm=4 km"),
+        ("Alarm share", f"{alarm} ({(alarm/total*100):.1f}%)" if total else "0 (0.0%)"),
+        ("Warning share", f"{warning} ({(warning/total*100):.1f}%)" if total else "0 (0.0%)"),
+        ("Info share", f"{info} ({(info/total*100):.1f}%)" if total else "0 (0.0%)"),
+    ]
+
+    if durations:
+        expert_metrics += [
+            ("Duration min / median / max (min)", f"{dmin:.0f} / {dmed:.0f} / {dmax:.0f}"),
+            ("Duration mean (min)", f"{dmean:.2f}"),
+            ("Duration IQR (Q75–Q25) (min)", f"{iqr:.2f}" if iqr is not None else ""),
+            ("Duration P90 (min)", f"{p90:.2f}" if p90 is not None else ""),
+        ]
+
+    if most_hour is not None:
+        expert_metrics.append(("Most frequent hour (UTC)", str(most_hour)))
+    if busiest_window is not None:
+        expert_metrics.append(("Busiest 3-hour window (UTC)", f"{busiest_window} ({busiest_count} events)"))
+
+    if dominant_type:
+        expert_metrics.append(("Dominant type", dominant_type))
+    expert_metrics.append(("CG- share", f"{cg_minus_share:.1f}%"))
+
+    if min_abs_ka is not None:
+        expert_metrics.append(("Minimum |peak current| (kA)", f"{min_abs_ka:.2f}"))
+    if avg_abs_ka is not None:
+        expert_metrics.append(("Average |peak current| (kA)", f"{avg_abs_ka:.2f}"))
+    if max_abs_ka is not None:
+        expert_metrics.append(("Maximum |peak current| (kA)", f"{max_abs_ka:.2f}"))
+
+    # ===== Build Excel workbook with 2 sheets =====
+    wb = Workbook()
+
+    # Sheet 1: Report
+    ws1 = wb.active
+    ws1.title = "Monthly Report"
+    headers = [
+        "Severity","Asset name","Extent (km)","First event time","Active time",
+        "Last event time","Clear time","Duration (min)","Strength (kA)","Type"
+    ]
+    ws1.append(headers)
+    for r in report_rows:
+        ws1.append([
+            r.get("severity"),
+            r.get("asset_name"),
+            r.get("extent_km"),
+            r.get("first_event_time"),
+            r.get("active_time"),
+            r.get("last_event_time"),
+            r.get("clear_time"),
+            r.get("duration_min"),
+            r.get("strength_ka"),
+            r.get("event_type"),
+        ])
+
+    # autosize (simple)
+    for col in range(1, len(headers) + 1):
+        ws1.column_dimensions[get_column_letter(col)].width = 18
+
+    # Sheet 2: Expert
+    ws2 = wb.create_sheet("Expert Statistical Analysis")
+    ws2.append(["Metric", "Value"])
+    for k, v in expert_metrics:
+        ws2.append([k, str(v)])
+
+    ws2.column_dimensions["A"].width = 34
+    ws2.column_dimensions["B"].width = 42
+
+    # write to bytes
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+
+    resp = make_response(bio.read())
+    resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    resp.headers["Content-Disposition"] = f'attachment; filename="Xweather_Monthly_Report_{month}.xlsx"'
+    return resp
