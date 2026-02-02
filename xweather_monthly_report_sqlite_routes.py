@@ -605,7 +605,7 @@ def api_monthly_report_expert():
     dominant_type = Counter(types).most_common(1)[0][0] if types else None
     cg_minus_share = (cg_minus / total * 100.0) if total else 0.0
 
-    # strength stats (average |kA|)
+    # strength stats (|kA|)
     strengths = []
     for r in rows:
         v = r["strength_ka"]
@@ -615,7 +615,11 @@ def api_monthly_report_expert():
             strengths.append(abs(float(v)))
         except Exception:
             pass
+    
     avg_abs_ka = (sum(strengths) / len(strengths)) if strengths else None
+    min_abs_ka = min(strengths) if strengths else None
+    max_abs_ka = max(strengths) if strengths else None
+    
 
     # period display (best-effort)
     period_str = month
@@ -647,10 +651,18 @@ def api_monthly_report_expert():
     # type & strength block
     if dominant_type:
         metrics.append({"metric": "Dominant type", "value": dominant_type})
+    
     metrics.append({"metric": "CG- share", "value": f"{cg_minus_share:.1f}%"})
+    
+    if min_abs_ka is not None:
+        metrics.append({"metric": "Minimum |peak current| (kA)", "value": f"{min_abs_ka:.2f}"})
+    
     if avg_abs_ka is not None:
         metrics.append({"metric": "Average |peak current| (kA)", "value": f"{avg_abs_ka:.2f}"})
-
+    
+    if max_abs_ka is not None:
+        metrics.append({"metric": "Maximum |peak current| (kA)", "value": f"{max_abs_ka:.2f}"})
+    
     return jsonify({"ok": True, "month": month, "metrics": metrics})
 
 
