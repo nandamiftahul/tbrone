@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Xweather Protect – Monthly Report (Terrindo Bumi Raya)</title>
+
+  <!-- Fonts (fallback to system if not available) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --xw-blue: #003A8F;        /* Vaisala-like deep blue */
+      --xw-blue-2:#0A4BBF;       /* accent */
+      --tbr-orange:#F28C28;      /* Terrindo orange */
+      --bg:#F4F7FB;
+      --card:#FFFFFF;
+      --text:#1F2937;
+      --muted:#6B7280;
+      --border:rgba(17,24,39,.10);
+      --shadow: 0 10px 30px rgba(2, 22, 55, .08);
+      --radius: 16px;
+    }
+
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color:var(--text);
+      background: linear-gradient(180deg, #EAF1FF 0%, var(--bg) 40%, #F7FAFF 100%);
+    }
+
+    /* Top bar (Xweather-like) */
+    .topbar{
+      position: sticky;
+      top:0;
+      z-index: 30;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 14px 18px;
+      background: rgba(0, 58, 143, .94);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,.15);
+      gap: 12px;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width: 240px;
+    }
+    .brand img{
+      height:32px;
+      width:auto;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
+      border-radius: 8px;
+    }
+    .brand .title{
+      display:flex;
+      flex-direction:column;
+      line-height:1.1;
+      color:#fff;
+    }
+    .brand .title strong{
+      font-size:14px;
+      letter-spacing:.2px;
+    }
+    .brand .title span{
+      font-size:12px;
+      opacity:.85;
+    }
+
+    .top-actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+    }
+    .btn{
+      appearance:none;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10);
+      color:#fff;
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:13px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+      text-decoration:none;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); }
+    .btn.primary{
+      background: linear-gradient(135deg, var(--tbr-orange) 0%, #FFB565 100%);
+      border-color: rgba(255,255,255,.10);
+      color:#1A1A1A;
+    }
+    .btn.primary:hover{ background: linear-gradient(135deg, #FF9B3A 0%, #FFC27A 100%); }
+
+    /* Layout */
+    .wrap{
+      display:grid;
+      grid-template-columns: 320px 1fr;
+      gap: 18px;
+      padding: 18px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+      .sidebar{ position: relative; top:0; }
+    }
+
+    /* Sidebar */
+    .sidebar{
+      position: sticky;
+      top: 74px;
+      align-self:start;
+      background: var(--card);
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .sidebar .head{
+      padding: 14px 16px;
+      border-bottom:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
+    }
+    .sidebar .head .h{
+      font-weight:800;
+      font-size:14px;
+      color: var(--xw-blue);
+      letter-spacing:.2px;
+      margin:0;
+    }
+    .sidebar .head .s{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    .nav{
+      padding: 10px 10px 14px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .nav a{
+      text-decoration:none;
+      color: var(--text);
+      border:1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      background: #fff;
+      transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .nav a:hover{
+      transform: translateY(-1px);
+      border-color: rgba(0,58,143,.20);
+      box-shadow: 0 10px 22px rgba(0,58,143,.08);
+    }
+    .badge{
+      min-width: 26px;
+      height: 26px;
+      border-radius: 9px;
+      display:grid;
+      place-items:center;
+      font-weight:800;
+      font-size:12px;
+      color:#fff;
+      background: var(--xw-blue);
+    }
+    .nav a .meta{
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+    .nav a .meta strong{ font-size:13px; }
+    .nav a .meta span{ font-size:12px; color:var(--muted); line-height:1.35; }
+
+    /* Content */
+    .content{
+      display:flex;
+      flex-direction:column;
+      gap: 14px;
+    }
+    .card{
+      background: var(--card);
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .card-head{
+      padding: 16px 18px;
+      border-bottom:1px solid var(--border);
+      background: linear-gradient(90deg, rgba(0,58,143,.08) 0%, rgba(242,140,40,.08) 100%);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 12px;
+    }
+    .card .card-head h2{
+      margin:0;
+      font-size:16px;
+      color: var(--xw-blue);
+      letter-spacing:.2px;
+    }
+    .card .card-head p{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+    .chip{
+      border:1px solid rgba(0,58,143,.18);
+      background: rgba(0,58,143,.06);
+      color: var(--xw-blue);
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size:12px;
+      font-weight:700;
+      white-space:nowrap;
+      height: fit-content;
+    }
+    .card .body{
+      padding: 16px 18px 18px;
+    }
+
+    .kbd{
+      display:inline-flex;
+      align-items:center;
+      padding: 2px 8px;
+      border-radius: 8px;
+      border:1px solid rgba(17,24,39,.14);
+      background: rgba(17,24,39,.04);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:12px;
+      color:#111827;
+      margin: 0 2px;
+    }
+
+    .callout{
+      margin-top: 12px;
+      border: 1px solid rgba(242,140,40,.30);
+      background: rgba(242,140,40,.08);
+      border-radius: 14px;
+      padding: 12px 12px;
+      color:#7A3E00;
+      font-size:12.5px;
+      line-height:1.55;
+    }
+    .callout strong{ color:#5C2F00; }
+
+    /* Footer */
+    .footer{
+      max-width: 1280px;
+      margin: 0 auto 26px;
+      padding: 0 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align:center;
+    }
+
+    /* ✅ Mobile friendly (same spirit as manual) */
+    @media (max-width: 640px){
+      .topbar{ padding: 12px 12px; }
+      .brand{ min-width: 0; }
+      .brand img{ height:28px; }
+      .brand .title strong{ font-size:13px; }
+      .brand .title span{ font-size:11.5px; }
+      .btn{ padding: 9px 10px; font-size:12.5px; border-radius: 11px; }
+      .wrap{ padding: 12px; gap: 12px; }
+      .card .card-head{ padding: 14px 14px; }
+      .card .body{ padding: 14px 14px 16px; }
+      .nav a{ padding: 10px 10px; }
+      .badge{ min-width:24px; height:24px; border-radius: 8px; font-size:11px; }
+    }
+
+    /* Print / PDF */
+    @media print{
+      body{ background:#fff; }
+      .topbar, .sidebar, .top-actions .btn.print-hide{ display:none !important; }
+      .wrap{ grid-template-columns: 1fr; padding: 0; max-width: none; }
+      .card{ box-shadow:none; border: 1px solid #ddd; }
+      .card .card-head{ background: #f5f7ff; }
+    }
+
+    /* === Monthly Report: Table + Controls === */
+    .action-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:12px;
+    }
+    .filters{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width: 180px;
+    }
+    .field label{
+      font-size:12px;
+      color: var(--muted);
+      font-weight:700;
+    }
+    .input{
+      border:1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size:13px;
+      outline:none;
+      background:#fff;
+    }
+    .input:focus{
+      border-color: rgba(0,58,143,.25);
+      box-shadow: 0 10px 22px rgba(0,58,143,.08);
+    }
+
+    .table-wrap{
+      overflow-x:auto;
+      border:1px solid var(--border);
+      border-radius: 14px;
+      background:#fff;
+    }
+    table.report-table{
+      width:100%;
+      border-collapse: collapse;
+      font-size:13px;
+    }
+    .report-table th,
+    .report-table td{
+      border-bottom:1px solid rgba(17,24,39,.08);
+      padding:10px 10px;
+      text-align:center;
+      white-space:nowrap;
+    }
+    .report-table th{
+      position: sticky;
+      top: 0;
+      background: linear-gradient(180deg, rgba(0,58,143,.12), rgba(0,58,143,.05));
+      color: var(--xw-blue);
+      font-weight:800;
+      z-index: 2;
+    }
+    .report-table tbody tr:nth-child(even){
+      background:#F8FAFF;
+    }
+    .report-table td:first-child,
+    .report-table th:first-child{
+      text-align:left;
+      padding-left:14px;
+    }
+    .report-table td:nth-child(2),
+    .report-table th:nth-child(2){
+      text-align:left;
+    }
+
+    /* Severity highlight */
+    .sev{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-weight:800;
+      font-size:12.5px;
+    }
+    .dot{
+      width:9px;
+      height:9px;
+      border-radius: 999px;
+      display:inline-block;
+    }
+    tr[data-sev="info"] .dot{ background:#3b82f6; }
+    tr[data-sev="warning"] .dot{ background:#f59e0b; }
+    tr[data-sev="alarm"] .dot{ background:#ef4444; }
+
+    tr[data-sev="warning"] td{ background: rgba(245,158,11,.10); }
+    tr[data-sev="alarm"] td{ background: rgba(239,68,68,.14); font-weight:700; }
+    tr[data-sev="info"] td{ background: rgba(59,130,246,.08); }
+
+    .mini{
+      font-size:12px;
+      color: var(--muted);
+      margin-top:10px;
+      line-height:1.45;
+    }
+
+    /* Sidebar responsive (same manual behavior) */
+    @media (max-width: 980px){
+      .sidebar{ display:none; }
+      body.nav-open .sidebar{ display:block; }
+      .wrap{ grid-template-columns: 1fr; }
+    }
+
+    section.card{ scroll-margin-top: 88px; }
+    @media (max-width: 480px){
+      .wrap{ padding: 10px; }
+      .card .body{ padding: 12px; }
+      .card .card-head{ padding: 12px; }
+      .field{ min-width: 140px; }
+      .report-table th, .report-table td{ padding: 9px 8px; font-size:12.5px; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
+      <div class="title">
+        <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
+        <span>Monthly Lightning Alert Report (CSV Download)</span>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <a class="btn print-hide" href="#report">Report</a>
+      <a class="btn print-hide" href="#legend">Legend</a>
+      <!-- NOTE: href will be overwritten by JS to include month -->
+      <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.csv?month=">Download CSV</a>
+      <button class="btn print-hide" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="head">
+        <p class="h">Daftar Isi</p>
+        <p class="s">
+          Laporan bulanan alert petir per asset: severity, durasi, dan strength (kA).
+        </p>
+      </div>
+      <nav class="nav">
+        <a href="#report"><div class="badge">1</div><div class="meta"><strong>Monthly Report</strong><span>Tabel utama + filter + download CSV</span></div></a>
+        <a href="#legend"><div class="badge">2</div><div class="meta"><strong>Legend</strong><span>Arti kolom dan severity</span></div></a>
+        <a href="/xweather/manual"><div class="badge">M</div><div class="meta"><strong>Back to Manual</strong><span>Kembali ke Xweather manual</span></div></a>
+      </nav>
+    </aside>
+
+    <!-- Content -->
+    <main class="content">
+
+      <!-- REPORT -->
+      <section id="report" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Monthly Lightning Alert Report</h2>
+            <p>
+              Tabel ini menampilkan log alert petir (Info/Warning/Alarm) per asset.
+              Gunakan filter untuk mempermudah pencarian, lalu unduh sebagai CSV.
+            </p>
+          </div>
+          <div class="chip">Monthly Report</div>
+        </div>
+
+        <div class="body">
+
+          <!-- ACTIONS + FILTERS -->
+          <div class="action-row">
+            <div class="filters">
+              <!-- ✅ Month selector added (minimal, still same style) -->
+              <div class="field">
+                <label for="month">Month<br><small>(YYYY-MM)</small></label>
+                <input id="month" class="input" type="text" placeholder="2026-01" onkeydown="if(event.key==='Enter'){loadMonth();}">
+              </div>
+
+              <div class="field">
+                <label for="q">Search</label>
+                <input id="q" class="input" type="text" placeholder="Cari asset / type / time..." oninput="applyFilters()">
+              </div>
+
+              <div class="field">
+                <label for="sev">Severity</label>
+                <select id="sev" class="input" onchange="applyFilters()">
+                  <option value="">All</option>
+                  <option value="info">Info</option>
+                  <option value="warning">Warning</option>
+                  <option value="alarm">Alarm</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="asset">Asset</label>
+                <select id="asset" class="input" onchange="applyFilters()">
+                  <option value="">All</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn" onclick="loadMonth()">🔄 Load</button>
+              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.csv?month=">⬇ Download CSV</a>
+              <button class="btn" onclick="window.print()">🖨 Print</button>
+              <button class="btn" onclick="resetFilters()">↺ Reset</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="report-table" id="reportTable">
+              <thead>
+                <tr>
+                  <th>Severity</th>
+                  <th>Asset name</th>
+                  <th>Extent<br>(km)</th>
+                  <th>First event time</th>
+                  <th>Active time</th>
+                  <th>Last event time</th>
+                  <th>Clear time</th>
+                  <th>Duration<br>(min)</th>
+                  <th>Strength<br>(kA)</th>
+                  <th>Type</th>
+                </tr>
+              </thead>
+              <tbody id="tbody">
+                <!-- rows injected from SQLite -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mini" id="rowCount"></div>
+
+          <div class="callout">
+            <strong>Catatan:</strong> Tombol <span class="kbd">Download CSV</span> akan mengambil data bulan yang dipilih dalam format CSV,
+            sehingga bisa langsung dipakai untuk laporan bulanan (HSE/ops).
+          </div>
+        </div>
+      </section>
+
+      <!-- LEGEND -->
+      <section id="legend" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Legend & Penjelasan Kolom</h2>
+            <p>Ringkasan arti kolom pada laporan dan aturan severity.</p>
+          </div>
+          <div class="chip">Help</div>
+        </div>
+
+        <div class="body">
+          <div class="callout" style="margin-top:0">
+            <strong>Severity:</strong>
+            <span class="kbd">Info</span> (monitoring awal),
+            <span class="kbd">Warning</span> (lebih dekat),
+            <span class="kbd">Alarm</span> (zona kritis/SOP stop).
+          </div>
+
+          <div style="margin-top:12px; color:var(--muted); font-size:12.8px; line-height:1.7">
+            <ul style="margin:0; padding-left:18px">
+              <li><b>Extent (km)</b>: radius ring/area yang ter-trigger (contoh: 20 km / 10 km / 4 km).</li>
+              <li><b>First event time</b>: waktu pertama kali event petir memicu severity itu.</li>
+              <li><b>Active time</b>: waktu status mulai aktif (umumnya sama dengan first event time).</li>
+              <li><b>Last event time</b>: waktu event petir terakhir sebelum status menuju clear.</li>
+              <li><b>Clear time</b>: waktu status kembali aman setelah tidak ada event (mengikuti clear time setting).</li>
+              <li><b>Duration (min)</b>: total durasi status aktif (menit).</li>
+              <li><b>Strength (kA)</b>: kekuatan petir (kiloampere), biasanya peak current.</li>
+              <li><b>Type</b>: tipe petir (misal <span class="kbd">CG-</span>, <span class="kbd">CG+</span>, dst).</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div class="footer">
+    © Terrindo Bumi Raya · Xweather Monthly Report · For operational and reporting purposes.
+  </div>
+
+  <script>
+    function norm(s){ return (s || "").toString().toLowerCase().trim(); }
+
+    function escapeHtml(s){
+      return (s ?? "").toString()
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function setCsvLinks(month){
+      const url = "/xweather/monthly-report.csv?month=" + encodeURIComponent(month);
+      document.getElementById("btnCsv").href = url;
+      document.getElementById("btnCsvTop").href = url;
+    }
+
+    function sevLabel(sev){
+      const s = norm(sev);
+      if (s === "alarm") return "Alarm";
+      if (s === "warning") return "Warning";
+      return "Info";
+    }
+
+    async function loadAssets(month){
+      const sel = document.getElementById("asset");
+      sel.innerHTML = `<option value="">All</option>`;
+      const res = await fetch(`/api/xweather/monthly-report/assets?month=${encodeURIComponent(month)}`);
+      const js = await res.json();
+      if (!js.ok) return;
+      (js.assets || []).forEach(a => {
+        const opt = document.createElement("option");
+        opt.value = a;
+        opt.textContent = a;
+        sel.appendChild(opt);
+      });
+    }
+
+    async function loadMonth(){
+      const month = document.getElementById("month").value.trim();
+      if (!month){
+        alert("Please input month (YYYY-MM). Example: 2026-01");
+        return;
+      }
+      setCsvLinks(month);
+
+      await loadAssets(month);
+
+      const res = await fetch(`/api/xweather/monthly-report?month=${encodeURIComponent(month)}`);
+      const js = await res.json();
+      if (!js.ok){
+        alert(js.error || "Failed to load data");
+        return;
+      }
+
+      const tbody = document.getElementById("tbody");
+      const rows = js.rows || [];
+
+      tbody.innerHTML = rows.map(r => {
+        const sev = norm(r.severity);
+        const asset = r.asset_name || "";
+        return `
+          <tr data-sev="${escapeHtml(sev)}" data-asset="${escapeHtml(asset)}">
+            <td><span class="sev"><span class="dot"></span>${sevLabel(sev)}</span></td>
+            <td>${escapeHtml(asset)}</td>
+            <td>${escapeHtml(r.extent_km ?? "")}</td>
+            <td>${escapeHtml(r.first_event_time ?? "")}</td>
+            <td>${escapeHtml(r.active_time ?? "")}</td>
+            <td>${escapeHtml(r.last_event_time ?? "")}</td>
+            <td>${escapeHtml(r.clear_time ?? "")}</td>
+            <td>${escapeHtml(r.duration_min ?? "")}</td>
+            <td>${escapeHtml(r.strength_ka ?? "")}</td>
+            <td>${escapeHtml(r.event_type ?? "")}</td>
+          </tr>
+        `;
+      }).join("");
+
+      applyFilters();
+    }
+
+    function applyFilters(){
+      const q = norm(document.getElementById("q").value);
+      const sev = norm(document.getElementById("sev").value);
+      const asset = norm(document.getElementById("asset").value);
+
+      const rows = Array.from(document.querySelectorAll("#reportTable tbody tr"));
+      let shown = 0;
+
+      rows.forEach(tr => {
+        const trSev = norm(tr.getAttribute("data-sev"));
+        const trAsset = norm(tr.getAttribute("data-asset"));
+        const text = norm(tr.innerText);
+
+        let ok = true;
+        if (sev && trSev !== sev) ok = false;
+        if (asset && trAsset !== asset) ok = false;
+        if (q && !text.includes(q)) ok = false;
+
+        tr.style.display = ok ? "" : "none";
+        if (ok) shown++;
+      });
+
+      document.getElementById("rowCount").innerText = "Rows shown: " + shown + " / " + rows.length;
+    }
+
+    function resetFilters(){
+      document.getElementById("q").value = "";
+      document.getElementById("sev").value = "";
+      document.getElementById("asset").value = "";
+      applyFilters();
+    }
+
+    // init: set default month to current UTC YYYY-MM, then load
+    (function init(){
+      const d = new Date();
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth()+1).padStart(2,"0");
+      const month = `${y}-${m}`;
+      document.getElementById("month").value = month;
+      setCsvLinks(month);
+      loadMonth();
+    })();
+  </script>
+</body>
+</html>

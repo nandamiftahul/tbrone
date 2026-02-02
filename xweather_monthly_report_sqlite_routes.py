@@ -261,3 +261,28 @@ def monthly_report_csv():
     resp.headers["Content-Type"] = "text/csv"
     resp.headers["Content-Disposition"] = f"attachment; filename=Xweather_Monthly_Report_{month}.csv"
     return resp
+
+@xweather_report_bp.route("/api/xweather/monthly-report/assets", methods=["GET"])
+def api_monthly_report_assets():
+    init_db()
+    month = (request.args.get("month") or "").strip()
+    if not month:
+        return jsonify({"ok": False, "error": "missing month (YYYY-MM)"}), 400
+
+    db = get_db()
+    rows = db.execute("""
+        SELECT DISTINCT asset_name
+        FROM monthly_lightning_alerts
+        WHERE report_month = ?
+        ORDER BY asset_name ASC
+    """, (month,)).fetchall()
+
+    assets = [r["asset_name"] for r in rows]
+    return jsonify({"ok": True, "month": month, "assets": assets})
+
+@xweather_report_bp.route("/xweather/monthly-report")
+def xweather_monthly_report_viewer():
+    init_db()
+    return render_template("xweather_monthly_report_sqlite.html")
+
+
