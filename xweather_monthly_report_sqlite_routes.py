@@ -4,6 +4,24 @@ import csv
 import io
 from datetime import datetime
 from openpyxl import load_workbook
+import re
+
+def to_float(v):
+    if v is None:
+        return None
+    s = str(v).strip()
+    if s == "":
+        return None
+    # ambil angka pertama dari string: "10 km" -> 10, "4.5km" -> 4.5
+    m = re.search(r"[-+]?\d*\.?\d+", s.replace(",", "."))
+    if not m:
+        return None
+    try:
+        return float(m.group(0))
+    except:
+        return None
+
+
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
 
@@ -321,18 +339,36 @@ def api_import_monthly_report_csv():
 
         rows_data = list(reader)
 
-    elif filename.endswith(".xlsx") or filename.endswith(".xls"):
+    elif filename.endswith(".xlsx"):
         wb = load_workbook(f, data_only=True)
-        ws = wb.active
-
-        headers = [str(c.value).strip() if c.value else "" for c in ws[1]]
-        if not headers or not headers[0]:
-            return jsonify({"ok": False, "error": "Excel header row missing"}), 400
-
-        for r in ws.iter_rows(min_row=2, values_only=True):
-            row = {headers[i]: r[i] if i < len(r) else None for i in range(len(headers))}
+    
+        chosen_ws = None
+        header_row_idx = 1
+    
+        # cari sheet + baris header yang berisi "Severity" & "Asset name"
+        for ws in wb.worksheets:
+            for r in range(1, 6):  # cek baris 1..5
+                headers = [str(c.value).strip() if c.value else "" for c in ws[r]]
+                hlow = [h.lower() for h in headers]
+                if "severity" in hlow and "asset name" in hlow:
+                    chosen_ws = ws
+                    header_row_idx = r
+                    break
+            if chosen_ws:
+                break
+    
+        if not chosen_ws:
+            return jsonify({"ok": False, "error": "Excel: cannot find header row (Severity, Asset name)"}), 400
+    
+        headers = [str(c.value).strip() if c.value else "" for c in chosen_ws[header_row_idx]]
+        rows_data = []
+    
+        for r in chosen_ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
+            if all(v is None or str(v).strip()=="" for v in r):
+                continue
+            row = {headers[i]: (r[i] if i < len(r) else None) for i in range(len(headers))}
             rows_data.append(row)
-
+    
     else:
         return jsonify({
             "ok": False,
@@ -428,5 +464,193 @@ def api_import_monthly_report_csv():
         "inserted": inserted,
         "skipped": skipped
     })
+
+import re
+from datetime import datetime
+from collections import Counter
+
+def _parse_hour_utc(s: str):
+    """
+    Extract hour (0-23) from first_event_time string.
+    Supports: "05.01.2026 06:13", "2026-01-05 06:13", "2026-01-05T06:13:00Z", etc.
+    """
+    if not s:
+        return None
+    s = str(s).strip()
+
+    # try common datetime parsing first
+    fmts = [
+        "%d.%m.%Y %H:%M",
+        "%d.%m.%Y %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S",
+    ]
+    for f in fmts:
+        try:
+            return datetime.strptime(s, f).hour
+        except Exception:
+            pass
+
+    # fallback: regex take first hh:mm
+    m = re.search(r"\b([01]?\d|2[0-3])[:.]\d{2}\b", s)
+    if m:
+        try:
+            return int(m.group(1))
+        except Exception:
+            return None
+    return None
+
+def _percentile(sorted_vals, p):
+    # p in [0..100]
+    if not sorted_vals:
+        return None
+    if len(sorted_vals) == 1:
+        return float(sorted_vals[0])
+    k = (len(sorted_vals) - 1) * (p / 100.0)
+    f = int(k)
+    c = min(f + 1, len(sorted_vals) - 1)
+    if f == c:
+        return float(sorted_vals[f])
+    return float(sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f))
+
+@xweather_report_bp.route("/api/xweather/monthly-report/expert", methods=["GET"])
+def api_monthly_report_expert():
+    init_db()
+    month = (request.args.get("month") or "").strip()
+    if not month:
+        return jsonify({"ok": False, "error": "missing month (YYYY-MM)"}), 400
+
+    db = get_db()
+    rows = db.execute("""
+        SELECT severity, first_event_time, duration_min, strength_ka, event_type
+        FROM monthly_lightning_alerts
+        WHERE report_month = ?
+    """, (month,)).fetchall()
+
+    total = len(rows)
+    if total == 0:
+        return jsonify({
+            "ok": True,
+            "month": month,
+            "metrics": [
+                {"metric": "Total events", "value": 0},
+                {"metric": "Period (UTC)", "value": f"{month}"},
+            ]
+        })
+
+    # severity stats
+    sev_counts = Counter([(r["severity"] or "").strip().lower() for r in rows])
+    alarm = sev_counts.get("alarm", 0)
+    warning = sev_counts.get("warning", 0)
+    info = sev_counts.get("info", 0)
+
+    # duration stats (minutes)
+    durations = []
+    for r in rows:
+        v = r["duration_min"]
+        if v is None:
+            continue
+        try:
+            durations.append(float(v))
+        except Exception:
+            pass
+    durations.sort()
+
+    dmin = durations[0] if durations else None
+    dmax = durations[-1] if durations else None
+    dmed = _percentile(durations, 50) if durations else None
+    dmean = (sum(durations) / len(durations)) if durations else None
+    q25 = _percentile(durations, 25) if durations else None
+    q75 = _percentile(durations, 75) if durations else None
+    iqr = (q75 - q25) if (q25 is not None and q75 is not None) else None
+    p90 = _percentile(durations, 90) if durations else None
+
+    # hour histogram from first_event_time
+    hours = []
+    for r in rows:
+        h = _parse_hour_utc(r["first_event_time"])
+        if h is not None:
+            hours.append(h)
+    hour_counts = Counter(hours)
+    most_hour = hour_counts.most_common(1)[0][0] if hour_counts else None
+
+    # busiest 3-hour window
+    busiest_window = None
+    busiest_count = None
+    if hour_counts:
+        # normalize to 0..23
+        counts = [hour_counts.get(h, 0) for h in range(24)]
+        best_h, best_sum = 0, -1
+        for h in range(24):
+            s3 = counts[h] + counts[(h+1)%24] + counts[(h+2)%24]
+            if s3 > best_sum:
+                best_sum = s3
+                best_h = h
+        busiest_window = f"{best_h:02d}:00–{(best_h+3)%24:02d}:00"
+        busiest_count = best_sum
+
+    # event type stats
+    types = []
+    cg_minus = 0
+    for r in rows:
+        t = (r["event_type"] or "").strip()
+        if not t:
+            continue
+        tn = t.lower().replace(" ", "")
+        types.append(t)
+        if "cg-" in tn:
+            cg_minus += 1
+    dominant_type = Counter(types).most_common(1)[0][0] if types else None
+    cg_minus_share = (cg_minus / total * 100.0) if total else 0.0
+
+    # strength stats (average |kA|)
+    strengths = []
+    for r in rows:
+        v = r["strength_ka"]
+        if v is None:
+            continue
+        try:
+            strengths.append(abs(float(v)))
+        except Exception:
+            pass
+    avg_abs_ka = (sum(strengths) / len(strengths)) if strengths else None
+
+    # period display (best-effort)
+    period_str = month
+
+    metrics = [
+        {"metric": "Total events", "value": total},
+        {"metric": "Period (UTC)", "value": period_str},
+        {"metric": "Fixed ring logic", "value": "Info=20 km; Warning=10 km; Alarm=4 km"},
+        {"metric": "Alarm share", "value": f"{alarm} ({(alarm/total*100):.1f}%)"},
+        {"metric": "Warning share", "value": f"{warning} ({(warning/total*100):.1f}%)"},
+        {"metric": "Info share", "value": f"{info} ({(info/total*100):.1f}%)"},
+    ]
+
+    # duration block
+    if durations:
+        metrics += [
+            {"metric": "Duration min / median / max (min)", "value": f"{dmin:.0f} / {dmed:.0f} / {dmax:.0f}"},
+            {"metric": "Duration mean (min)", "value": f"{dmean:.2f}"},
+            {"metric": "Duration IQR (Q75–Q25) (min)", "value": f"{iqr:.2f}" if iqr is not None else ""},
+            {"metric": "Duration P90 (min)", "value": f"{p90:.2f}" if p90 is not None else ""},
+        ]
+
+    # hour block
+    if most_hour is not None:
+        metrics.append({"metric": "Most frequent hour (UTC)", "value": f"{most_hour}"})
+    if busiest_window is not None:
+        metrics.append({"metric": "Busiest 3-hour window (UTC)", "value": f"{busiest_window} ({busiest_count} events)"})
+
+    # type & strength block
+    if dominant_type:
+        metrics.append({"metric": "Dominant type", "value": dominant_type})
+    metrics.append({"metric": "CG- share", "value": f"{cg_minus_share:.1f}%"})
+    if avg_abs_ka is not None:
+        metrics.append({"metric": "Average |peak current| (kA)", "value": f"{avg_abs_ka:.2f}"})
+
+    return jsonify({"ok": True, "month": month, "metrics": metrics})
 
 

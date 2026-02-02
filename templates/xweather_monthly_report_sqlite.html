@@ -456,6 +456,13 @@
       </div>
       <nav class="nav">
         <a href="#report"><div class="badge">1</div><div class="meta"><strong>Monthly Report</strong><span>Tabel utama + filter + download CSV</span></div></a>
+        <a href="#expert">
+          <div class="badge">3</div>
+          <div class="meta">
+            <strong>Expert Statistical Analysis</strong>
+            <span>Ringkasan statistik dari SQLite</span>
+          </div>
+        </a>        
         <a href="#legend"><div class="badge">2</div><div class="meta"><strong>Legend</strong><span>Arti kolom dan severity</span></div></a>
         <a href="/xweather/manual"><div class="badge">M</div><div class="meta"><strong>Back to Manual</strong><span>Kembali ke Xweather manual</span></div></a>
       </nav>
@@ -549,6 +556,45 @@
           </div>
         </div>
       </section>
+
+      <!-- EXPERT -->
+      <section id="expert" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Expert Statistical Analysis</h2>
+            <p>
+              Statistik ringkasan otomatis dari data SQLite pada bulan terpilih.
+              Mengikuti format “Expert Statistical Analysis” di file Excel.
+            </p>
+          </div>
+          <div class="chip">Expert</div>
+        </div>
+      
+        <div class="body">
+          <div class="table-wrap">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th style="min-width:260px;text-align:left;">Metric</th>
+                  <th style="text-align:left;">Value</th>
+                </tr>
+              </thead>
+              <tbody id="expertTbody">
+                <tr><td colspan="2" style="text-align:left;color:var(--muted);">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+      
+          <div class="mini" id="expertNote"></div>
+      
+          <div class="callout">
+            <strong>Catatan:</strong> Perhitungan berbasis event yang tersimpan di SQLite pada bulan tersebut
+            (severity, duration, hour, type, strength). Jika format waktu di data bervariasi, sistem akan
+            mencoba ekstrak jam dengan beberapa pola umum.
+          </div>
+        </div>
+      </section>
+
 
       <!-- LEGEND -->
       <section id="legend" class="card">
@@ -713,6 +759,31 @@
       setCsvLinks(month);
       loadMonth();
     })();
+
+  async function loadExpert(month){
+    const tbody = document.getElementById("expertTbody");
+    const note = document.getElementById("expertNote");
+    tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:var(--muted);">Loading...</td></tr>`;
+    if (note) note.innerText = "";
+
+    const res = await fetch(`/api/xweather/monthly-report/expert?month=${encodeURIComponent(month)}`);
+    const js = await res.json();
+
+    if (!js.ok){
+      tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:#b91c1c;">${escapeHtml(js.error || "Failed to load expert stats")}</td></tr>`;
+      return;
+    }
+
+    const metrics = js.metrics || [];
+    tbody.innerHTML = metrics.map(m => `
+      <tr>
+        <td style="text-align:left;font-weight:800;color:var(--xw-blue);">${escapeHtml(m.metric)}</td>
+        <td style="text-align:left;">${escapeHtml(m.value)}</td>
+      </tr>
+    `).join("");
+
+    if (note) note.innerText = `Expert stats month: ${month} · metrics: ${metrics.length}`;
+  }
   </script>
 </body>
 </html>
