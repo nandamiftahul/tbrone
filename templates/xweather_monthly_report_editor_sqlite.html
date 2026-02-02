@@ -296,6 +296,19 @@
       font-size:12px;
       text-align:center;
     }
+
+.upload-btn{
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-btn input[type="file"]{
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
   </style>
 </head>
 
@@ -372,11 +385,14 @@
               <button class="btn" onclick="loadMonth()">🔄 Load</button>
             
               <!-- ✅ Upload CSV -->
-              <label class="btn" style="cursor:pointer;">
-                ⬆ Upload CSV
-                <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none"
-                       onchange="uploadCSV(event)">
-              </label>
+              <div class="btn upload-btn">
+                ⬆ Upload CSV / Excel
+                <input
+                  id="csvFile"
+                  type="file"
+                  accept=".csv,.xls,.xlsx"
+                  onchange="uploadCSV(event)">
+              </div>
             
               <button class="btn primary" onclick="openModalNew()">＋ Add Row</button>
               <a class="btn primary" id="btnCsv" href="#">⬇ Download CSV</a>
