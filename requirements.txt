@@ -2,3 +2,4 @@ Flask
 WeasyPrint
 gunicorn
 openpyxl
+psycopg[binary]
