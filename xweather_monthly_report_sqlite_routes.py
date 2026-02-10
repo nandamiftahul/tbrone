@@ -12,6 +12,8 @@ from openpyxl import load_workbook
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
+from dotenv import load_dotenv
+load_dotenv()
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
 
@@ -20,7 +22,7 @@ xweather_report_bp = Blueprint("xweather_report", __name__)
 # =========================================================
 def get_db():
     if "db" not in g:
-        dsn = os.environ.get("DATABASE_URL")
+        dsn = os.getenv("DATABASE_URL")
         if not dsn:
             raise RuntimeError("DATABASE_URL not set. Add Railway PostgreSQL and ensure env is injected.")
         g.db = psycopg.connect(dsn, row_factory=dict_row)

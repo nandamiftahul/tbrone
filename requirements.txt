@@ -3,3 +3,4 @@ WeasyPrint
 gunicorn
 openpyxl
 psycopg[binary]
+python-dotenv
