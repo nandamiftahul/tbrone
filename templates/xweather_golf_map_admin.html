@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xweather Golf Map Manager</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+body{margin:0;font-family:Inter,system-ui;background:#f4f7fb;}
+header{background:#003A8F;color:white;padding:12px 20px;font-weight:600;}
+.container{display:flex;height:calc(100vh - 50px);}
+.sidebar{width:340px;background:white;border-right:1px solid #ddd;padding:15px;overflow:auto;}
+#map{flex:1;}
+input,select{width:100%;padding:8px;margin:6px 0;border:1px solid #ccc;border-radius:6px;}
+button{padding:8px 12px;border:none;border-radius:6px;background:#F28C28;color:white;font-weight:600;cursor:pointer;}
+.location{padding:8px;border:1px solid #eee;margin-bottom:6px;border-radius:6px;cursor:pointer;}
+.location:hover{background:#f0f4ff;}
+</style>
+</head>
+
+<body>
+
+<header>
+Terrindo Bumi Raya · Xweather Golf Location Manager
+</header>
+
+<div class="container">
+
+<div class="sidebar">
+
+<h3>Add / Edit Location</h3>
+
+<input id="name" placeholder="Golf Name">
+<input id="lat" placeholder="Latitude">
+<input id="lon" placeholder="Longitude">
+
+<h4>Ring Config (km)</h4>
+<input id="alarm_km" placeholder="Alarm km" value="4">
+<input id="warning_km" placeholder="Warning km" value="10">
+<input id="info_km" placeholder="Info km" value="20">
+
+<h4>Ring Color</h4>
+<input id="alarm_color" type="color" value="#EF4444">
+<input id="warning_color" type="color" value="#F97316">
+<input id="info_color" type="color" value="#FBBF24">
+
+<button onclick="saveLocation()">Save</button>
+
+<hr>
+
+<h3>Locations</h3>
+<div id="locations"></div>
+
+</div>
+
+<div id="map"></div>
+
+</div>
+
+<script>
+
+let map = L.map('map').setView([-6.2,106.85],9);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let layer = L.layerGroup().addTo(map);
+let editingId = null;
+
+async function loadLocations(){
+  const res = await fetch('/api/xweather/golf-locations');
+  const json = await res.json();
+  renderList(json.rows);
+}
+
+function renderList(rows){
+  const container = document.getElementById("locations");
+  container.innerHTML = "";
+
+  layer.clearLayers();
+
+  rows.forEach(r=>{
+    const div = document.createElement("div");
+    div.className="location";
+    div.innerHTML = r.name;
+    div.onclick=()=>editLocation(r);
+    container.appendChild(div);
+
+    drawRings(r);
+  });
+}
+
+function drawRings(r){
+  L.circle([r.latitude,r.longitude],{
+    radius:r.info_km*1000,color:r.info_color,fill:false
+  }).addTo(layer);
+  L.circle([r.latitude,r.longitude],{
+    radius:r.warning_km*1000,color:r.warning_color,fill:false
+  }).addTo(layer);
+  L.circle([r.latitude,r.longitude],{
+    radius:r.alarm_km*1000,color:r.alarm_color,fill:false
+  }).addTo(layer);
+}
+
+function editLocation(r){
+  editingId=r.id;
+  document.getElementById("name").value=r.name;
+  document.getElementById("lat").value=r.latitude;
+  document.getElementById("lon").value=r.longitude;
+  document.getElementById("alarm_km").value=r.alarm_km;
+  document.getElementById("warning_km").value=r.warning_km;
+  document.getElementById("info_km").value=r.info_km;
+  document.getElementById("alarm_color").value=r.alarm_color;
+  document.getElementById("warning_color").value=r.warning_color;
+  document.getElementById("info_color").value=r.info_color;
+}
+
+async function saveLocation(){
+  const data={
+    name:document.getElementById("name").value,
+    latitude:parseFloat(document.getElementById("lat").value),
+    longitude:parseFloat(document.getElementById("lon").value),
+    alarm_km:parseFloat(document.getElementById("alarm_km").value),
+    warning_km:parseFloat(document.getElementById("warning_km").value),
+    info_km:parseFloat(document.getElementById("info_km").value),
+    alarm_color:document.getElementById("alarm_color").value,
+    warning_color:document.getElementById("warning_color").value,
+    info_color:document.getElementById("info_color").value
+  };
+
+  if(editingId){
+    await fetch('/api/xweather/golf-locations/'+editingId,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data)
+    });
+  }else{
+    await fetch('/api/xweather/golf-locations',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data)
+    });
+  }
+
+  editingId=null;
+  loadLocations();
+}
+
+loadLocations();
+
+</script>
+
+</body>
+</html>

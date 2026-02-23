@@ -65,6 +65,21 @@ def init_db():
             created_at TEXT NOT NULL
         );
         """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS golf_locations (
+            id BIGSERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            latitude DOUBLE PRECISION NOT NULL,
+            longitude DOUBLE PRECISION NOT NULL,
+            alarm_km DOUBLE PRECISION DEFAULT 4,
+            warning_km DOUBLE PRECISION DEFAULT 10,
+            info_km DOUBLE PRECISION DEFAULT 20,
+            alarm_color TEXT DEFAULT '#EF4444',
+            warning_color TEXT DEFAULT '#F97316',
+            info_color TEXT DEFAULT '#FBBF24',
+            created_at TEXT NOT NULL
+        );
+        """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_mla_month ON monthly_lightning_alerts(report_month);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_mla_asset ON monthly_lightning_alerts(asset_name);")
     db.commit()
@@ -910,3 +925,96 @@ def monthly_report_xlsx():
     resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     resp.headers["Content-Disposition"] = f'attachment; filename="Xweather_Monthly_Report_{month}.xlsx"'
     return resp
+
+@xweather_report_bp.route("/api/xweather/golf-locations", methods=["GET"])
+def api_list_golf_locations():
+    init_db()
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("SELECT * FROM golf_locations ORDER BY name ASC")
+        rows = cur.fetchall()
+    return jsonify({"ok": True, "rows": rows})
+
+@xweather_report_bp.route("/api/xweather/golf-locations", methods=["POST"])
+def api_create_golf_location():
+    init_db()
+    payload = request.get_json(force=True)
+
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("""
+            INSERT INTO golf_locations(
+                name, latitude, longitude,
+                alarm_km, warning_km, info_km,
+                alarm_color, warning_color, info_color,
+                created_at
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING *
+        """, (
+            payload["name"],
+            payload["latitude"],
+            payload["longitude"],
+            payload.get("alarm_km",4),
+            payload.get("warning_km",10),
+            payload.get("info_km",20),
+            payload.get("alarm_color","#EF4444"),
+            payload.get("warning_color","#F97316"),
+            payload.get("info_color","#FBBF24"),
+            _now_iso()
+        ))
+        row = cur.fetchone()
+    db.commit()
+    return jsonify({"ok": True, "row": row})
+
+@xweather_report_bp.route("/api/xweather/golf-locations/<int:id>", methods=["PUT"])
+def api_update_golf_location(id):
+    init_db()
+    payload = request.get_json(force=True)
+    db = get_db()
+
+    with db.cursor() as cur:
+        cur.execute("""
+            UPDATE golf_locations SET
+                name=%s,
+                latitude=%s,
+                longitude=%s,
+                alarm_km=%s,
+                warning_km=%s,
+                info_km=%s,
+                alarm_color=%s,
+                warning_color=%s,
+                info_color=%s
+            WHERE id=%s
+            RETURNING *
+        """, (
+            payload["name"],
+            payload["latitude"],
+            payload["longitude"],
+            payload["alarm_km"],
+            payload["warning_km"],
+            payload["info_km"],
+            payload["alarm_color"],
+            payload["warning_color"],
+            payload["info_color"],
+            id
+        ))
+        row = cur.fetchone()
+
+    db.commit()
+    return jsonify({"ok": True, "row": row})
+
+@xweather_report_bp.route("/api/xweather/golf-locations/<int:id>", methods=["DELETE"])
+def api_delete_golf_location(id):
+    init_db()
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("DELETE FROM golf_locations WHERE id=%s RETURNING id",(id,))
+        row = cur.fetchone()
+    db.commit()
+    return jsonify({"ok": True})
+
+@xweather_report_bp.route("/xweather/golfareamap")
+def xweather_golf_area_map_demo():
+    init_db()
+    return render_template("xweather_golf_map_admin.html")
