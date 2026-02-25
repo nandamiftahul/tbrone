@@ -241,6 +241,41 @@
     .tag.warning{ background: rgba(249,115,22,.12); border-color: rgba(249,115,22,.28); color: #9a3412;}
     .tag.info{ background: rgba(251,191,36,.14); border-color: rgba(251,191,36,.35); color: #92400e;}
 
+    /* Visibility toggle (eye icon) */
+    .rightActions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      height: fit-content;
+      flex-shrink:0;
+    }
+    .visBtn{
+      appearance:none;
+      border:1px solid var(--border);
+      background: rgba(17,24,39,.04);
+      border-radius: 12px;
+      width: 38px;
+      height: 34px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+      color: var(--muted);
+    }
+    .visBtn:hover{
+      transform: translateY(-1px);
+      background: rgba(17,24,39,.06);
+      border-color: rgba(0,58,143,.22);
+      color: var(--xw-blue);
+    }
+    .visBtn svg{ width:18px; height:18px; }
+    .item.hidden{
+      opacity:.55;
+      background: rgba(17,24,39,.02);
+    }
+    .item.hidden .name{ text-decoration: line-through; text-decoration-thickness: 1px; }
+
     /* Map panel */
     .mapCard{
       background: var(--card);
@@ -604,6 +639,70 @@
     const hint = document.getElementById("hint");
     const mHint = document.getElementById("m_hint");
 
+    // Visibility state (per-location hide/unhide)
+    const VIS_KEY = "tbr_golf_visibility_v1";
+    const VIS = (() => {
+      try { return JSON.parse(localStorage.getItem(VIS_KEY) || "{}") || {}; }
+      catch(e){ return {}; }
+    })();
+
+    // Keep layer refs so we can hide/unhide without reloading
+    const assetLayers = {}; // key -> { rings: [..], marker }
+
+    function saveVis(){
+      try{ localStorage.setItem(VIS_KEY, JSON.stringify(VIS)); }catch(e){}
+    }
+    function isVisible(key){
+      return VIS[key] !== false; // default true
+    }
+
+    function iconEye(on){
+      // inline SVG (no external lib)
+      return on
+        ? `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+             <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+             <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+           </svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+             <path d="M3 3l18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+             <path d="M10.6 10.6A2.5 2.5 0 0 0 12 15a2.5 2.5 0 0 0 1.4-.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+             <path d="M9.88 5.1A10.5 10.5 0 0 1 12 4.8c6 0 9.5 7.2 9.5 7.2a20.2 20.2 0 0 1-4.05 4.9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+             <path d="M6.6 6.6A20.4 20.4 0 0 0 2.5 12s3.5 7.2 9.5 7.2c1.2 0 2.3-.2 3.3-.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+           </svg>`;
+    }
+
+    function applyVisibility(key){
+      const ref = assetLayers[key];
+      if (!ref) return;
+      const on = isVisible(key);
+
+      // rings
+      (ref.rings || []).forEach(layer => {
+        if (on){
+          if (!layerRings.hasLayer(layer)) layer.addTo(layerRings);
+        } else {
+          if (layerRings.hasLayer(layer)) layerRings.removeLayer(layer);
+        }
+      });
+
+      // marker
+      if (ref.marker){
+        if (on){
+          if (!layerCenters.hasLayer(ref.marker)) ref.marker.addTo(layerCenters);
+        } else {
+          if (layerCenters.hasLayer(ref.marker)) layerCenters.removeLayer(ref.marker);
+        }
+      }
+    }
+
+    function toggleVisibility(key){
+      VIS[key] = !isVisible(key);
+      saveVis();
+      applyVisibility(key);
+      // refresh list UI only (keep search text)
+      renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+    }
+
     // Desktop form
     const f = {
       name: document.getElementById("f_name"),
@@ -669,10 +768,15 @@
       layerCenters.clearLayers();
       layerEvents.clearLayers();
 
+      // reset refs
+      for (const k in assetLayers) delete assetLayers[k];
+
       assets.forEach(a => {
         const lat = getNum(a.latitude ?? a.lat, NaN);
         const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        const key = String(a.id ?? a.asset_id ?? a.name ?? "");
 
         // rings (per location editable)
         const rAlarm = getNum(a.alarm_km, 4);
@@ -683,9 +787,12 @@
         const cWarn  = (a.warning_color || getComputedStyle(document.documentElement).getPropertyValue("--warning").trim() || "#F97316");
         const cInfo  = (a.info_color || getComputedStyle(document.documentElement).getPropertyValue("--info").trim() || "#FBBF24");
 
-        L.circle([lat, lon], { radius: rInfo*1000, color: cInfo, weight: 2, fill: false, opacity: 0.85 }).addTo(layerRings);
-        L.circle([lat, lon], { radius: rWarn*1000, color: cWarn, weight: 2, fill: false, opacity: 0.88 }).addTo(layerRings);
-        L.circle([lat, lon], { radius: rAlarm*1000, color: cAlarm, weight: 2, fill: false, opacity: 0.95 }).addTo(layerRings);
+        const ringInfo  = L.circle([lat, lon], { radius: rInfo*1000, color: cInfo, weight: 2, fill: false, opacity: 0.85 });
+        const ringWarn  = L.circle([lat, lon], { radius: rWarn*1000, color: cWarn, weight: 2, fill: false, opacity: 0.88 });
+        const ringAlarm = L.circle([lat, lon], { radius: rAlarm*1000, color: cAlarm, weight: 2, fill: false, opacity: 0.95 });
+        ringInfo.addTo(layerRings);
+        ringWarn.addTo(layerRings);
+        ringAlarm.addTo(layerRings);
 
         const marker = L.circleMarker([lat, lon], {
           radius: 7,
@@ -694,6 +801,11 @@
           fillColor: "#0A4BBF",
           fillOpacity: 0.95
         }).addTo(layerCenters);
+
+        if (key){
+          assetLayers[key] = { rings:[ringInfo, ringWarn, ringAlarm], marker };
+          applyVisibility(key);
+        }
 
         marker.on("click", () => selectByAsset(a));
         marker.bindPopup(popupHtml(a.name || "Golf Location", [
@@ -730,6 +842,7 @@
 
     function fitAll(assets){
       const pts = assets
+        .filter(a => isVisible(String(a.id ?? a.asset_id ?? a.name ?? "")))
         .map(a => [getNum(a.latitude ?? a.lat, NaN), getNum(a.longitude ?? a.lon ?? a.lng, NaN)])
         .filter(([lat,lon]) => Number.isFinite(lat) && Number.isFinite(lon));
       if (!pts.length) return;
@@ -759,24 +872,26 @@
       function itemHtml(a){
         const name = a.name || "Unnamed";
         const lat = getNum(a.latitude ?? a.lat, NaN);
-        const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
-
-        const sev = a.severity || a.status || a.state || ""; // optional
-        const tag = sevToTag(sev);
-        const sevText = sev ? String(sev) : "AOI";
+        const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);        const sev = a.severity || a.status || a.state || "";
+        const sevText = sev ? String(sev) : "";
+        const sevPill = sevText ? `<div class="tag ${sevToTag(sev)}">${escapeHtml(sevText)}</div>` : "";
 
         const key = String(a.id ?? a.asset_id ?? a.name ?? name);
         const activeClass = (key && key === selectedId) ? " active" : "";
+        const hiddenClass = isVisible(key) ? "" : " hidden";
 
         return `
-          <div class="item${activeClass}" data-key="${escapeHtml(key)}"
+          <div class="item${activeClass}${hiddenClass}" data-key="${escapeHtml(key)}"
                data-db-id="${escapeHtml(a.id ?? "")}"
                data-lat="${Number.isFinite(lat)?lat:""}" data-lon="${Number.isFinite(lon)?lon:""}">
             <div class="meta">
               <p class="name">${escapeHtml(name)}</p>
               <p class="coord">${Number.isFinite(lat)&&Number.isFinite(lon) ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : "No coordinate"}</p>
             </div>
-            <div class="tag ${tag}">${escapeHtml(sevText)}</div>
+            <div class="rightActions">
+              <button class="visBtn" title="Hide/Unhide rings & marker" data-vis="${escapeHtml(key)}">${iconEye(isVisible(key))}</button>
+              ${sevPill}
+            </div>
           </div>
         `;
       }
@@ -786,6 +901,16 @@
       listMobileEl.innerHTML = html;
 
       [...document.querySelectorAll(".item")].forEach(el => {
+        const eye = el.querySelector(".visBtn");
+        if (eye){
+          eye.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const key = eye.getAttribute("data-vis");
+            if (key) toggleVisibility(key);
+          });
+        }
+
         el.addEventListener("click", () => {
           const lat = Number(el.getAttribute("data-lat"));
           const lon = Number(el.getAttribute("data-lon"));
