@@ -4,3 +4,4 @@ gunicorn
 openpyxl
 psycopg[binary]
 python-dotenv
+websocket-client

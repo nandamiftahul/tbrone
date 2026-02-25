@@ -30,7 +30,7 @@
       --alarm:#EF4444;
       --warning:#F97316;
       --info:#FBBF24;
-      --event:#2563EB;
+      --event:#FFD34D; /* lightning fill */
     }
 
     *{ box-sizing:border-box; }
@@ -304,7 +304,7 @@
       box-shadow: var(--shadow);
       font-size:12px;
       backdrop-filter: blur(8px);
-      min-width: 220px;
+      min-width: 240px;
     }
     .legend .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;}
     .dot{width:10px; height:10px; border-radius:99px; display:inline-block;}
@@ -313,6 +313,25 @@
     .dot.info{background:var(--info)}
     .dot.event{background:var(--event)}
     .legend small{color:var(--muted)}
+
+    /* ===== Lightning Icon (SVG + pulse/glow) ===== */
+    .lightningWrap{
+      width: 22px;
+      height: 22px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transform: translateZ(0);
+      filter: drop-shadow(0 0 4px rgba(255, 200, 0, 0.55));
+    }
+    .lightningPulse{
+      animation: tbrPulse 1.2s infinite;
+    }
+    @keyframes tbrPulse{
+      0%   { transform: scale(1);   filter: drop-shadow(0 0 2px rgba(255,200,0,.55)); opacity: .95; }
+      50%  { transform: scale(1.18);filter: drop-shadow(0 0 12px rgba(255,140,0,.85)); opacity: 1; }
+      100% { transform: scale(1);   filter: drop-shadow(0 0 2px rgba(255,200,0,.55)); opacity: .95; }
+    }
 
     /* Mobile bottom sheet (replace sidebar) */
     .sheet{
@@ -380,7 +399,7 @@
     .k{ color: var(--muted); }
     .v{ color: var(--text); font-weight:700; }
 
-    /* ===== Added: Manage form styling (minimal, reuse existing) ===== */
+    /* ===== Manage form styling (minimal, reuse existing) ===== */
     .manage{
       padding: 12px 14px;
       border-top: 1px solid var(--border);
@@ -467,7 +486,6 @@
 <body>
   <div class="topbar">
     <div class="brand">
-      <!-- pake icon yang sudah kamu pakai di manual -->
       <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
       <div class="title">
         <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
@@ -478,10 +496,10 @@
     <div class="top-actions">
       <button class="btn" id="btnRefresh">⟳ Refresh</button>
       <button class="btn" id="btnFit">Fit All</button>
-      
+
       <button class="btn" id="btnHideAll" title="Hide all locations">Hide All</button>
       <button class="btn" id="btnShowAll" title="Show all locations">View All</button>
-      
+
       <button class="btn" id="btnPick" title="Click map to set Lat/Lon for the form">📍 Pick from map</button>
       <button class="btn primary" onclick="window.print()">Print</button>
     </div>
@@ -492,7 +510,7 @@
     <aside class="sidebar">
       <div class="head">
         <p class="h">Golf Locations</p>
-        <p class="s">Klik satu lokasi untuk zoom. Ring bisa diatur per lokasi: Alarm/Warning/Info (km + warna).</p>
+        <p class="s">Klik satu lokasi untuk zoom. Ring bisa diatur per lokasi: Alarm/Warning/Info (km + warna). Realtime petir hanya ditampilkan di viewport, atau di ring Info lokasi yang dipilih.</p>
       </div>
 
       <div class="search">
@@ -504,7 +522,6 @@
 
       <div class="list" id="list"></div>
 
-      <!-- ===== Added: Manage Locations (AOI + Rings) ===== -->
       <div class="manage">
         <p class="mh">Manage Location (AOI)</p>
         <p class="ms">
@@ -553,8 +570,8 @@
         <div class="row"><span><span class="dot alarm"></span> Alarm</span><span>Editable</span></div>
         <div class="row"><span><span class="dot warning"></span> Warning</span><span>Editable</span></div>
         <div class="row"><span><span class="dot info"></span> Info</span><span>Editable</span></div>
-        <div class="row"><span><span class="dot event"></span> Lightning</span><span>Blue dot</span></div>
-        <small>Data source: /api/xweather/golf-locations</small>
+        <div class="row"><span><span class="dot event"></span> Lightning</span><span>⚡ SVG icon</span></div>
+        <small>AOI: /api/xweather/golf-locations · SSE: /api/blitzortung/sse</small>
       </div>
 
       <!-- Mobile bottom sheet -->
@@ -616,6 +633,11 @@
     const API_UPDATE = (id) => `/api/xweather/golf-locations/${id}`;
     const API_DELETE = (id) => `/api/xweather/golf-locations/${id}`;
 
+    // Blitzortung SSE
+    const LIGHTNING_SSE = "/api/blitzortung/sse";
+    const MAX_EVENTS = 1500;
+    const MAX_AGE_MIN = 20;
+
     // Map init
     const map = L.map("map", { zoomControl: true }).setView([-6.2, 106.85], 9);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -632,6 +654,10 @@
     let selectedId = null;
     let selectedDbId = null; // numeric id from DB if available
     let pickMode = false;
+
+    // Lightning buffer
+    const liveEvents = []; // {lat,lon,time,type,_mk,_t}
+    let sseStarted = false;
 
     // UI refs
     const listEl = document.getElementById("list");
@@ -661,7 +687,6 @@
     }
 
     function iconEye(on){
-      // inline SVG (no external lib)
       return on
         ? `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
              <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -680,7 +705,6 @@
       if (!ref) return;
       const on = isVisible(key);
 
-      // rings
       (ref.rings || []).forEach(layer => {
         if (on){
           if (!layerRings.hasLayer(layer)) layer.addTo(layerRings);
@@ -689,7 +713,6 @@
         }
       });
 
-      // marker
       if (ref.marker){
         if (on){
           if (!layerCenters.hasLayer(ref.marker)) ref.marker.addTo(layerCenters);
@@ -703,7 +726,6 @@
       VIS[key] = !isVisible(key);
       saveVis();
       applyVisibility(key);
-      // refresh list UI only (keep search text)
       renderList(DATA.assets, qEl.value || qMobileEl.value || "");
     }
 
@@ -766,13 +788,138 @@
       return Number.isFinite(n) ? n : fallback;
     }
 
+    // ===== Lightning icon (Leaflet DivIcon) =====
+    function makeLightningIcon(){
+      const fill = getComputedStyle(document.documentElement).getPropertyValue("--event").trim() || "#FFD34D";
+      return L.divIcon({
+        className: "",
+        html: `
+          <div class="lightningWrap lightningPulse" title="Lightning">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="${fill}" d="M13 2L3 14h7l-1 8 12-14h-7l-1-6z"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [22,22],
+        iconAnchor: [11,11]
+      });
+    }
+    const lightningIcon = makeLightningIcon();
+
+    function parseEpochToDate(ts){
+      // Blitzortung example value looks like ns: 1772013212134505000
+      const n = Number(ts);
+      if (!Number.isFinite(n)) return null;
+
+      let ms = n;
+      if (n > 1e15) ms = Math.floor(n / 1e6);   // ns -> ms
+      else if (n > 1e12) ms = Math.floor(n);    // ms already
+      else if (n > 1e9)  ms = Math.floor(n * 1000); // seconds -> ms
+      else return null;
+
+      const d = new Date(ms);
+      if (isNaN(d.getTime())) return null;
+      return d;
+    }
+
+    function formatUTC(ts){
+      const d = parseEpochToDate(ts);
+      if (!d) return String(ts ?? "—");
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth()+1).padStart(2,"0");
+      const dd = String(d.getUTCDate()).padStart(2,"0");
+      const HH = String(d.getUTCHours()).padStart(2,"0");
+      const MM = String(d.getUTCMinutes()).padStart(2,"0");
+      const SS = String(d.getUTCSeconds()).padStart(2,"0");
+      return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}Z`;
+    }
+
+    function getSelectedAsset(){
+      if (!selectedId) return null;
+      return DATA.assets.find(x => String(x.id ?? x.name ?? "") === String(selectedId)) || null;
+    }
+
+    function shouldRenderStrike(lat, lon){
+      // If a location is selected: only show within that location's info ring
+      const a = getSelectedAsset();
+      if (a){
+        const alat = getNum(a.latitude ?? a.lat, NaN);
+        const alon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
+        const infoKm = getNum(a.info_km, 20);
+
+        if (Number.isFinite(alat) && Number.isFinite(alon) && Number.isFinite(infoKm)){
+          const dKm = map.distance([alat, alon], [lat, lon]) / 1000;
+          return dKm <= infoKm;
+        }
+      }
+
+      // If no selected location: only show strikes inside current viewport (avoid global spam)
+      const bounds = map.getBounds();
+      return bounds.contains([lat, lon]);
+    }
+
+    function pruneLightning(){
+      const cutoff = Date.now() - (MAX_AGE_MIN * 60 * 1000);
+      while (liveEvents.length && (liveEvents[0]._t < cutoff || liveEvents.length > MAX_EVENTS)){
+        const old = liveEvents.shift();
+        try { layerEvents.removeLayer(old._mk); } catch(_){}
+      }
+    }
+
+    function addLightningPoint(e){
+      const lat = Number(e.lat);
+      const lon = Number(e.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+      if (!shouldRenderStrike(lat, lon)) return;
+
+      const mk = L.marker([lat, lon], { icon: lightningIcon, keyboard:false }).addTo(layerEvents);
+
+      mk.bindPopup(popupHtml("Lightning (Blitzortung)", [
+        ["Time (UTC)", formatUTC(e.time)],
+        ["Type", e.type || "strike"],
+        ["Latitude", lat.toFixed(6)],
+        ["Longitude", lon.toFixed(6)],
+      ]));
+
+      liveEvents.push({ ...e, _mk: mk, _t: Date.now() });
+      pruneLightning();
+    }
+
+    function startLightningStream(){
+      if (sseStarted) return;
+      sseStarted = true;
+
+      try{
+        const es = new EventSource(LIGHTNING_SSE);
+
+        es.onopen = () => setHint("SSE connected (Blitzortung).");
+
+        es.onmessage = (ev) => {
+          if (!ev.data) return;
+          let obj = null;
+          try { obj = JSON.parse(ev.data); } catch(e){ return; }
+          if (obj && obj.ok) return; // hello message
+          addLightningPoint(obj);
+        };
+
+        es.onerror = () => {
+          // browser will auto-retry
+          setHint("SSE reconnecting…");
+        };
+      }catch(e){
+        console.error("SSE failed", e);
+        setHint("SSE not supported / failed.");
+      }
+    }
+
     // Render map
     function renderMap(assets, events){
       layerRings.clearLayers();
       layerCenters.clearLayers();
-      layerEvents.clearLayers();
+      // NOTE: do NOT clear lightning on rerender rings (keep realtime strikes)
+      // layerEvents.clearLayers();
 
-      // reset refs
       for (const k in assetLayers) delete assetLayers[k];
 
       assets.forEach(a => {
@@ -782,7 +929,6 @@
 
         const key = String(a.id ?? a.asset_id ?? a.name ?? "");
 
-        // rings (per location editable)
         const rAlarm = getNum(a.alarm_km, 4);
         const rWarn  = getNum(a.warning_km, 10);
         const rInfo  = getNum(a.info_km, 20);
@@ -821,26 +967,12 @@
         ]));
       });
 
-      // events (optional; if you later add lightning points)
+      // optional preloaded events (not used for realtime, but keep compatible)
       (events || []).forEach(e => {
         const lat = getNum(e.lat ?? e.latitude, NaN);
         const lon = getNum(e.lon ?? e.lng ?? e.longitude, NaN);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
-        const mk = L.circleMarker([lat, lon], {
-          radius: 5,
-          color: "#ffffff",
-          weight: 1.8,
-          fillColor: getComputedStyle(document.documentElement).getPropertyValue("--event").trim(),
-          fillOpacity: 0.95
-        }).addTo(layerEvents);
-
-        mk.bindPopup(popupHtml("Lightning", [
-          ["Time (UTC)", e.time || e.timestamp || "—"],
-          ["Type", e.type || "—"],
-          ["Strength (kA)", (e.kA ?? e.ka ?? e.peak_current) ? String(e.kA ?? e.ka ?? e.peak_current) : "—"],
-          ["Age (min)", e.age_min ?? e.age ?? "—"],
-        ]));
+        addLightningPoint({ lat, lon, time: e.time || e.timestamp, type: e.type || "strike" });
       });
     }
 
@@ -858,7 +990,6 @@
         sel.innerHTML = `<option value="">Select location…</option>`;
         assets.forEach(a => {
           const opt = document.createElement("option");
-          // store index id string (stable): use db id if exists, else name
           const key = String(a.id ?? a.asset_id ?? a.name ?? "");
           opt.value = key;
           opt.textContent = a.name || key;
@@ -876,7 +1007,8 @@
       function itemHtml(a){
         const name = a.name || "Unnamed";
         const lat = getNum(a.latitude ?? a.lat, NaN);
-        const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);        const sev = a.severity || a.status || a.state || "";
+        const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
+        const sev = a.severity || a.status || a.state || "";
         const sevText = sev ? String(sev) : "";
         const sevPill = sevText ? `<div class="tag ${sevToTag(sev)}">${escapeHtml(sevText)}</div>` : "";
 
@@ -932,12 +1064,13 @@
           if (a) fillFormFromAsset(a);
 
           renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+          // prune strikes not matching filter (optional)
+          // (We keep existing strikes; new strikes will follow filter)
         });
       });
     }
 
     function fillFormFromAsset(a){
-      // desktop
       f.name.value = a.name ?? "";
       f.lat.value = getNum(a.latitude ?? a.lat, "").toString();
       f.lon.value = getNum(a.longitude ?? a.lon ?? a.lng, "").toString();
@@ -948,7 +1081,6 @@
       f.warning_color.value = (a.warning_color || "#F97316");
       f.info_color.value = (a.info_color || "#FBBF24");
 
-      // mobile
       mf.name.value = f.name.value;
       mf.lat.value = f.lat.value;
       mf.lon.value = f.lon.value;
@@ -1002,7 +1134,7 @@
       }
 
       renderList(DATA.assets, qEl.value || qMobileEl.value || "");
-      setHint(`selected "${a.name || key}"`);
+      setHint(`selected "${a.name || key}" (filter strikes: within info ring)`);
     }
 
     async function loadData(){
@@ -1011,7 +1143,6 @@
       if (!res.ok) throw new Error(`API ${API_LIST} error: ${res.status}`);
       const json = await res.json();
 
-      // Accept: {rows:[...]} or {data:[...]} or [...]
       let assets = [];
       let events = [];
 
@@ -1024,7 +1155,6 @@
         if (Array.isArray(json.events)) events = json.events;
       }
 
-      // normalize for our UI
       assets = (assets || []).map(a => ({
         ...a,
         name: a.name ?? a.asset_name ?? a.location_name ?? "Unnamed",
@@ -1088,7 +1218,6 @@
       }
 
       const out = await resp.json().catch(() => ({}));
-      // attempt to keep selection
       if (out && out.row && out.row.id){
         selectedDbId = Number(out.row.id);
         selectedId = String(out.row.id);
@@ -1139,8 +1268,6 @@
       mf.lat.value = lat; mf.lon.value = lon;
 
       setHint(`Lat/Lon set: ${lat}, ${lon}`);
-      // remain in pick mode (so user can fine-tune), or auto-off:
-      // togglePickMode();
     });
 
     // Buttons
@@ -1157,9 +1284,10 @@
     document.getElementById("m_save").addEventListener("click", () => saveLocation("mobile"));
     document.getElementById("m_new").addEventListener("click", clearForm);
     document.getElementById("m_delete").addEventListener("click", deleteLocation);
-    
-    document.getElementById("btnHideAll").addEventListener("click", hideAll); 
-    document.getElementById("btnShowAll").addEventListener("click", showAll);    
+
+    document.getElementById("btnHideAll").addEventListener("click", hideAll);
+    document.getElementById("btnShowAll").addEventListener("click", showAll);
+
     // Search
     qEl.addEventListener("input", () => renderList(DATA.assets, qEl.value));
     qMobileEl.addEventListener("input", () => renderList(DATA.assets, qMobileEl.value));
@@ -1197,7 +1325,6 @@
         const newH = clamp(startH - dy, 180, window.innerHeight * 0.78);
         sheet.style.height = `${newH}px`;
 
-        // adjust legend position
         const legend = document.querySelector(".legend");
         if (legend){
           legend.style.bottom = `calc(14px + ${newH}px)`;
@@ -1217,11 +1344,6 @@
       window.addEventListener("touchend", onUp);
     })();
 
-    // First load
-    loadData().catch(err => {
-      console.error(err);
-      alert("Failed to load locations. Make sure /api/xweather/golf-locations exists and returns rows/assets.");
-    });
     function hideAll(){
       DATA.assets.forEach(a => {
         const key = String(a.id ?? a.asset_id ?? a.name ?? "");
@@ -1233,7 +1355,7 @@
       saveVis();
       renderList(DATA.assets, qEl.value || qMobileEl.value || "");
     }
-    
+
     function showAll(){
       DATA.assets.forEach(a => {
         const key = String(a.id ?? a.asset_id ?? a.name ?? "");
@@ -1245,6 +1367,19 @@
       saveVis();
       renderList(DATA.assets, qEl.value || qMobileEl.value || "");
     }
+
+    // Keep lightning filter relevant when map moves (viewport mode)
+    map.on("moveend", () => pruneLightning());
+
+    // First load
+    loadData().then(() => {
+      startLightningStream();
+    }).catch(err => {
+      console.error(err);
+      alert("Failed to load locations. Make sure /api/xweather/golf-locations exists and returns rows/assets.");
+      // still start SSE, in case you want raw map view
+      startLightningStream();
+    });
   </script>
 </body>
 </html>

@@ -1,8 +1,12 @@
-from flask import Blueprint, render_template, request, jsonify, g, make_response
+from flask import Blueprint, render_template, request, jsonify, g, make_response, Response
 import os
 import csv
 import io
 import re
+import json
+import threading
+import queue
+import time
 from datetime import datetime
 from collections import Counter
 
@@ -1018,3 +1022,149 @@ def api_delete_golf_location(id):
 def xweather_golf_area_map_demo():
     init_db()
     return render_template("xweather_golf_map_admin.html")
+
+try:
+    import websocket  # websocket-client
+except Exception:
+    websocket = None
+
+# --- simple pubsub for SSE ---
+_blitz_clients = set()
+_blitz_lock = threading.Lock()
+_blitz_thread_started = False
+
+def _sse_format(data: dict) -> str:
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+def _decode_obfuscated_payload(payload_bytes: bytes) -> bytes:
+    """
+    NOTE: Blitzortung WS payload is obfuscated (LZW-like).
+    This decode function is taken from public reverse engineering references.
+    Adjust if protocol changes.
+    """
+    e = {}
+    d = list(payload_bytes.decode(errors="ignore"))
+    if not d:
+        return b""
+    c = d[0]
+    f = c
+    g = [c]
+    h = 256
+    o = h
+    for i in range(1, len(d)):
+        a = ord(d[i])
+        a = d[i] if h > a else e[a] if e.get(a) else f + c
+        g.append(a)
+        c = a[0]
+        e[o] = f + c
+        o += 1
+        f = a
+    return "".join(g).encode()
+
+def _start_blitz_ws_thread():
+    global _blitz_thread_started
+    if _blitz_thread_started:
+        return
+    _blitz_thread_started = True
+
+    def run():
+        if websocket is None:
+            print("[Blitz] websocket-client not installed.")
+            return
+
+        WS_URL = "wss://ws1.blitzortung.org"  # public reference
+        # handshake message reference: {"a":111}
+        HELLO = {"a": 111}
+
+        while True:
+            try:
+                ws = websocket.create_connection(WS_URL, timeout=15)
+                ws.send(json.dumps(HELLO))
+                print("[Blitz] connected")
+
+                while True:
+                    msg = ws.recv()
+                    if msg is None:
+                        raise RuntimeError("WS closed")
+
+                    # msg can be str or bytes
+                    if isinstance(msg, str):
+                        raw = msg.encode()
+                    else:
+                        raw = msg
+
+                    # try decode obfuscation -> json
+                    decoded = _decode_obfuscated_payload(raw)
+                    if not decoded:
+                        continue
+
+                    try:
+                        j = json.loads(decoded.decode("utf-8", errors="ignore"))
+                    except Exception:
+                        continue
+
+                    # Normalize to what frontend needs
+                    # Depending on message type, fields may differ; keep defensive:
+                    lat = j.get("lat") or j.get("latitude")
+                    lon = j.get("lon") or j.get("lng") or j.get("longitude")
+                    ts  = j.get("time") or j.get("timestamp") or j.get("t")
+
+                    if lat is None or lon is None:
+                        continue
+
+                    out = {
+                        "lat": float(lat),
+                        "lon": float(lon),
+                        "time": ts,
+                        "type": j.get("type") or j.get("s") or "strike"
+                    }
+
+                    # broadcast to all SSE clients
+                    with _blitz_lock:
+                        dead = []
+                        for q in _blitz_clients:
+                            try:
+                                q.put_nowait(out)
+                            except Exception:
+                                dead.append(q)
+                        for q in dead:
+                            _blitz_clients.discard(q)
+
+            except Exception as e:
+                print("[Blitz] reconnecting after error:", e)
+                try:
+                    ws.close()
+                except Exception:
+                    pass
+                time.sleep(3)
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+
+
+@xweather_report_bp.route("/api/blitzortung/sse")
+def api_blitzortung_sse():
+    """
+    Server-Sent Events endpoint:
+    browser will connect and receive stream of lightning points.
+    """
+    _start_blitz_ws_thread()
+
+    q = queue.Queue(maxsize=2000)
+    with _blitz_lock:
+        _blitz_clients.add(q)
+
+    def gen():
+        # initial ping
+        yield _sse_format({"ok": True, "msg": "connected"})
+        try:
+            while True:
+                item = q.get()
+                yield _sse_format(item)
+        except GeneratorExit:
+            pass
+        finally:
+            with _blitz_lock:
+                _blitz_clients.discard(q)
+
+    return Response(gen(), mimetype="text/event-stream")
