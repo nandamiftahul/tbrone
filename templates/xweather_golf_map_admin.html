@@ -1,155 +1,1096 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Xweather Golf Map Manager</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Xweather Protect – Golf Area Map Demo (Terrindo Bumi Raya)</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<style>
-body{margin:0;font-family:Inter,system-ui;background:#f4f7fb;}
-header{background:#003A8F;color:white;padding:12px 20px;font-weight:600;}
-.container{display:flex;height:calc(100vh - 50px);}
-.sidebar{width:340px;background:white;border-right:1px solid #ddd;padding:15px;overflow:auto;}
-#map{flex:1;}
-input,select{width:100%;padding:8px;margin:6px 0;border:1px solid #ccc;border-radius:6px;}
-button{padding:8px 12px;border:none;border-radius:6px;background:#F28C28;color:white;font-weight:600;cursor:pointer;}
-.location{padding:8px;border:1px solid #eee;margin-bottom:6px;border-radius:6px;cursor:pointer;}
-.location:hover{background:#f0f4ff;}
-</style>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --xw-blue: #003A8F;
+      --xw-blue-2:#0A4BBF;
+      --tbr-orange:#F28C28;
+      --bg:#F4F7FB;
+      --card:#FFFFFF;
+      --text:#1F2937;
+      --muted:#6B7280;
+      --border:rgba(17,24,39,.10);
+      --shadow: 0 10px 30px rgba(2, 22, 55, .08);
+      --radius: 16px;
+
+      --alarm:#EF4444;
+      --warning:#F97316;
+      --info:#FBBF24;
+      --event:#2563EB;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--text);
+      background: linear-gradient(180deg, #EAF1FF 0%, var(--bg) 40%, #F7FAFF 100%);
+      overflow:hidden;
+    }
+
+    /* Topbar (ikut style manual) */
+    .topbar{
+      position: sticky;
+      top:0;
+      z-index: 50;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 14px 18px;
+      background: rgba(0, 58, 143, .94);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255,255,255,.15);
+      gap: 12px;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width: 240px;
+    }
+    .brand img{
+      height:32px; width:auto;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
+      border-radius: 8px;
+    }
+    .brand .title{
+      display:flex;
+      flex-direction:column;
+      line-height:1.1;
+      color:#fff;
+      min-width:0;
+    }
+    .brand .title strong{
+      font-size:14px;
+      letter-spacing:.2px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .brand .title span{
+      font-size:12px;
+      opacity:.85;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .top-actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+    }
+    .btn{
+      appearance:none;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.10);
+      color:#fff;
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:13px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+      text-decoration:none;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); }
+    .btn.primary{
+      background: linear-gradient(135deg, var(--tbr-orange) 0%, #FFB565 100%);
+      border-color: rgba(255,255,255,.10);
+      color:#1A1A1A;
+    }
+    .btn.primary:hover{ background: linear-gradient(135deg, #FF9B3A 0%, #FFC27A 100%); }
+
+    /* Layout */
+    .shell{
+      height: calc(100vh - 62px);
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    /* Sidebar list (desktop) */
+    .sidebar{
+      background: var(--card);
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .sidebar .head{
+      padding: 14px 14px 10px;
+      border-bottom:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
+    }
+    .sidebar .head .h{
+      margin:0;
+      font-weight:900;
+      font-size:14px;
+      color: var(--xw-blue);
+      letter-spacing:.2px;
+    }
+    .sidebar .head .s{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    .search{
+      padding: 10px 14px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      gap:10px;
+      flex-wrap: wrap;
+      align-items:center;
+    }
+    .search input, .search select{
+      flex:1;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(17,24,39,.04);
+      color:var(--text);
+      outline:none;
+      min-width: 150px;
+    }
+    .list{
+      padding: 10px;
+      overflow:auto;
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .item{
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background:#fff;
+      cursor:pointer;
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .item:hover{
+      transform: translateY(-1px);
+      border-color: rgba(0,58,143,.22);
+      box-shadow: 0 10px 22px rgba(0,58,143,.08);
+    }
+    .item.active{
+      border-color: rgba(242,140,40,.45);
+      box-shadow: 0 12px 26px rgba(242,140,40,.12);
+      background: rgba(242,140,40,.05);
+    }
+    .meta{min-width:0;}
+    .meta .name{
+      margin:0;
+      font-weight:800;
+      font-size:13px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .meta .coord{
+      margin:4px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .tag{
+      font-size:11px;
+      font-weight:800;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background: rgba(17,24,39,.04);
+      color: var(--muted);
+      white-space:nowrap;
+      height: fit-content;
+    }
+    .tag.alarm{ background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.28); color: #b91c1c;}
+    .tag.warning{ background: rgba(249,115,22,.12); border-color: rgba(249,115,22,.28); color: #9a3412;}
+    .tag.info{ background: rgba(251,191,36,.14); border-color: rgba(251,191,36,.35); color: #92400e;}
+
+    /* Map panel */
+    .mapCard{
+      background: var(--card);
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+      min-height:0;
+    }
+    #map{
+      position:absolute;
+      inset:0;
+    }
+
+    /* Floating legend */
+    .legend{
+      position:absolute;
+      left: 14px;
+      bottom: 14px;
+      z-index: 20;
+      background: rgba(255,255,255,.92);
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      box-shadow: var(--shadow);
+      font-size:12px;
+      backdrop-filter: blur(8px);
+      min-width: 220px;
+    }
+    .legend .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;}
+    .dot{width:10px; height:10px; border-radius:99px; display:inline-block;}
+    .dot.alarm{background:var(--alarm)}
+    .dot.warning{background:var(--warning)}
+    .dot.info{background:var(--info)}
+    .dot.event{background:var(--event)}
+    .legend small{color:var(--muted)}
+
+    /* Mobile bottom sheet (replace sidebar) */
+    .sheet{
+      display:none;
+      position:absolute;
+      left:0; right:0; bottom:0;
+      z-index: 40;
+      background: rgba(255,255,255,.95);
+      border-top:1px solid var(--border);
+      border-radius: 18px 18px 0 0;
+      box-shadow: 0 -18px 40px rgba(2,22,55,.18);
+      overflow:hidden;
+      height: 44vh;          /* default */
+      min-height: 180px;
+      max-height: 78vh;
+    }
+    .sheet .handle{
+      height: 36px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-bottom:1px solid var(--border);
+      cursor: ns-resize;
+      user-select:none;
+      background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
+    }
+    .grab{
+      width: 52px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(17,24,39,.18);
+    }
+    .sheet .content{
+      height: calc(100% - 36px);
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+
+    /* Responsive */
+    @media (max-width: 980px){
+      .shell{ grid-template-columns: 1fr; }
+      .sidebar{ display:none; }
+      .sheet{ display:block; }
+      .mapCard{ border-radius: 18px; }
+      .legend{ bottom: calc(14px + 44vh); }
+    }
+
+    /* Leaflet popup font */
+    .leaflet-popup-content{
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .popupTitle{
+      margin: 0 0 6px;
+      font-weight: 900;
+      color: var(--xw-blue);
+    }
+    .kv{
+      display:grid;
+      grid-template-columns: 110px 1fr;
+      gap: 6px 10px;
+    }
+    .k{ color: var(--muted); }
+    .v{ color: var(--text); font-weight:700; }
+
+    /* ===== Added: Manage form styling (minimal, reuse existing) ===== */
+    .manage{
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(242,140,40,.06) 0%, rgba(242,140,40,0) 100%);
+    }
+    .manage .mh{
+      margin:0;
+      font-weight:900;
+      font-size:13px;
+      color: var(--xw-blue);
+      letter-spacing:.2px;
+    }
+    .manage .ms{
+      margin:6px 0 10px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:8px;
+    }
+    .grid3{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap:8px;
+    }
+    .finput{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(17,24,39,.04);
+      color:var(--text);
+      outline:none;
+      font-size:12.5px;
+    }
+    .finput[type="color"]{
+      padding: 6px;
+      height: 38px;
+    }
+    .rowbtn{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .btn2{
+      appearance:none;
+      border: 1px solid rgba(17,24,39,.12);
+      background: rgba(17,24,39,.06);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight:700;
+      font-size:12.5px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .btn2:hover{ background: rgba(17,24,39,.08); }
+    .btn2.primary{
+      background: linear-gradient(135deg, var(--tbr-orange) 0%, #FFB565 100%);
+      border-color: rgba(242,140,40,.20);
+      color:#1A1A1A;
+    }
+    .btn2.danger{
+      background: rgba(239,68,68,.10);
+      border-color: rgba(239,68,68,.25);
+      color: #b91c1c;
+    }
+    .hint{
+      font-size:12px;
+      color: var(--muted);
+      margin-top:8px;
+    }
+  </style>
 </head>
 
 <body>
+  <div class="topbar">
+    <div class="brand">
+      <!-- pake icon yang sudah kamu pakai di manual -->
+      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
+      <div class="title">
+        <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
+        <span>Golf Area Map Demo (AOI + Rings configurable)</span>
+      </div>
+    </div>
 
-<header>
-Terrindo Bumi Raya · Xweather Golf Location Manager
-</header>
+    <div class="top-actions">
+      <button class="btn" id="btnRefresh">⟳ Refresh</button>
+      <button class="btn" id="btnFit">Fit All</button>
+      <button class="btn" id="btnPick" title="Click map to set Lat/Lon for the form">📍 Pick from map</button>
+      <button class="btn primary" onclick="window.print()">Print</button>
+    </div>
+  </div>
 
-<div class="container">
+  <div class="shell">
+    <!-- Desktop Sidebar -->
+    <aside class="sidebar">
+      <div class="head">
+        <p class="h">Golf Locations</p>
+        <p class="s">Klik satu lokasi untuk zoom. Ring bisa diatur per lokasi: Alarm/Warning/Info (km + warna).</p>
+      </div>
 
-<div class="sidebar">
+      <div class="search">
+        <input id="q" placeholder="Search golf name..." />
+        <select id="ddl" title="Quick select">
+          <option value="">Select location…</option>
+        </select>
+      </div>
 
-<h3>Add / Edit Location</h3>
+      <div class="list" id="list"></div>
 
-<input id="name" placeholder="Golf Name">
-<input id="lat" placeholder="Latitude">
-<input id="lon" placeholder="Longitude">
+      <!-- ===== Added: Manage Locations (AOI + Rings) ===== -->
+      <div class="manage">
+        <p class="mh">Manage Location (AOI)</p>
+        <p class="ms">
+          Tambah / edit / hapus lokasi. Klik <b>📍 Pick from map</b> lalu klik map untuk mengisi Lat/Lon.
+        </p>
 
-<h4>Ring Config (km)</h4>
-<input id="alarm_km" placeholder="Alarm km" value="4">
-<input id="warning_km" placeholder="Warning km" value="10">
-<input id="info_km" placeholder="Info km" value="20">
+        <input class="finput" id="f_name" placeholder="Name (e.g., Royale Jakarta Golf Club)" />
+        <div class="grid2" style="margin-top:8px;">
+          <input class="finput" id="f_lat" placeholder="Latitude" />
+          <input class="finput" id="f_lon" placeholder="Longitude" />
+        </div>
 
-<h4>Ring Color</h4>
-<input id="alarm_color" type="color" value="#EF4444">
-<input id="warning_color" type="color" value="#F97316">
-<input id="info_color" type="color" value="#FBBF24">
+        <div class="grid3" style="margin-top:10px;">
+          <input class="finput" id="f_alarm_km" placeholder="Alarm km" value="4" />
+          <input class="finput" id="f_warning_km" placeholder="Warning km" value="10" />
+          <input class="finput" id="f_info_km" placeholder="Info km" value="20" />
+        </div>
 
-<button onclick="saveLocation()">Save</button>
+        <div class="grid3" style="margin-top:8px;">
+          <input class="finput" id="f_alarm_color" type="color" value="#EF4444" title="Alarm color" />
+          <input class="finput" id="f_warning_color" type="color" value="#F97316" title="Warning color" />
+          <input class="finput" id="f_info_color" type="color" value="#FBBF24" title="Info color" />
+        </div>
 
-<hr>
+        <div class="rowbtn">
+          <button class="btn2 primary" id="btnSave">💾 Save</button>
+          <button class="btn2" id="btnNew">➕ New</button>
+          <button class="btn2 danger" id="btnDelete">🗑 Delete</button>
+        </div>
 
-<h3>Locations</h3>
-<div id="locations"></div>
+        <div class="hint" id="hint">
+          Status: ready.
+        </div>
+      </div>
+    </aside>
 
-</div>
+    <!-- Map -->
+    <section class="mapCard">
+      <div id="map"></div>
 
-<div id="map"></div>
+      <div class="legend">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <strong>Legend</strong>
+          <small>WBN / Golf</small>
+        </div>
+        <div class="row"><span><span class="dot alarm"></span> Alarm</span><span>Editable</span></div>
+        <div class="row"><span><span class="dot warning"></span> Warning</span><span>Editable</span></div>
+        <div class="row"><span><span class="dot info"></span> Info</span><span>Editable</span></div>
+        <div class="row"><span><span class="dot event"></span> Lightning</span><span>Blue dot</span></div>
+        <small>Data source: /api/xweather/golf-locations</small>
+      </div>
 
-</div>
+      <!-- Mobile bottom sheet -->
+      <div class="sheet" id="sheet">
+        <div class="handle" id="sheetHandle"><div class="grab"></div></div>
+        <div class="content">
+          <div class="search" style="border-bottom:1px solid var(--border);">
+            <input id="qMobile" placeholder="Search golf name..." />
+            <button class="btn" id="btnRefreshMobile" style="border-color:rgba(17,24,39,.10); background:rgba(17,24,39,.06); color:var(--text);">⟳</button>
+          </div>
 
-<script>
+          <div class="search" style="border-bottom:1px solid var(--border);">
+            <select id="ddlMobile" style="width:100%;">
+              <option value="">Select location…</option>
+            </select>
+            <button class="btn" id="btnPickMobile" style="border-color:rgba(17,24,39,.10); background:rgba(17,24,39,.06); color:var(--text);">📍 Pick</button>
+          </div>
 
-let map = L.map('map').setView([-6.2,106.85],9);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+          <div class="list" id="listMobile" style="padding:10px;"></div>
 
-let layer = L.layerGroup().addTo(map);
-let editingId = null;
+          <!-- Mobile manage (compact) -->
+          <div class="manage" style="border-top:1px solid var(--border);">
+            <p class="mh">Manage Location (AOI)</p>
+            <input class="finput" id="m_name" placeholder="Name" />
+            <div class="grid2" style="margin-top:8px;">
+              <input class="finput" id="m_lat" placeholder="Latitude" />
+              <input class="finput" id="m_lon" placeholder="Longitude" />
+            </div>
 
-async function loadLocations(){
-  const res = await fetch('/api/xweather/golf-locations');
-  const json = await res.json();
-  renderList(json.rows);
-}
+            <div class="grid3" style="margin-top:10px;">
+              <input class="finput" id="m_alarm_km" placeholder="Alarm km" value="4" />
+              <input class="finput" id="m_warning_km" placeholder="Warning km" value="10" />
+              <input class="finput" id="m_info_km" placeholder="Info km" value="20" />
+            </div>
 
-function renderList(rows){
-  const container = document.getElementById("locations");
-  container.innerHTML = "";
+            <div class="grid3" style="margin-top:8px;">
+              <input class="finput" id="m_alarm_color" type="color" value="#EF4444" />
+              <input class="finput" id="m_warning_color" type="color" value="#F97316" />
+              <input class="finput" id="m_info_color" type="color" value="#FBBF24" />
+            </div>
 
-  layer.clearLayers();
+            <div class="rowbtn">
+              <button class="btn2 primary" id="m_save">💾 Save</button>
+              <button class="btn2" id="m_new">➕ New</button>
+              <button class="btn2 danger" id="m_delete">🗑 Delete</button>
+            </div>
 
-  rows.forEach(r=>{
-    const div = document.createElement("div");
-    div.className="location";
-    div.innerHTML = r.name;
-    div.onclick=()=>editLocation(r);
-    container.appendChild(div);
+            <div class="hint" id="m_hint">Status: ready.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
 
-    drawRings(r);
-  });
-}
+  <script>
+    // Data source for AOI + rings (CRUD)
+    const API_LIST   = "/api/xweather/golf-locations";
+    const API_CREATE = "/api/xweather/golf-locations";
+    const API_UPDATE = (id) => `/api/xweather/golf-locations/${id}`;
+    const API_DELETE = (id) => `/api/xweather/golf-locations/${id}`;
 
-function drawRings(r){
-  L.circle([r.latitude,r.longitude],{
-    radius:r.info_km*1000,color:r.info_color,fill:false
-  }).addTo(layer);
-  L.circle([r.latitude,r.longitude],{
-    radius:r.warning_km*1000,color:r.warning_color,fill:false
-  }).addTo(layer);
-  L.circle([r.latitude,r.longitude],{
-    radius:r.alarm_km*1000,color:r.alarm_color,fill:false
-  }).addTo(layer);
-}
+    // Map init
+    const map = L.map("map", { zoomControl: true }).setView([-6.2, 106.85], 9);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
 
-function editLocation(r){
-  editingId=r.id;
-  document.getElementById("name").value=r.name;
-  document.getElementById("lat").value=r.latitude;
-  document.getElementById("lon").value=r.longitude;
-  document.getElementById("alarm_km").value=r.alarm_km;
-  document.getElementById("warning_km").value=r.warning_km;
-  document.getElementById("info_km").value=r.info_km;
-  document.getElementById("alarm_color").value=r.alarm_color;
-  document.getElementById("warning_color").value=r.warning_color;
-  document.getElementById("info_color").value=r.info_color;
-}
+    // Layers
+    const layerRings = L.layerGroup().addTo(map);
+    const layerCenters = L.layerGroup().addTo(map);
+    const layerEvents = L.layerGroup().addTo(map);
 
-async function saveLocation(){
-  const data={
-    name:document.getElementById("name").value,
-    latitude:parseFloat(document.getElementById("lat").value),
-    longitude:parseFloat(document.getElementById("lon").value),
-    alarm_km:parseFloat(document.getElementById("alarm_km").value),
-    warning_km:parseFloat(document.getElementById("warning_km").value),
-    info_km:parseFloat(document.getElementById("info_km").value),
-    alarm_color:document.getElementById("alarm_color").value,
-    warning_color:document.getElementById("warning_color").value,
-    info_color:document.getElementById("info_color").value
-  };
+    let DATA = { assets: [], events: [] };
+    let selectedId = null;
+    let selectedDbId = null; // numeric id from DB if available
+    let pickMode = false;
 
-  if(editingId){
-    await fetch('/api/xweather/golf-locations/'+editingId,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(data)
+    // UI refs
+    const listEl = document.getElementById("list");
+    const listMobileEl = document.getElementById("listMobile");
+    const qEl = document.getElementById("q");
+    const qMobileEl = document.getElementById("qMobile");
+    const ddl = document.getElementById("ddl");
+    const ddlMobile = document.getElementById("ddlMobile");
+    const hint = document.getElementById("hint");
+    const mHint = document.getElementById("m_hint");
+
+    // Desktop form
+    const f = {
+      name: document.getElementById("f_name"),
+      lat: document.getElementById("f_lat"),
+      lon: document.getElementById("f_lon"),
+      alarm_km: document.getElementById("f_alarm_km"),
+      warning_km: document.getElementById("f_warning_km"),
+      info_km: document.getElementById("f_info_km"),
+      alarm_color: document.getElementById("f_alarm_color"),
+      warning_color: document.getElementById("f_warning_color"),
+      info_color: document.getElementById("f_info_color"),
+    };
+
+    // Mobile form
+    const mf = {
+      name: document.getElementById("m_name"),
+      lat: document.getElementById("m_lat"),
+      lon: document.getElementById("m_lon"),
+      alarm_km: document.getElementById("m_alarm_km"),
+      warning_km: document.getElementById("m_warning_km"),
+      info_km: document.getElementById("m_info_km"),
+      alarm_color: document.getElementById("m_alarm_color"),
+      warning_color: document.getElementById("m_warning_color"),
+      info_color: document.getElementById("m_info_color"),
+    };
+
+    function setHint(txt){
+      hint.textContent = `Status: ${txt}`;
+      mHint.textContent = `Status: ${txt}`;
+    }
+
+    function sevToTag(sev){
+      const s = (sev || "").toLowerCase();
+      if (s.includes("alarm")) return "alarm";
+      if (s.includes("warning") || s.includes("warn")) return "warning";
+      if (s.includes("info")) return "info";
+      return "";
+    }
+
+    function escapeHtml(s){
+      return String(s ?? "")
+        .replaceAll("&","&amp;").replaceAll("<","&lt;")
+        .replaceAll(">","&gt;").replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function popupHtml(title, rows){
+      const kv = rows.map(([k,v]) => `
+        <div class="k">${escapeHtml(k)}</div>
+        <div class="v">${escapeHtml(v)}</div>
+      `).join("");
+      return `<div><p class="popupTitle">${escapeHtml(title)}</p><div class="kv">${kv}</div></div>`;
+    }
+
+    function getNum(v, fallback){
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    // Render map
+    function renderMap(assets, events){
+      layerRings.clearLayers();
+      layerCenters.clearLayers();
+      layerEvents.clearLayers();
+
+      assets.forEach(a => {
+        const lat = getNum(a.latitude ?? a.lat, NaN);
+        const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        // rings (per location editable)
+        const rAlarm = getNum(a.alarm_km, 4);
+        const rWarn  = getNum(a.warning_km, 10);
+        const rInfo  = getNum(a.info_km, 20);
+
+        const cAlarm = (a.alarm_color || getComputedStyle(document.documentElement).getPropertyValue("--alarm").trim() || "#EF4444");
+        const cWarn  = (a.warning_color || getComputedStyle(document.documentElement).getPropertyValue("--warning").trim() || "#F97316");
+        const cInfo  = (a.info_color || getComputedStyle(document.documentElement).getPropertyValue("--info").trim() || "#FBBF24");
+
+        L.circle([lat, lon], { radius: rInfo*1000, color: cInfo, weight: 2, fill: false, opacity: 0.85 }).addTo(layerRings);
+        L.circle([lat, lon], { radius: rWarn*1000, color: cWarn, weight: 2, fill: false, opacity: 0.88 }).addTo(layerRings);
+        L.circle([lat, lon], { radius: rAlarm*1000, color: cAlarm, weight: 2, fill: false, opacity: 0.95 }).addTo(layerRings);
+
+        const marker = L.circleMarker([lat, lon], {
+          radius: 7,
+          color: "#fff",
+          weight: 2,
+          fillColor: "#0A4BBF",
+          fillOpacity: 0.95
+        }).addTo(layerCenters);
+
+        marker.on("click", () => selectByAsset(a));
+        marker.bindPopup(popupHtml(a.name || "Golf Location", [
+          ["Latitude", lat.toFixed(6)],
+          ["Longitude", lon.toFixed(6)],
+          ["Alarm ring", `${rAlarm} km`],
+          ["Warning ring", `${rWarn} km`],
+          ["Info ring", `${rInfo} km`],
+        ]));
+      });
+
+      // events (optional; if you later add lightning points)
+      (events || []).forEach(e => {
+        const lat = getNum(e.lat ?? e.latitude, NaN);
+        const lon = getNum(e.lon ?? e.lng ?? e.longitude, NaN);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        const mk = L.circleMarker([lat, lon], {
+          radius: 5,
+          color: "#ffffff",
+          weight: 1.8,
+          fillColor: getComputedStyle(document.documentElement).getPropertyValue("--event").trim(),
+          fillOpacity: 0.95
+        }).addTo(layerEvents);
+
+        mk.bindPopup(popupHtml("Lightning", [
+          ["Time (UTC)", e.time || e.timestamp || "—"],
+          ["Type", e.type || "—"],
+          ["Strength (kA)", (e.kA ?? e.ka ?? e.peak_current) ? String(e.kA ?? e.ka ?? e.peak_current) : "—"],
+          ["Age (min)", e.age_min ?? e.age ?? "—"],
+        ]));
+      });
+    }
+
+    function fitAll(assets){
+      const pts = assets
+        .map(a => [getNum(a.latitude ?? a.lat, NaN), getNum(a.longitude ?? a.lon ?? a.lng, NaN)])
+        .filter(([lat,lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+      if (!pts.length) return;
+      map.fitBounds(L.latLngBounds(pts).pad(0.15));
+    }
+
+    function fillDropdown(assets){
+      function fill(sel){
+        sel.innerHTML = `<option value="">Select location…</option>`;
+        assets.forEach(a => {
+          const opt = document.createElement("option");
+          // store index id string (stable): use db id if exists, else name
+          const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+          opt.value = key;
+          opt.textContent = a.name || key;
+          sel.appendChild(opt);
+        });
+      }
+      fill(ddl);
+      fill(ddlMobile);
+    }
+
+    function renderList(assets, query){
+      const q = (query || "").trim().toLowerCase();
+      const filtered = !q ? assets : assets.filter(a => String(a.name || "").toLowerCase().includes(q));
+
+      function itemHtml(a){
+        const name = a.name || "Unnamed";
+        const lat = getNum(a.latitude ?? a.lat, NaN);
+        const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
+
+        const sev = a.severity || a.status || a.state || ""; // optional
+        const tag = sevToTag(sev);
+        const sevText = sev ? String(sev) : "AOI";
+
+        const key = String(a.id ?? a.asset_id ?? a.name ?? name);
+        const activeClass = (key && key === selectedId) ? " active" : "";
+
+        return `
+          <div class="item${activeClass}" data-key="${escapeHtml(key)}"
+               data-db-id="${escapeHtml(a.id ?? "")}"
+               data-lat="${Number.isFinite(lat)?lat:""}" data-lon="${Number.isFinite(lon)?lon:""}">
+            <div class="meta">
+              <p class="name">${escapeHtml(name)}</p>
+              <p class="coord">${Number.isFinite(lat)&&Number.isFinite(lon) ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : "No coordinate"}</p>
+            </div>
+            <div class="tag ${tag}">${escapeHtml(sevText)}</div>
+          </div>
+        `;
+      }
+
+      const html = filtered.map(itemHtml).join("") || `<div style="color:var(--muted); font-size:12px; padding:10px;">No match.</div>`;
+      listEl.innerHTML = html;
+      listMobileEl.innerHTML = html;
+
+      [...document.querySelectorAll(".item")].forEach(el => {
+        el.addEventListener("click", () => {
+          const lat = Number(el.getAttribute("data-lat"));
+          const lon = Number(el.getAttribute("data-lon"));
+          const key = el.getAttribute("data-key");
+          const dbId = el.getAttribute("data-db-id");
+
+          selectedId = key;
+          selectedDbId = dbId ? Number(dbId) : null;
+
+          if (Number.isFinite(lat) && Number.isFinite(lon)){
+            map.setView([lat, lon], 12, { animate:true });
+          }
+
+          const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === key) || null;
+          if (a) fillFormFromAsset(a);
+
+          renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+        });
+      });
+    }
+
+    function fillFormFromAsset(a){
+      // desktop
+      f.name.value = a.name ?? "";
+      f.lat.value = getNum(a.latitude ?? a.lat, "").toString();
+      f.lon.value = getNum(a.longitude ?? a.lon ?? a.lng, "").toString();
+      f.alarm_km.value = getNum(a.alarm_km, 4);
+      f.warning_km.value = getNum(a.warning_km, 10);
+      f.info_km.value = getNum(a.info_km, 20);
+      f.alarm_color.value = (a.alarm_color || "#EF4444");
+      f.warning_color.value = (a.warning_color || "#F97316");
+      f.info_color.value = (a.info_color || "#FBBF24");
+
+      // mobile
+      mf.name.value = f.name.value;
+      mf.lat.value = f.lat.value;
+      mf.lon.value = f.lon.value;
+      mf.alarm_km.value = f.alarm_km.value;
+      mf.warning_km.value = f.warning_km.value;
+      mf.info_km.value = f.info_km.value;
+      mf.alarm_color.value = f.alarm_color.value;
+      mf.warning_color.value = f.warning_color.value;
+      mf.info_color.value = f.info_color.value;
+    }
+
+    function clearForm(){
+      selectedId = null;
+      selectedDbId = null;
+
+      [f.name, f.lat, f.lon].forEach(x => x.value = "");
+      f.alarm_km.value = "4";
+      f.warning_km.value = "10";
+      f.info_km.value = "20";
+      f.alarm_color.value = "#EF4444";
+      f.warning_color.value = "#F97316";
+      f.info_color.value = "#FBBF24";
+
+      [mf.name, mf.lat, mf.lon].forEach(x => x.value = "");
+      mf.alarm_km.value = "4";
+      mf.warning_km.value = "10";
+      mf.info_km.value = "20";
+      mf.alarm_color.value = "#EF4444";
+      mf.warning_color.value = "#F97316";
+      mf.info_color.value = "#FBBF24";
+
+      ddl.value = "";
+      ddlMobile.value = "";
+
+      setHint("new item.");
+    }
+
+    function selectByAsset(a){
+      const key = String(a.id ?? a.name ?? "");
+      selectedId = key;
+      selectedDbId = a.id ? Number(a.id) : null;
+
+      fillFormFromAsset(a);
+      ddl.value = key;
+      ddlMobile.value = key;
+
+      const lat = getNum(a.latitude ?? a.lat, NaN);
+      const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
+      if (Number.isFinite(lat) && Number.isFinite(lon)){
+        map.setView([lat, lon], 12, { animate:true });
+      }
+
+      renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+      setHint(`selected "${a.name || key}"`);
+    }
+
+    async function loadData(){
+      setHint("loading…");
+      const res = await fetch(API_LIST, { cache:"no-store" });
+      if (!res.ok) throw new Error(`API ${API_LIST} error: ${res.status}`);
+      const json = await res.json();
+
+      // Accept: {rows:[...]} or {data:[...]} or [...]
+      let assets = [];
+      let events = [];
+
+      if (Array.isArray(json)) assets = json;
+      else if (json && typeof json === "object"){
+        if (Array.isArray(json.rows)) assets = json.rows;
+        else if (Array.isArray(json.assets)) assets = json.assets;
+        else if (Array.isArray(json.data)) assets = json.data;
+        else if (Array.isArray(json.locations)) assets = json.locations;
+        if (Array.isArray(json.events)) events = json.events;
+      }
+
+      // normalize for our UI
+      assets = (assets || []).map(a => ({
+        ...a,
+        name: a.name ?? a.asset_name ?? a.location_name ?? "Unnamed",
+      }));
+
+      DATA = { assets, events };
+      renderMap(assets, events);
+      renderList(assets, qEl.value || "");
+      fillDropdown(assets);
+      fitAll(assets);
+
+      setHint(`loaded ${assets.length} location(s).`);
+    }
+
+    function readForm(which){
+      const o = (which === "mobile") ? mf : f;
+      return {
+        name: (o.name.value || "").trim(),
+        latitude: Number(o.lat.value),
+        longitude: Number(o.lon.value),
+        alarm_km: Number(o.alarm_km.value),
+        warning_km: Number(o.warning_km.value),
+        info_km: Number(o.info_km.value),
+        alarm_color: o.alarm_color.value,
+        warning_color: o.warning_color.value,
+        info_color: o.info_color.value,
+      };
+    }
+
+    function validatePayload(p){
+      if (!p.name) return "Name is required.";
+      if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return "Latitude/Longitude must be valid numbers.";
+      if (!Number.isFinite(p.alarm_km) || p.alarm_km <= 0) return "Alarm km must be > 0.";
+      if (!Number.isFinite(p.warning_km) || p.warning_km <= 0) return "Warning km must be > 0.";
+      if (!Number.isFinite(p.info_km) || p.info_km <= 0) return "Info km must be > 0.";
+      return null;
+    }
+
+    async function saveLocation(which){
+      const p = readForm(which);
+      const err = validatePayload(p);
+      if (err) { setHint(err); alert(err); return; }
+
+      setHint("saving…");
+
+      const isUpdate = Number.isFinite(selectedDbId) && selectedDbId !== null;
+      const url = isUpdate ? API_UPDATE(selectedDbId) : API_CREATE;
+      const method = isUpdate ? "PUT" : "POST";
+
+      const resp = await fetch(url, {
+        method,
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(p)
+      });
+
+      if (!resp.ok){
+        const t = await resp.text();
+        setHint("save failed.");
+        alert(`Save failed: ${resp.status}\n${t}`);
+        return;
+      }
+
+      const out = await resp.json().catch(() => ({}));
+      // attempt to keep selection
+      if (out && out.row && out.row.id){
+        selectedDbId = Number(out.row.id);
+        selectedId = String(out.row.id);
+      }
+
+      await loadData();
+      setHint("saved.");
+    }
+
+    async function deleteLocation(){
+      if (!Number.isFinite(selectedDbId) || selectedDbId === null){
+        const msg = "Select an existing location first.";
+        setHint(msg);
+        alert(msg);
+        return;
+      }
+
+      if (!confirm("Delete this location?")) return;
+
+      setHint("deleting…");
+      const resp = await fetch(API_DELETE(selectedDbId), { method: "DELETE" });
+      if (!resp.ok){
+        const t = await resp.text();
+        setHint("delete failed.");
+        alert(`Delete failed: ${resp.status}\n${t}`);
+        return;
+      }
+
+      clearForm();
+      await loadData();
+      setHint("deleted.");
+    }
+
+    // Pick-from-map mode
+    function togglePickMode(){
+      pickMode = !pickMode;
+      setHint(pickMode ? "Pick mode ON: click on map to set Lat/Lon." : "Pick mode OFF.");
+      const btn = document.getElementById("btnPick");
+      btn.textContent = pickMode ? "📍 Picking…" : "📍 Pick from map";
+    }
+
+    map.on("click", (e) => {
+      if (!pickMode) return;
+      const lat = e.latlng.lat.toFixed(6);
+      const lon = e.latlng.lng.toFixed(6);
+
+      f.lat.value = lat; f.lon.value = lon;
+      mf.lat.value = lat; mf.lon.value = lon;
+
+      setHint(`Lat/Lon set: ${lat}, ${lon}`);
+      // remain in pick mode (so user can fine-tune), or auto-off:
+      // togglePickMode();
     });
-  }else{
-    await fetch('/api/xweather/golf-locations',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(data)
+
+    // Buttons
+    document.getElementById("btnRefresh").addEventListener("click", () => loadData().catch(err => alert(err.message)));
+    document.getElementById("btnFit").addEventListener("click", () => fitAll(DATA.assets));
+    document.getElementById("btnRefreshMobile").addEventListener("click", () => loadData().catch(err => alert(err.message)));
+    document.getElementById("btnPick").addEventListener("click", togglePickMode);
+    document.getElementById("btnPickMobile").addEventListener("click", togglePickMode);
+
+    document.getElementById("btnSave").addEventListener("click", () => saveLocation("desktop"));
+    document.getElementById("btnNew").addEventListener("click", clearForm);
+    document.getElementById("btnDelete").addEventListener("click", deleteLocation);
+
+    document.getElementById("m_save").addEventListener("click", () => saveLocation("mobile"));
+    document.getElementById("m_new").addEventListener("click", clearForm);
+    document.getElementById("m_delete").addEventListener("click", deleteLocation);
+
+    // Search
+    qEl.addEventListener("input", () => renderList(DATA.assets, qEl.value));
+    qMobileEl.addEventListener("input", () => renderList(DATA.assets, qMobileEl.value));
+
+    // Dropdown select
+    function onPickSelect(value){
+      if (!value) return;
+      const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === value);
+      if (a) selectByAsset(a);
+    }
+    ddl.addEventListener("change", () => onPickSelect(ddl.value));
+    ddlMobile.addEventListener("change", () => onPickSelect(ddlMobile.value));
+
+    // Mobile sheet resize (drag handle)
+    (function(){
+      const sheet = document.getElementById("sheet");
+      const handle = document.getElementById("sheetHandle");
+
+      let dragging = false;
+      let startY = 0;
+      let startH = 0;
+
+      function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+      function onDown(e){
+        dragging = true;
+        startY = (e.touches ? e.touches[0].clientY : e.clientY);
+        startH = sheet.getBoundingClientRect().height;
+        document.body.style.userSelect = "none";
+      }
+      function onMove(e){
+        if (!dragging) return;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY);
+        const dy = y - startY;
+        const newH = clamp(startH - dy, 180, window.innerHeight * 0.78);
+        sheet.style.height = `${newH}px`;
+
+        // adjust legend position
+        const legend = document.querySelector(".legend");
+        if (legend){
+          legend.style.bottom = `calc(14px + ${newH}px)`;
+        }
+      }
+      function onUp(){
+        dragging = false;
+        document.body.style.userSelect = "";
+      }
+
+      handle.addEventListener("mousedown", onDown);
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+
+      handle.addEventListener("touchstart", onDown, {passive:true});
+      window.addEventListener("touchmove", onMove, {passive:true});
+      window.addEventListener("touchend", onUp);
+    })();
+
+    // First load
+    loadData().catch(err => {
+      console.error(err);
+      alert("Failed to load locations. Make sure /api/xweather/golf-locations exists and returns rows/assets.");
     });
-  }
-
-  editingId=null;
-  loadLocations();
-}
-
-loadLocations();
-
-</script>
-
+  </script>
 </body>
 </html>
