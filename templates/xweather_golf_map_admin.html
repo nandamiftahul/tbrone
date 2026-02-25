@@ -478,6 +478,10 @@
     <div class="top-actions">
       <button class="btn" id="btnRefresh">⟳ Refresh</button>
       <button class="btn" id="btnFit">Fit All</button>
+      
+      <button class="btn" id="btnHideAll" title="Hide all locations">Hide All</button>
+      <button class="btn" id="btnShowAll" title="Show all locations">View All</button>
+      
       <button class="btn" id="btnPick" title="Click map to set Lat/Lon for the form">📍 Pick from map</button>
       <button class="btn primary" onclick="window.print()">Print</button>
     </div>
@@ -1153,7 +1157,9 @@
     document.getElementById("m_save").addEventListener("click", () => saveLocation("mobile"));
     document.getElementById("m_new").addEventListener("click", clearForm);
     document.getElementById("m_delete").addEventListener("click", deleteLocation);
-
+    
+    document.getElementById("btnHideAll").addEventListener("click", hideAll); 
+    document.getElementById("btnShowAll").addEventListener("click", showAll);    
     // Search
     qEl.addEventListener("input", () => renderList(DATA.assets, qEl.value));
     qMobileEl.addEventListener("input", () => renderList(DATA.assets, qMobileEl.value));
@@ -1216,6 +1222,29 @@
       console.error(err);
       alert("Failed to load locations. Make sure /api/xweather/golf-locations exists and returns rows/assets.");
     });
+    function hideAll(){
+      DATA.assets.forEach(a => {
+        const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+        if (key){
+          VIS[key] = false;
+          applyVisibility(key);
+        }
+      });
+      saveVis();
+      renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+    }
+    
+    function showAll(){
+      DATA.assets.forEach(a => {
+        const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+        if (key){
+          VIS[key] = true;
+          applyVisibility(key);
+        }
+      });
+      saveVis();
+      renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+    }
   </script>
 </body>
 </html>
