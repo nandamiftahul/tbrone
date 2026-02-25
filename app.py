@@ -1,4 +1,4 @@
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, render_template
 from xweather_manual_routes import xweather_manual_bp
 from twincityjakarta_manual_routes import twincityjakarta_manual_bp
 #from xweather_report_routes import xweather_report_bp
@@ -22,7 +22,7 @@ def create_app():
 
     @app.route("/")
     def index():
-        return redirect(url_for("xweather_manual.xweather_manual_page"))
+        return render_template("index.html")
 
     @app.route("/xweather/manual.pdf", endpoint="xweather_manual_pdf")
     def xweather_manual_pdf_alias():
