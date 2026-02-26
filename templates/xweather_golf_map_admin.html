@@ -459,6 +459,161 @@
   background: rgba(0,58,143,.06);
 }
 .layerPanel input{ margin:0; }
+
+/* ===== Lightning messagebox ===== */
+.lzBox{
+  position:absolute;
+  right:14px;
+  bottom:76px; /* kasih jarak di atas tombol toggle */
+  width:min(380px, calc(100vw - 28px));
+  background:rgba(255,255,255,.92);
+  border:1px solid rgba(0,0,0,.12);
+  border-radius:16px;
+  box-shadow:0 18px 45px rgba(2,6,23,.25);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  overflow:hidden;
+  pointer-events:auto;
+}
+
+.lzHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border-bottom:1px solid rgba(0,0,0,.08);
+}
+
+.lzTitle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:700;
+  font-size:13px;
+  color:var(--text, #0f172a);
+}
+
+.lzTitle .dot{
+  width:10px;height:10px;border-radius:50%;
+  background:#22c55e; /* will be updated by JS */
+  box-shadow:0 0 0 4px rgba(34,197,94,.18);
+}
+
+.lzBtn{
+  border:1px solid rgba(0,0,0,.12);
+  background:#fff;
+  border-radius:10px;
+  padding:6px 8px;
+  cursor:pointer;
+  font-size:14px;
+}
+
+.lzSummary{
+  padding:10px 12px;
+  font-size:12px;
+  color:var(--muted, #64748b);
+}
+
+.lzListWrap{
+  max-height: 220px;
+  overflow:auto;
+}
+
+.lzList{
+  display:flex;
+  flex-direction:column;
+}
+
+.lzRow{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border-top:1px solid rgba(0,0,0,.06);
+  font-size:12px;
+  align-items:center;
+}
+
+.lzName{
+  font-weight:700;
+  color:var(--text, #0f172a);
+}
+
+.lzMeta{
+  color:var(--muted, #64748b);
+  margin-top:2px;
+  font-size:11px;
+}
+
+.lzBadge{
+  font-weight:800;
+  font-size:11px;
+  padding:6px 8px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,.12);
+  white-space:nowrap;
+}
+
+.lzBadge.clear{ background:rgba(34,197,94,.12); color:#166534; border-color:rgba(34,197,94,.25); }
+.lzBadge.info{  background:rgba(251,191,36,.18); color:#92400e; border-color:rgba(251,191,36,.35); }
+.lzBadge.warn{  background:rgba(249,115,22,.18); color:#9a3412; border-color:rgba(249,115,22,.35); }
+.lzBadge.alert{ background:rgba(239,68,68,.16);  color:#991b1b; border-color:rgba(239,68,68,.35); }
+
+.lzToast{
+  position:absolute;
+  top:14px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(15,23,42,.92);
+  color:#fff;
+  padding:10px 12px;
+  border-radius:14px;
+  box-shadow:0 18px 45px rgba(2,6,23,.35);
+  z-index:10000;
+  font-size:12px;
+  max-width:min(560px, calc(100vw - 28px));
+}
+/* ===== Lightning box toggle button (bottom-right) ===== */
+.lzToggleBtn{
+  position:absolute;
+  right:14px;
+  bottom:46px;   /* ← dinaikkan */
+  width:48px;
+  height:48px;
+  border-radius:16px;
+  border:1px solid rgba(0,0,0,.12);
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 18px 45px rgba(2,6,23,.25);
+  backdrop-filter: blur(8px);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index: 10001;
+}
+.lzToggleBtn svg{ width:22px; height:22px; color: var(--xw-blue, #003A8F); }
+
+.lzToggleBtn .badge{
+  position:absolute;
+  top:-6px;
+  left:-6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  background: #ef4444; /* alert default */
+  box-shadow: 0 10px 25px rgba(239,68,68,.25);
+}
+
+/* when box hidden */
+.lzBox.isHidden{ display:none; }
   </style>
 </head>
 
@@ -467,7 +622,7 @@
     <div class="brand">
       <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
       <div class="title">
-        <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
+        <strong>Terrindo Bumi Raya · Lightning Alarm</strong>
         <span>Golf Area Map Demo (AOI + Rings configurable)</span>
       </div>
     </div>
@@ -601,6 +756,34 @@
     </section>
   </div>
 
+<!-- Lightning Status Box (top-right) -->
+<div id="lzBox" class="lzBox">
+  <div class="lzHead">
+    <div class="lzTitle">
+      <span class="dot"></span>
+      <span>Lightning Zone Status</span>
+    </div>
+    <button id="lzMute" class="lzBtn" type="button" title="Mute/unmute alert sound">🔇</button>
+  </div>
+
+  <div id="lzSummary" class="lzSummary">No data yet…</div>
+
+  <div class="lzListWrap">
+    <div id="lzList" class="lzList"></div>
+  </div>
+</div>
+<!-- Toggle Lightning Status Box (bottom-right) -->
+<button id="lzToggle" class="lzToggleBtn" type="button" title="Show/Hide Lightning Status">
+  <span id="lzBadge" class="badge" style="display:none;">!</span>
+  <!-- icon message/chat -->
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M21 14a4 4 0 0 1-4 4H8l-5 3V6a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z"
+      stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M7 8h10M7 12h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+</button>
+<!-- small toast -->
+<div id="lzToast" class="lzToast" style="display:none;"></div>
 <script>
   // =========================
   // API endpoints
@@ -974,6 +1157,7 @@
       const j = await res.json();
       const items = (j && j.items) ? j.items : [];
       items.forEach(addLightningPoint);
+      updateLightningZones(items);
       setHint(`loaded ${DATA.assets.length} location(s) · lightning +${items.length} (last ${j.seconds || 60}s)`);
     }catch(err){
       console.error(err);
@@ -1376,6 +1560,275 @@
       pollLightning();
       setInterval(pollLightning, POLL_MS);
     });
+// ===== Lightning zone detection =====
+const LZ_STATE_KEY = "tbr_lz_state_v1"; // optional persist
+let LZ_MUTED = false;
+
+// per-asset last status (for “entering zone” detection)
+let lzLast = (() => {
+  try { return JSON.parse(localStorage.getItem(LZ_STATE_KEY) || "{}") || {}; }
+  catch(e){ return {}; }
+})();
+
+function saveLzState(){
+  try { localStorage.setItem(LZ_STATE_KEY, JSON.stringify(lzLast)); } catch(e){}
+}
+
+function haversineKm(lat1, lon1, lat2, lon2){
+  const R = 6371;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2-lat1);
+  const dLon = toRad(lon2-lon1);
+  const a =
+    Math.sin(dLat/2)**2 +
+    Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+function classifyZone(distKm, a){
+  const alarm = getNum(a.alarm_km, 4);
+  const warn  = getNum(a.warning_km, 10);
+  const info  = getNum(a.info_km, 20);
+
+  if (distKm <= alarm) return { level:"alert", label:"ALERT", threshold: alarm };
+  if (distKm <= warn)  return { level:"warn",  label:"WARNING", threshold: warn };
+  if (distKm <= info)  return { level:"info",  label:"INFO", threshold: info };
+  return { level:"clear", label:"CLEAR", threshold: null };
+}
+
+function levelRank(level){
+  if (level === "alert") return 3;
+  if (level === "warn") return 2;
+  if (level === "info") return 1;
+  return 0;
+}
+
+function setBoxDot(level){
+  const dot = document.querySelector(".lzTitle .dot");
+  if (!dot) return;
+
+  let color = "#22c55e"; // clear
+  let glow  = "rgba(34,197,94,.18)";
+  if (level === "info"){  color="#fbbf24"; glow="rgba(251,191,36,.22)"; }
+  if (level === "warn"){  color="#f97316"; glow="rgba(249,115,22,.22)"; }
+  if (level === "alert"){ color="#ef4444"; glow="rgba(239,68,68,.22)"; }
+
+  dot.style.background = color;
+  dot.style.boxShadow = `0 0 0 4px ${glow}`;
+}
+
+function showToast(msg, level){
+  const el = document.getElementById("lzToast");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+  el.style.opacity = "1";
+  el.dataset.level = level || "";
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => {
+    el.style.opacity = "0";
+    setTimeout(() => { el.style.display = "none"; }, 250);
+  }, 3500);
+}
+
+// simple beep (optional)
+function beep(){
+  if (LZ_MUTED) return;
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = 880;
+    g.gain.value = 0.04;
+    o.connect(g); g.connect(ctx.destination);
+    o.start();
+    setTimeout(()=>{ o.stop(); ctx.close(); }, 120);
+  }catch(e){}
+}
+
+document.getElementById("lzMute")?.addEventListener("click", () => {
+  LZ_MUTED = !LZ_MUTED;
+  document.getElementById("lzMute").textContent = LZ_MUTED ? "🔈" : "🔇";
+});
+function updateLightningZones(newItems){
+  if (!Array.isArray(DATA.assets) || !DATA.assets.length) return;
+  if (!Array.isArray(newItems) || !newItems.length) {
+    // tetap render box dari state terakhir
+    renderZoneBoxFromState();
+    return;
+  }
+
+  // tracking per lokasi: nearest strike (distance) in this poll window
+  const summary = {}; // key -> { name, level, minKm, lastTime, pol }
+  const now = Date.now();
+
+  for (const a of DATA.assets){
+    const lat0 = getNum(a.latitude ?? a.lat, NaN);
+    const lon0 = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
+    if (!Number.isFinite(lat0) || !Number.isFinite(lon0)) continue;
+
+    const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+    if (!key) continue;
+
+    let minKm = Infinity;
+    let best = null;
+
+    for (const e of newItems){
+      const lat = Number(e.lat), lon = Number(e.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+      const d = haversineKm(lat0, lon0, lat, lon);
+      if (d < minKm){
+        minKm = d;
+        best = e;
+      }
+    }
+
+    if (!best || !Number.isFinite(minKm)) continue;
+
+    const z = classifyZone(minKm, a);
+    const pol = (best.polarity === "+" ? "CG+" : (best.polarity === "-" ? "CG-" : "—"));
+    summary[key] = {
+      key,
+      name: a.name || key,
+      level: z.level,
+      label: z.label,
+      minKm,
+      lastTime: best.time,
+      pol
+    };
+
+    // detect “entering / escalation”
+    const prev = (lzLast[key] && lzLast[key].level) ? lzLast[key].level : "clear";
+    if (levelRank(z.level) > levelRank(prev)){
+      // status naik
+      showToast(`${a.name || key}: ${z.label} (${minKm.toFixed(1)} km, ${pol})`, z.level);
+      if (z.level === "alert" || z.level === "warn") beep();
+    }
+
+    // store last state
+    lzLast[key] = {
+      level: z.level,
+      minKm: +minKm.toFixed(3),
+      lastTime: best.time,
+      pol: best.polarity || null,
+      _updated: now
+    };
+  }
+
+  saveLzState();
+  renderZoneBox(summary);
+}
+
+function renderZoneBox(summaryObj){
+  const listEl = document.getElementById("lzList");
+  const sumEl  = document.getElementById("lzSummary");
+  if (!listEl || !sumEl) return;
+
+  const rows = Object.values(summaryObj || {});
+  // sort worst -> best, then nearest
+  rows.sort((a,b) => {
+    const r = levelRank(b.level) - levelRank(a.level);
+    if (r !== 0) return r;
+    return (a.minKm ?? 1e9) - (b.minKm ?? 1e9);
+  });
+
+  // overall worst level
+  const worst = rows.length ? rows[0].level : "clear";
+  setBoxDot(worst);
+// show badge if box hidden & severity >= warn
+const boxHidden = document.getElementById("lzBox")?.classList.contains("isHidden");
+const badge = document.getElementById("lzBadge");
+if (badge){
+  if (boxHidden && (worst === "alert" || worst === "warn" || worst === "info")){
+    badge.style.display = "flex";
+    badge.textContent = worst === "alert" ? "!" : (worst === "warn" ? "!" : "i");
+    badge.style.background = (worst === "alert") ? "#ef4444" : (worst === "warn") ? "#f97316" : "#fbbf24";
+  } else {
+    badge.style.display = "none";
+  }
+}
+  const nAlert = rows.filter(r => r.level==="alert").length;
+  const nWarn  = rows.filter(r => r.level==="warn").length;
+  const nInfo  = rows.filter(r => r.level==="info").length;
+
+  sumEl.textContent =
+    rows.length
+      ? `This minute: ALERT=${nAlert} · WARNING=${nWarn} · INFO=${nInfo} · CLEAR=${Math.max(0, DATA.assets.length - (nAlert+nWarn+nInfo))}`
+      : "No strikes in last window.";
+
+  listEl.innerHTML = rows.map(r => {
+    const t = r.lastTime ? formatUTC(r.lastTime) : "—";
+    return `
+      <div class="lzRow" data-key="${escapeHtml(r.key)}">
+        <div>
+          <div class="lzName">${escapeHtml(r.name)}</div>
+          <div class="lzMeta">${escapeHtml(t)} · ${r.minKm.toFixed(1)} km · ${escapeHtml(r.pol || "—")}</div>
+        </div>
+        <div class="lzBadge ${escapeHtml(r.level)}">${escapeHtml(r.label)}</div>
+      </div>
+    `;
+  }).join("");
+
+  // click row -> zoom to asset
+  [...listEl.querySelectorAll(".lzRow")].forEach(el => {
+    el.addEventListener("click", () => {
+      const key = el.getAttribute("data-key");
+      const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === key);
+      if (!a) return;
+      const lat = getNum(a.latitude ?? a.lat, NaN);
+      const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) map.setView([lat, lon], 12, { animate:true });
+    });
+  });
+}
+
+function renderZoneBoxFromState(){
+  // jika tidak ada strike baru, box tetap tampil dari lzLast
+  const summary = {};
+  for (const a of (DATA.assets || [])){
+    const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+    if (!key) continue;
+    const st = lzLast[key];
+    if (!st) continue;
+    summary[key] = {
+      key,
+      name: a.name || key,
+      level: st.level || "clear",
+      label: (st.level || "clear").toUpperCase(),
+      minKm: Number(st.minKm || 999),
+      lastTime: st.lastTime,
+      pol: (st.pol === "+" ? "CG+" : (st.pol === "-" ? "CG-" : "—"))
+    };
+  }
+  renderZoneBox(summary);
+}
+// ===== lightning box toggle state =====
+function setLzBoxVisible(on){
+  const box = document.getElementById("lzBox");
+  if (!box) return;
+  box.classList.toggle("isHidden", !on);
+  saveState({ lzBoxVisible: !!on });
+}
+
+(function initLzToggle(){
+  const st = loadState();
+  const visible = (st.lzBoxVisible !== false); // default true
+  setLzBoxVisible(visible);
+
+  document.getElementById("lzToggle")?.addEventListener("click", () => {
+    const box = document.getElementById("lzBox");
+    const isHidden = box?.classList.contains("isHidden");
+    setLzBoxVisible(isHidden); // if hidden -> show
+    // kalau user buka box, badge hilang
+    if (!isHidden){
+      const b = document.getElementById("lzBadge");
+      if (b) b.style.display = "none";
+    }
+  });
+})();
 </script>
+
 </body>
 </html>
