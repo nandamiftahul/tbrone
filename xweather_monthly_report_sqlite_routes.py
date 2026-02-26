@@ -81,11 +81,20 @@ def init_db():
             alarm_color TEXT DEFAULT '#EF4444',
             warning_color TEXT DEFAULT '#F97316',
             info_color TEXT DEFAULT '#FBBF24',
+            -- === NEW: Rule #2 settings ===
+            rule2_enabled BOOLEAN DEFAULT TRUE,
+            rule2_min_strikes INTEGER DEFAULT 1,
+            rule2_window_sec INTEGER DEFAULT 60,
             created_at TEXT NOT NULL
         );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_mla_month ON monthly_lightning_alerts(report_month);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_mla_asset ON monthly_lightning_alerts(asset_name);")
+
+        # untuk DB yang sudah ada tabelnya (safe migration)
+        cur.execute("ALTER TABLE golf_locations ADD COLUMN IF NOT EXISTS rule2_enabled BOOLEAN DEFAULT TRUE;")
+        cur.execute("ALTER TABLE golf_locations ADD COLUMN IF NOT EXISTS rule2_min_strikes INTEGER DEFAULT 1;")
+        cur.execute("ALTER TABLE golf_locations ADD COLUMN IF NOT EXISTS rule2_window_sec INTEGER DEFAULT 60;")    
     db.commit()
 
 
@@ -951,20 +960,28 @@ def api_create_golf_location():
                 name, latitude, longitude,
                 alarm_km, warning_km, info_km,
                 alarm_color, warning_color, info_color,
+        
+                rule2_enabled, rule2_min_strikes, rule2_window_sec,
+        
                 created_at
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             RETURNING *
         """, (
             payload["name"],
             payload["latitude"],
             payload["longitude"],
-            payload.get("alarm_km",4),
-            payload.get("warning_km",10),
-            payload.get("info_km",20),
-            payload.get("alarm_color","#EF4444"),
-            payload.get("warning_color","#F97316"),
-            payload.get("info_color","#FBBF24"),
+            payload.get("alarm_km", 4),
+            payload.get("warning_km", 10),
+            payload.get("info_km", 20),
+            payload.get("alarm_color", "#EF4444"),
+            payload.get("warning_color", "#F97316"),
+            payload.get("info_color", "#FBBF24"),
+        
+            bool(payload.get("rule2_enabled", True)),
+            int(payload.get("rule2_min_strikes", 1)),
+            int(payload.get("rule2_window_sec", 60)),
+        
             _now_iso()
         ))
         row = cur.fetchone()
@@ -988,7 +1005,12 @@ def api_update_golf_location(id):
                 info_km=%s,
                 alarm_color=%s,
                 warning_color=%s,
-                info_color=%s
+                info_color=%s,
+        
+                rule2_enabled=%s,
+                rule2_min_strikes=%s,
+                rule2_window_sec=%s
+        
             WHERE id=%s
             RETURNING *
         """, (
@@ -1001,6 +1023,11 @@ def api_update_golf_location(id):
             payload["alarm_color"],
             payload["warning_color"],
             payload["info_color"],
+        
+            bool(payload.get("rule2_enabled", True)),
+            int(payload.get("rule2_min_strikes", 1)),
+            int(payload.get("rule2_window_sec", 60)),
+        
             id
         ))
         row = cur.fetchone()

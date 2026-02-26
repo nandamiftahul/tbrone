@@ -614,6 +614,19 @@
 
 /* when box hidden */
 .lzBox.isHidden{ display:none; }
+
+.modal{ position:fixed; inset:0; background:rgba(2,6,23,.55); z-index:99999; display:flex; align-items:center; justify-content:center; padding:18px; }
+.modalCard{ width:min(520px, 96vw); background:#fff; border-radius:18px; box-shadow:0 25px 60px rgba(2,6,23,.45); border:1px solid rgba(0,0,0,.08); overflow:hidden; }
+.modalHead{ display:flex; justify-content:space-between; align-items:center; padding:14px 14px; border-bottom:1px solid var(--border); }
+.modalTitle{ font-weight:800; }
+.modalSub{ font-size:12px; color:var(--muted); margin-top:2px; }
+.modalBody{ padding:14px; }
+.modalFoot{ display:flex; gap:10px; justify-content:flex-end; padding:14px; border-top:1px solid var(--border); }
+.iconBtn{ border:1px solid rgba(17,24,39,.12); background:#fff; border-radius:10px; padding:6px 10px; cursor:pointer; }
+.rowLine{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; }
+.lbl{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+.setBtn{ width:34px; height:34px; border-radius:12px; border:1px solid rgba(17,24,39,.12); background:#fff; display:grid; place-items:center; cursor:pointer; color:var(--text); }
+.setBtn svg{ width:18px; height:18px; }
   </style>
 </head>
 
@@ -784,6 +797,44 @@
 </button>
 <!-- small toast -->
 <div id="lzToast" class="lzToast" style="display:none;"></div>
+<div class="modal" id="setModal" style="display:none;">
+  <div class="modalCard">
+    <div class="modalHead">
+      <div>
+        <div class="modalTitle" id="setTitle">AOI Settings</div>
+        <div class="modalSub" id="setSub">Rule Alarm (No.2)</div>
+      </div>
+      <button class="iconBtn" id="setClose" title="Close">✕</button>
+    </div>
+
+    <div class="modalBody">
+      <label class="rowLine">
+        <span>Enable Rule #2</span>
+        <input type="checkbox" id="set_rule2_enabled" checked />
+      </label>
+
+      <div class="grid2" style="margin-top:10px;">
+        <div>
+          <div class="lbl">Min strikes in window</div>
+          <input class="finput" id="set_rule2_min" type="number" min="1" value="1">
+        </div>
+        <div>
+          <div class="lbl">Window (seconds)</div>
+          <input class="finput" id="set_rule2_win" type="number" min="5" value="60">
+        </div>
+      </div>
+
+      <div class="hint" style="margin-top:10px;">
+        Rule #2 contoh: alarm hanya dianggap valid jika minimal N petir terjadi dalam W detik (per zona).
+      </div>
+    </div>
+
+    <div class="modalFoot">
+      <button class="btn2" id="setCancel">Cancel</button>
+      <button class="btn2 primary" id="setSave">Save</button>
+    </div>
+  </div>
+</div>
 <script>
   // =========================
   // API endpoints
@@ -951,7 +1002,15 @@
            <path d="M6.6 6.6A20.4 20.4 0 0 0 2.5 12s3.5 7.2 9.5 7.2c1.2 0 2.3-.2 3.3-.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
          </svg>`;
   }
-
+function iconGear(){
+  return `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2"/>
+      <path d="M19.4 15a7.9 7.9 0 0 0 .1-1l2-1.2-2-3.5-2.3.5a8 8 0 0 0-1.7-1l-.3-2.4H9.8l-.3 2.4a8 8 0 0 0-1.7 1l-2.3-.5-2 3.5 2 1.2a7.9 7.9 0 0 0 .1 1 7.9 7.9 0 0 0-.1 1l-2 1.2 2 3.5 2.3-.5a8 8 0 0 0 1.7 1l.3 2.4h4.4l.3-2.4a8 8 0 0 0 1.7-1l2.3.5 2-3.5-2-1.2a7.9 7.9 0 0 0-.1-1Z"
+            stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </svg>
+  `;
+}
   function applyVisibility(key){
     const ref = assetLayers[key];
     if (!ref) return;
@@ -1237,6 +1296,80 @@
     }
     fill(ddl); fill(ddlMobile);
   }
+let settingsKey = null;
+
+const setModal = document.getElementById("setModal");
+const setTitle = document.getElementById("setTitle");
+const set_rule2_enabled = document.getElementById("set_rule2_enabled");
+const set_rule2_min = document.getElementById("set_rule2_min");
+const set_rule2_win = document.getElementById("set_rule2_win");
+
+function openSettings(a){
+  settingsKey = String(a.id ?? a.asset_id ?? a.name ?? "");
+  setTitle.textContent = `AOI Settings — ${a.name || settingsKey}`;
+
+  set_rule2_enabled.checked = (a.rule2_enabled !== false);
+  set_rule2_min.value = Number.isFinite(Number(a.rule2_min_strikes)) ? Number(a.rule2_min_strikes) : 1;
+  set_rule2_win.value = Number.isFinite(Number(a.rule2_window_sec)) ? Number(a.rule2_window_sec) : 60;
+
+  setModal.style.display = "flex";
+}
+
+function closeSettings(){
+  setModal.style.display = "none";
+  settingsKey = null;
+}
+
+document.getElementById("setClose").addEventListener("click", closeSettings);
+document.getElementById("setCancel").addEventListener("click", closeSettings);
+setModal.addEventListener("click", (e) => { if (e.target === setModal) closeSettings(); });
+
+async function saveSettings(){
+  if (!settingsKey) return;
+
+  const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === settingsKey);
+  if (!a || !a.id){
+    alert("Select an existing AOI first.");
+    return;
+  }
+
+  // payload PUT but keep all required fields + new fields
+  const payload = {
+    name: a.name,
+    latitude: Number(a.latitude ?? a.lat),
+    longitude: Number(a.longitude ?? a.lon ?? a.lng),
+    alarm_km: Number(a.alarm_km ?? 4),
+    warning_km: Number(a.warning_km ?? 10),
+    info_km: Number(a.info_km ?? 20),
+    alarm_color: a.alarm_color ?? "#EF4444",
+    warning_color: a.warning_color ?? "#F97316",
+    info_color: a.info_color ?? "#FBBF24",
+
+    rule2_enabled: !!set_rule2_enabled.checked,
+    rule2_min_strikes: Math.max(1, parseInt(set_rule2_min.value || "1", 10)),
+    rule2_window_sec: Math.max(5, parseInt(set_rule2_win.value || "60", 10)),
+  };
+
+  setHint("saving settings…");
+  const resp = await fetch(API_UPDATE(a.id), {
+    method: "PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  if (!resp.ok){
+    const t = await resp.text();
+    alert(`Save settings failed: ${resp.status}\n${t}`);
+    setHint("save settings failed.");
+    return;
+  }
+
+  closeSettings();
+  await loadData();
+  setHint("settings saved.");
+}
+
+document.getElementById("setSave").addEventListener("click", saveSettings);
 
   function renderList(assets, query){
     const q = (query || "").trim().toLowerCase();
@@ -1250,7 +1383,6 @@
       const key = String(a.id ?? a.asset_id ?? a.name ?? name);
       const activeClass = (key && key === selectedId) ? " active" : "";
       const hiddenClass = isVisible(key) ? "" : " hidden";
-
       return `
         <div class="item${activeClass}${hiddenClass}" data-key="${escapeHtml(key)}"
              data-db-id="${escapeHtml(a.id ?? "")}"
@@ -1260,7 +1392,12 @@
             <p class="coord">${Number.isFinite(lat)&&Number.isFinite(lon) ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : "No coordinate"}</p>
           </div>
           <div class="rightActions">
-            <button class="visBtn" title="Hide/Unhide rings & marker" data-vis="${escapeHtml(key)}">${iconEye(isVisible(key))}</button>
+            <button class="setBtn" title="Settings (Rule Alarm)" data-set="${escapeHtml(key)}">
+              ${iconGear()}
+            </button>
+            <button class="visBtn" title="Hide/Unhide rings & marker" data-vis="${escapeHtml(key)}">
+              ${iconEye(isVisible(key))}
+            </button>
           </div>
         </div>
       `;
@@ -1271,6 +1408,15 @@
     listMobileEl.innerHTML = html;
 
     [...document.querySelectorAll(".item")].forEach(el => {
+  const gear = el.querySelector(".setBtn");
+  if (gear){
+    gear.addEventListener("click", (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      const key = gear.getAttribute("data-set");
+      const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === key);
+      if (a) openSettings(a);
+    });
+  }
       const eye = el.querySelector(".visBtn");
       if (eye){
         eye.addEventListener("click", (ev) => {
@@ -1546,20 +1692,31 @@
   ddl?.addEventListener("change", () => onPickSelect(ddl.value));
   ddlMobile?.addEventListener("change", () => onPickSelect(ddlMobile.value));
 
-  // =========================
-  // Boot
-  // =========================
-  loadData()
-    .then(async () => {
-      await pollLightning();
-      setInterval(pollLightning, POLL_MS);
-    })
-    .catch(err => {
-      console.error(err);
-      alert("Failed to load locations. Make sure /api/xweather/golf-locations exists.");
-      pollLightning();
-      setInterval(pollLightning, POLL_MS);
-    });
+// Boot
+(async function boot(){
+  try{
+    await loadData(); // hanya urus AOI
+  }catch(err){
+    console.error("loadData failed:", err);
+    alert("Failed to load locations. Make sure /api/xweather/golf-locations exists.");
+  }
+
+  // lightning polling jangan bikin AOI dianggap gagal
+  try{
+    await pollLightning();
+  }catch(err){
+    console.error("pollLightning failed:", err);
+    setHint("Locations loaded, but lightning poll failed (check /api/blitzortung/last).");
+  }
+
+  setInterval(async () => {
+    try { await pollLightning(); }
+    catch(err){
+      console.error("pollLightning failed:", err);
+      setHint("Lightning poll failed (check /api/blitzortung/last).");
+    }
+  }, POLL_MS);
+})();
 // ===== Lightning zone detection =====
 const LZ_STATE_KEY = "tbr_lz_state_v1"; // optional persist
 let LZ_MUTED = false;
