@@ -43,7 +43,6 @@
       overflow:hidden;
     }
 
-    /* Topbar (ikut style manual) */
     .topbar{
       position: sticky;
       top:0;
@@ -123,7 +122,6 @@
     }
     .btn.primary:hover{ background: linear-gradient(135deg, #FF9B3A 0%, #FFC27A 100%); }
 
-    /* Layout */
     .shell{
       height: calc(100vh - 62px);
       display:grid;
@@ -132,7 +130,6 @@
       padding: 12px;
     }
 
-    /* Sidebar list (desktop) */
     .sidebar{
       background: var(--card);
       border:1px solid var(--border);
@@ -226,22 +223,7 @@
       overflow:hidden;
       text-overflow:ellipsis;
     }
-    .tag{
-      font-size:11px;
-      font-weight:800;
-      padding:7px 10px;
-      border-radius:999px;
-      border:1px solid var(--border);
-      background: rgba(17,24,39,.04);
-      color: var(--muted);
-      white-space:nowrap;
-      height: fit-content;
-    }
-    .tag.alarm{ background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.28); color: #b91c1c;}
-    .tag.warning{ background: rgba(249,115,22,.12); border-color: rgba(249,115,22,.28); color: #9a3412;}
-    .tag.info{ background: rgba(251,191,36,.14); border-color: rgba(251,191,36,.35); color: #92400e;}
 
-    /* Visibility toggle (eye icon) */
     .rightActions{
       display:flex;
       align-items:center;
@@ -276,7 +258,6 @@
     }
     .item.hidden .name{ text-decoration: line-through; text-decoration-thickness: 1px; }
 
-    /* Map panel */
     .mapCard{
       background: var(--card);
       border:1px solid var(--border);
@@ -286,25 +267,25 @@
       position:relative;
       min-height:0;
     }
-    #map{
-      position:absolute;
-      inset:0;
-    }
+    #map{ position:absolute; inset:0; }
 
-    /* Floating legend */
     .legend{
       position:absolute;
-      left: 14px;
-      bottom: 14px;
-      z-index: 20;
-      background: rgba(255,255,255,.92);
+      right: 14px;
+      top: 14px;
+      bottom: auto;
+    
+      z-index: 1000 !important;   /* naikkan sangat tinggi */
+      pointer-events: auto;
+    
+      background: rgba(255,255,255,.95);
       border:1px solid var(--border);
       border-radius: 14px;
       padding: 10px 12px;
       box-shadow: var(--shadow);
       font-size:12px;
       backdrop-filter: blur(8px);
-      min-width: 240px;
+      min-width: 260px;
     }
     .legend .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;}
     .dot{width:10px; height:10px; border-radius:99px; display:inline-block;}
@@ -314,7 +295,7 @@
     .dot.event{background:var(--event)}
     .legend small{color:var(--muted)}
 
-    /* ===== Lightning Icon (SVG + pulse/glow) ===== */
+    /* Lightning icon */
     .lightningWrap{
       width: 22px;
       height: 22px;
@@ -324,16 +305,14 @@
       transform: translateZ(0);
       filter: drop-shadow(0 0 4px rgba(255, 200, 0, 0.55));
     }
-    .lightningPulse{
-      animation: tbrPulse 1.2s infinite;
-    }
+    .lightningPulse{ animation: tbrPulse 1.2s infinite; }
     @keyframes tbrPulse{
       0%   { transform: scale(1);   filter: drop-shadow(0 0 2px rgba(255,200,0,.55)); opacity: .95; }
       50%  { transform: scale(1.18);filter: drop-shadow(0 0 12px rgba(255,140,0,.85)); opacity: 1; }
       100% { transform: scale(1);   filter: drop-shadow(0 0 2px rgba(255,200,0,.55)); opacity: .95; }
     }
 
-    /* Mobile bottom sheet (replace sidebar) */
+    /* Mobile bottom sheet */
     .sheet{
       display:none;
       position:absolute;
@@ -344,7 +323,7 @@
       border-radius: 18px 18px 0 0;
       box-shadow: 0 -18px 40px rgba(2,22,55,.18);
       overflow:hidden;
-      height: 44vh;          /* default */
+      height: 44vh;
       min-height: 180px;
       max-height: 78vh;
     }
@@ -358,20 +337,9 @@
       user-select:none;
       background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
     }
-    .grab{
-      width: 52px;
-      height: 5px;
-      border-radius: 999px;
-      background: rgba(17,24,39,.18);
-    }
-    .sheet .content{
-      height: calc(100% - 36px);
-      display:flex;
-      flex-direction:column;
-      min-height:0;
-    }
+    .grab{ width: 52px; height: 5px; border-radius: 999px; background: rgba(17,24,39,.18); }
+    .sheet .content{ height: calc(100% - 36px); display:flex; flex-direction:column; min-height:0; }
 
-    /* Responsive */
     @media (max-width: 980px){
       .shell{ grid-template-columns: 1fr; }
       .sidebar{ display:none; }
@@ -380,54 +348,25 @@
       .legend{ bottom: calc(14px + 44vh); }
     }
 
-    /* Leaflet popup font */
     .leaflet-popup-content{
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
       font-size: 12.5px;
       line-height: 1.45;
     }
-    .popupTitle{
-      margin: 0 0 6px;
-      font-weight: 900;
-      color: var(--xw-blue);
-    }
-    .kv{
-      display:grid;
-      grid-template-columns: 110px 1fr;
-      gap: 6px 10px;
-    }
+    .popupTitle{ margin: 0 0 6px; font-weight: 900; color: var(--xw-blue); }
+    .kv{ display:grid; grid-template-columns: 110px 1fr; gap: 6px 10px; }
     .k{ color: var(--muted); }
     .v{ color: var(--text); font-weight:700; }
 
-    /* ===== Manage form styling (minimal, reuse existing) ===== */
     .manage{
       padding: 12px 14px;
       border-top: 1px solid var(--border);
       background: linear-gradient(180deg, rgba(242,140,40,.06) 0%, rgba(242,140,40,0) 100%);
     }
-    .manage .mh{
-      margin:0;
-      font-weight:900;
-      font-size:13px;
-      color: var(--xw-blue);
-      letter-spacing:.2px;
-    }
-    .manage .ms{
-      margin:6px 0 10px;
-      font-size:12px;
-      color:var(--muted);
-      line-height:1.4;
-    }
-    .grid2{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:8px;
-    }
-    .grid3{
-      display:grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap:8px;
-    }
+    .manage .mh{ margin:0; font-weight:900; font-size:13px; color: var(--xw-blue); letter-spacing:.2px; }
+    .manage .ms{ margin:6px 0 10px; font-size:12px; color:var(--muted); line-height:1.4; }
+    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    .grid3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; }
     .finput{
       width:100%;
       padding:10px 12px;
@@ -438,16 +377,8 @@
       outline:none;
       font-size:12.5px;
     }
-    .finput[type="color"]{
-      padding: 6px;
-      height: 38px;
-    }
-    .rowbtn{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      margin-top:10px;
-    }
+    .finput[type="color"]{ padding: 6px; height: 38px; }
+    .rowbtn{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
     .btn2{
       appearance:none;
       border: 1px solid rgba(17,24,39,.12);
@@ -475,11 +406,59 @@
       border-color: rgba(239,68,68,.25);
       color: #b91c1c;
     }
-    .hint{
-      font-size:12px;
-      color: var(--muted);
-      margin-top:8px;
-    }
+    .hint{ font-size:12px; color: var(--muted); margin-top:8px; }
+
+/* === Basemap switcher button (bottom-left) === */
+.layerBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(17,24,39,.12);
+  background: rgba(255,255,255,.92);
+  box-shadow: var(--shadow);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  backdrop-filter: blur(8px);
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+}
+.layerBtn:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.97);
+  border-color: rgba(0,58,143,.22);
+}
+.layerBtn svg{ width:20px; height:20px; color: var(--xw-blue); }
+
+.layerPanel {
+  min-width: 220px;
+  padding: 10px 10px 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(17,24,39,.12);
+  background: rgba(255,255,255,.92);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+}
+.layerPanel .ttl{
+  font-weight: 900;
+  font-size: 12px;
+  color: var(--xw-blue);
+  margin: 0 0 8px;
+}
+.layerPanel label{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size:12px;
+  color: var(--text);
+  padding: 6px 6px;
+  border-radius: 10px;
+  cursor:pointer;
+}
+.layerPanel label:hover{
+  background: rgba(0,58,143,.06);
+}
+.layerPanel input{ margin:0; }
   </style>
 </head>
 
@@ -496,21 +475,22 @@
     <div class="top-actions">
       <button class="btn" id="btnRefresh">⟳ Refresh</button>
       <button class="btn" id="btnFit">Fit All</button>
-
       <button class="btn" id="btnHideAll" title="Hide all locations">Hide All</button>
       <button class="btn" id="btnShowAll" title="Show all locations">View All</button>
-
       <button class="btn" id="btnPick" title="Click map to set Lat/Lon for the form">📍 Pick from map</button>
+      <button class="btn" id="btnPollNow" title="Fetch latest lightning now">⚡ Poll Now</button>
       <button class="btn primary" onclick="window.print()">Print</button>
     </div>
   </div>
 
   <div class="shell">
-    <!-- Desktop Sidebar -->
     <aside class="sidebar">
       <div class="head">
         <p class="h">Golf Locations</p>
-        <p class="s">Klik satu lokasi untuk zoom. Ring bisa diatur per lokasi: Alarm/Warning/Info (km + warna). Realtime petir hanya ditampilkan di viewport, atau di ring Info lokasi yang dipilih.</p>
+        <p class="s">
+          Klik satu lokasi untuk zoom. Ring bisa diatur per lokasi: Alarm/Warning/Info (km + warna).
+          <b>Petir diambil tiap 60 detik</b> dari Blitzortung dan ditampilkan di map (tanpa filter).
+        </p>
       </div>
 
       <div class="search">
@@ -552,29 +532,25 @@
           <button class="btn2 danger" id="btnDelete">🗑 Delete</button>
         </div>
 
-        <div class="hint" id="hint">
-          Status: ready.
-        </div>
+        <div class="hint" id="hint">Status: ready.</div>
       </div>
     </aside>
 
-    <!-- Map -->
     <section class="mapCard">
       <div id="map"></div>
 
       <div class="legend">
         <div style="display:flex; justify-content:space-between; align-items:baseline;">
           <strong>Legend</strong>
-          <small>WBN / Golf</small>
+          <small>Area</small>
         </div>
         <div class="row"><span><span class="dot alarm"></span> Alarm</span><span>Editable</span></div>
         <div class="row"><span><span class="dot warning"></span> Warning</span><span>Editable</span></div>
         <div class="row"><span><span class="dot info"></span> Info</span><span>Editable</span></div>
         <div class="row"><span><span class="dot event"></span> Lightning</span><span>⚡ SVG icon</span></div>
-        <small>AOI: /api/xweather/golf-locations · SSE: /api/blitzortung/sse</small>
+        <small>AOI: /api/xweather/golf-locations · Lightning: /api/blitzortung/last</small>
       </div>
 
-      <!-- Mobile bottom sheet -->
       <div class="sheet" id="sheet">
         <div class="handle" id="sheetHandle"><div class="grab"></div></div>
         <div class="content">
@@ -592,7 +568,6 @@
 
           <div class="list" id="listMobile" style="padding:10px;"></div>
 
-          <!-- Mobile manage (compact) -->
           <div class="manage" style="border-top:1px solid var(--border);">
             <p class="mh">Manage Location (AOI)</p>
             <input class="finput" id="m_name" placeholder="Name" />
@@ -626,760 +601,781 @@
     </section>
   </div>
 
-  <script>
-    // Data source for AOI + rings (CRUD)
-    const API_LIST   = "/api/xweather/golf-locations";
-    const API_CREATE = "/api/xweather/golf-locations";
-    const API_UPDATE = (id) => `/api/xweather/golf-locations/${id}`;
-    const API_DELETE = (id) => `/api/xweather/golf-locations/${id}`;
+<script>
+  // =========================
+  // API endpoints
+  // =========================
+  const API_LIST   = "/api/xweather/golf-locations";
+  const API_CREATE = "/api/xweather/golf-locations";
+  const API_UPDATE = (id) => `/api/xweather/golf-locations/${id}`;
+  const API_DELETE = (id) => `/api/xweather/golf-locations/${id}`;
 
-    // Blitzortung SSE
-    const LIGHTNING_SSE = "/api/blitzortung/sse";
-    const MAX_EVENTS = 1500;
-    const MAX_AGE_MIN = 20;
+  // Lightning polling (JSON)
+  const LIGHTNING_LAST = "/api/blitzortung/last?seconds=3600";
+  const POLL_MS = 60 * 1000;   // 1 menit
+  const MAX_EVENTS = 3000;
 
-    // Map init
-    const map = L.map("map", { zoomControl: true }).setView([-6.2, 106.85], 9);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap"
-    }).addTo(map);
+  // =========================
+  // LocalStorage: last state
+  // =========================
+  const STATE_KEY = "tbr_golf_laststate_v1";
+  function loadState(){
+    try { return JSON.parse(localStorage.getItem(STATE_KEY) || "{}") || {}; }
+    catch(e){ return {}; }
+  }
+  function saveState(patch){
+    const cur = loadState();
+    const next = { ...cur, ...patch, _ts: Date.now() };
+    try { localStorage.setItem(STATE_KEY, JSON.stringify(next)); } catch(e){}
+    return next;
+  }
 
-    // Layers
-    const layerRings = L.layerGroup().addTo(map);
-    const layerCenters = L.layerGroup().addTo(map);
-    const layerEvents = L.layerGroup().addTo(map);
+  // =========================
+  // Map init (restore view if exists)
+  // =========================
+  const map = L.map("map", { zoomControl: true });
 
-    let DATA = { assets: [], events: [] };
-    let selectedId = null;
-    let selectedDbId = null; // numeric id from DB if available
-    let pickMode = false;
+  // Restore view BEFORE default setView
+  const __st0 = loadState();
+  if (__st0.view && Number.isFinite(__st0.view.lat) && Number.isFinite(__st0.view.lon) && Number.isFinite(__st0.view.zoom)){
+    map.setView([__st0.view.lat, __st0.view.lon], __st0.view.zoom, { animate:false });
+  } else {
+    map.setView([-6.2, 106.85], 9);
+  }
 
-    // Lightning buffer
-    const liveEvents = []; // {lat,lon,time,type,_mk,_t}
-    let sseStarted = false;
+  // Save view on move/zoom end
+  map.on("moveend zoomend", () => {
+    const c = map.getCenter();
+    saveState({ view: { lat: +c.lat.toFixed(6), lon: +c.lng.toFixed(6), zoom: map.getZoom() } });
+  });
 
-    // UI refs
-    const listEl = document.getElementById("list");
-    const listMobileEl = document.getElementById("listMobile");
-    const qEl = document.getElementById("q");
-    const qMobileEl = document.getElementById("qMobile");
-    const ddl = document.getElementById("ddl");
-    const ddlMobile = document.getElementById("ddlMobile");
-    const hint = document.getElementById("hint");
-    const mHint = document.getElementById("m_hint");
+  // =========================
+  // Basemaps + persist selection
+  // =========================
+  const baseOSM = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap"
+  });
 
-    // Visibility state (per-location hide/unhide)
-    const VIS_KEY = "tbr_golf_visibility_v1";
-    const VIS = (() => {
-      try { return JSON.parse(localStorage.getItem(VIS_KEY) || "{}") || {}; }
-      catch(e){ return {}; }
-    })();
+  const baseCarto = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    maxZoom: 20,
+    attribution: "&copy; OpenStreetMap &copy; CARTO"
+  });
 
-    // Keep layer refs so we can hide/unhide without reloading
-    const assetLayers = {}; // key -> { rings: [..], marker }
+  const baseESRI = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 19,
+    attribution: "Tiles &copy; Esri"
+  });
 
-    function saveVis(){
-      try{ localStorage.setItem(VIS_KEY, JSON.stringify(VIS)); }catch(e){}
-    }
-    function isVisible(key){
-      return VIS[key] !== false; // default true
-    }
+  const baseTopo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+    maxZoom: 17,
+    attribution: "&copy; OpenTopoMap contributors"
+  });
 
-    function iconEye(on){
-      return on
-        ? `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-             <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-             <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-           </svg>`
-        : `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-             <path d="M3 3l18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-             <path d="M10.6 10.6A2.5 2.5 0 0 0 12 15a2.5 2.5 0 0 0 1.4-.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-             <path d="M9.88 5.1A10.5 10.5 0 0 1 12 4.8c6 0 9.5 7.2 9.5 7.2a20.2 20.2 0 0 1-4.05 4.9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-             <path d="M6.6 6.6A20.4 20.4 0 0 0 2.5 12s3.5 7.2 9.5 7.2c1.2 0 2.3-.2 3.3-.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-           </svg>`;
-    }
+  function baseIdOf(layer){
+    if (layer === baseOSM) return "osm";
+    if (layer === baseCarto) return "carto";
+    if (layer === baseESRI) return "esri";
+    if (layer === baseTopo) return "topo";
+    return "osm";
+  }
+  function layerOfBaseId(id){
+    if (id === "carto") return baseCarto;
+    if (id === "esri") return baseESRI;
+    if (id === "topo") return baseTopo;
+    return baseOSM;
+  }
 
-    function applyVisibility(key){
-      const ref = assetLayers[key];
-      if (!ref) return;
-      const on = isVisible(key);
+  let currentBase = layerOfBaseId((loadState().basemap || "osm"));
+  currentBase.addTo(map);
 
-      (ref.rings || []).forEach(layer => {
-        if (on){
-          if (!layerRings.hasLayer(layer)) layer.addTo(layerRings);
-        } else {
-          if (layerRings.hasLayer(layer)) layerRings.removeLayer(layer);
-        }
-      });
+  function setBase(newBase){
+    if (currentBase === newBase) return;
+    map.removeLayer(currentBase);
+    currentBase = newBase;
+    currentBase.addTo(map);
+    saveState({ basemap: baseIdOf(currentBase) });
+  }
 
-      if (ref.marker){
-        if (on){
-          if (!layerCenters.hasLayer(ref.marker)) ref.marker.addTo(layerCenters);
-        } else {
-          if (layerCenters.hasLayer(ref.marker)) layerCenters.removeLayer(ref.marker);
-        }
+  // =========================
+  // Layers
+  // =========================
+  const layerRings   = L.layerGroup().addTo(map);
+  const layerCenters = L.layerGroup().addTo(map);
+  const layerEvents  = L.layerGroup().addTo(map);
+
+  // =========================
+  // UI refs
+  // =========================
+  const listEl       = document.getElementById("list");
+  const listMobileEl = document.getElementById("listMobile");
+  const qEl          = document.getElementById("q");
+  const qMobileEl    = document.getElementById("qMobile");
+  const ddl          = document.getElementById("ddl");
+  const ddlMobile    = document.getElementById("ddlMobile");
+  const hint         = document.getElementById("hint");
+  const mHint        = document.getElementById("m_hint");
+
+  function setHint(txt){
+    if (hint) hint.textContent = `Status: ${txt}`;
+    if (mHint) mHint.textContent = `Status: ${txt}`;
+  }
+
+  // =========================
+  // Visibility state (per AOI)
+  // =========================
+  const VIS_KEY = "tbr_golf_visibility_v1";
+  const VIS = (() => { try { return JSON.parse(localStorage.getItem(VIS_KEY) || "{}") || {}; } catch(e){ return {}; } })();
+  function saveVis(){ try{ localStorage.setItem(VIS_KEY, JSON.stringify(VIS)); }catch(e){} }
+  function isVisible(key){ return VIS[key] !== false; }
+
+  const assetLayers = {}; // key -> { rings:[], marker }
+  let DATA = { assets: [] };
+  let selectedId = null;
+  let selectedDbId = null;
+  let pickMode = false;
+
+  function escapeHtml(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;")
+      .replaceAll(">","&gt;").replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function popupHtml(title, rows){
+    const kv = rows.map(([k,v]) => `
+      <div class="k">${escapeHtml(k)}</div>
+      <div class="v">${escapeHtml(v)}</div>
+    `).join("");
+    return `<div><p class="popupTitle">${escapeHtml(title)}</p><div class="kv">${kv}</div></div>`;
+  }
+
+  function getNum(v, fallback){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function iconEye(on){
+    return on
+      ? `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+           <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+           <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+         </svg>`
+      : `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+           <path d="M3 3l18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+           <path d="M10.6 10.6A2.5 2.5 0 0 0 12 15a2.5 2.5 0 0 0 1.4-.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+           <path d="M9.88 5.1A10.5 10.5 0 0 1 12 4.8c6 0 9.5 7.2 9.5 7.2a20.2 20.2 0 0 1-4.05 4.9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+           <path d="M6.6 6.6A20.4 20.4 0 0 0 2.5 12s3.5 7.2 9.5 7.2c1.2 0 2.3-.2 3.3-.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+         </svg>`;
+  }
+
+  function applyVisibility(key){
+    const ref = assetLayers[key];
+    if (!ref) return;
+    const on = isVisible(key);
+
+    (ref.rings || []).forEach(layer => {
+      if (on){
+        if (!layerRings.hasLayer(layer)) layer.addTo(layerRings);
+      } else {
+        if (layerRings.hasLayer(layer)) layerRings.removeLayer(layer);
+      }
+    });
+
+    if (ref.marker){
+      if (on){
+        if (!layerCenters.hasLayer(ref.marker)) ref.marker.addTo(layerCenters);
+      } else {
+        if (layerCenters.hasLayer(ref.marker)) layerCenters.removeLayer(ref.marker);
       }
     }
+  }
 
-    function toggleVisibility(key){
-      VIS[key] = !isVisible(key);
-      saveVis();
-      applyVisibility(key);
-      renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+  function toggleVisibility(key){
+    VIS[key] = !isVisible(key);
+    saveVis();
+    applyVisibility(key);
+    renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+  }
+
+  // =========================
+  // Forms
+  // =========================
+  const f = {
+    name: document.getElementById("f_name"),
+    lat: document.getElementById("f_lat"),
+    lon: document.getElementById("f_lon"),
+    alarm_km: document.getElementById("f_alarm_km"),
+    warning_km: document.getElementById("f_warning_km"),
+    info_km: document.getElementById("f_info_km"),
+    alarm_color: document.getElementById("f_alarm_color"),
+    warning_color: document.getElementById("f_warning_color"),
+    info_color: document.getElementById("f_info_color"),
+  };
+  const mf = {
+    name: document.getElementById("m_name"),
+    lat: document.getElementById("m_lat"),
+    lon: document.getElementById("m_lon"),
+    alarm_km: document.getElementById("m_alarm_km"),
+    warning_km: document.getElementById("m_warning_km"),
+    info_km: document.getElementById("m_info_km"),
+    alarm_color: document.getElementById("m_alarm_color"),
+    warning_color: document.getElementById("m_warning_color"),
+    info_color: document.getElementById("m_info_color"),
+  };
+
+  function fillFormFromAsset(a){
+    f.name.value = a.name ?? "";
+    f.lat.value = getNum(a.latitude ?? a.lat, "").toString();
+    f.lon.value = getNum(a.longitude ?? a.lon ?? a.lng, "").toString();
+    f.alarm_km.value = getNum(a.alarm_km, 4);
+    f.warning_km.value = getNum(a.warning_km, 10);
+    f.info_km.value = getNum(a.info_km, 20);
+    f.alarm_color.value = (a.alarm_color || "#EF4444");
+    f.warning_color.value = (a.warning_color || "#F97316");
+    f.info_color.value = (a.info_color || "#FBBF24");
+
+    mf.name.value = f.name.value;
+    mf.lat.value = f.lat.value;
+    mf.lon.value = f.lon.value;
+    mf.alarm_km.value = f.alarm_km.value;
+    mf.warning_km.value = f.warning_km.value;
+    mf.info_km.value = f.info_km.value;
+    mf.alarm_color.value = f.alarm_color.value;
+    mf.warning_color.value = f.warning_color.value;
+    mf.info_color.value = f.info_color.value;
+  }
+
+  function clearForm(){
+    selectedId = null;
+    selectedDbId = null;
+
+    [f.name, f.lat, f.lon].forEach(x => x.value = "");
+    f.alarm_km.value = "4";
+    f.warning_km.value = "10";
+    f.info_km.value = "20";
+    f.alarm_color.value = "#EF4444";
+    f.warning_color.value = "#F97316";
+    f.info_color.value = "#FBBF24";
+
+    [mf.name, mf.lat, mf.lon].forEach(x => x.value = "");
+    mf.alarm_km.value = "4";
+    mf.warning_km.value = "10";
+    mf.info_km.value = "20";
+    mf.alarm_color.value = "#EF4444";
+    mf.warning_color.value = "#F97316";
+    mf.info_color.value = "#FBBF24";
+
+    ddl.value = "";
+    ddlMobile.value = "";
+    setHint("new item.");
+  }
+
+  function selectByAsset(a){
+    const key = String(a.id ?? a.name ?? "");
+    selectedId = key;
+    selectedDbId = a.id ? Number(a.id) : null;
+
+    fillFormFromAsset(a);
+    ddl.value = key;
+    ddlMobile.value = key;
+
+    const lat = getNum(a.latitude ?? a.lat, NaN);
+    const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
+    if (Number.isFinite(lat) && Number.isFinite(lon)){
+      map.setView([lat, lon], 12, { animate:true });
     }
 
-    // Desktop form
-    const f = {
-      name: document.getElementById("f_name"),
-      lat: document.getElementById("f_lat"),
-      lon: document.getElementById("f_lon"),
-      alarm_km: document.getElementById("f_alarm_km"),
-      warning_km: document.getElementById("f_warning_km"),
-      info_km: document.getElementById("f_info_km"),
-      alarm_color: document.getElementById("f_alarm_color"),
-      warning_color: document.getElementById("f_warning_color"),
-      info_color: document.getElementById("f_info_color"),
-    };
+    renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+    setHint(`selected "${a.name || key}"`);
+  }
 
-    // Mobile form
-    const mf = {
-      name: document.getElementById("m_name"),
-      lat: document.getElementById("m_lat"),
-      lon: document.getElementById("m_lon"),
-      alarm_km: document.getElementById("m_alarm_km"),
-      warning_km: document.getElementById("m_warning_km"),
-      info_km: document.getElementById("m_info_km"),
-      alarm_color: document.getElementById("m_alarm_color"),
-      warning_color: document.getElementById("m_warning_color"),
-      info_color: document.getElementById("m_info_color"),
-    };
+  // =========================
+  // Lightning icon + time format
+  // =========================
+  function makeLightningIcon(){
+    const fill = getComputedStyle(document.documentElement).getPropertyValue("--event").trim() || "#FFD34D";
+    return L.divIcon({
+      className: "",
+      html: `
+        <div class="lightningWrap lightningPulse" title="Lightning">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="${fill}" d="M13 2L3 14h7l-1 8 12-14h-7l-1-6z"/>
+          </svg>
+        </div>
+      `,
+      iconSize: [22,22],
+      iconAnchor: [11,11]
+    });
+  }
+  const lightningIcon = makeLightningIcon();
 
-    function setHint(txt){
-      hint.textContent = `Status: ${txt}`;
-      mHint.textContent = `Status: ${txt}`;
+  function parseEpochToDate(ts){
+    const n = Number(ts);
+    if (!Number.isFinite(n)) return null;
+    let ms = n;
+    if (n > 1e15) ms = Math.floor(n / 1e6);       // ns -> ms
+    else if (n > 1e12) ms = Math.floor(n);        // ms
+    else if (n > 1e9)  ms = Math.floor(n * 1000); // sec -> ms
+    else return null;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return null;
+    return d;
+  }
+
+  function formatUTC(ts){
+    const d = parseEpochToDate(ts);
+    if (!d) return String(ts ?? "—");
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth()+1).padStart(2,"0");
+    const dd = String(d.getUTCDate()).padStart(2,"0");
+    const HH = String(d.getUTCHours()).padStart(2,"0");
+    const MM = String(d.getUTCMinutes()).padStart(2,"0");
+    const SS = String(d.getUTCSeconds()).padStart(2,"0");
+    return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}Z`;
+  }
+
+  // cache lightning to avoid duplicates
+  const seen = new Set();
+  const live = [];
+
+  function addLightningPoint(e){
+    const lat = Number(e.lat);
+    const lon = Number(e.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    const key = `${e.time ?? ""}|${lat.toFixed(5)}|${lon.toFixed(5)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const mk = L.marker([lat, lon], { icon: lightningIcon, keyboard:false }).addTo(layerEvents);
+    const pol = (e.polarity === "+" ? "CG+" : (e.polarity === "-" ? "CG-" : "—"));
+
+    mk.bindPopup(popupHtml("Lightning (Blitzortung)", [
+      ["Time (UTC)", formatUTC(e.time)],
+      ["Type", e.type || "strike"],
+      ["Polarity", pol],
+      ["Latitude", lat.toFixed(6)],
+      ["Longitude", lon.toFixed(6)],
+    ]));
+
+    live.push({ key, mk, tRcv: Number(e._t_rcv || Date.now()/1000) });
+
+    while (live.length > MAX_EVENTS){
+      const old = live.shift();
+      try { layerEvents.removeLayer(old.mk); } catch(_){}
     }
+  }
 
-    function sevToTag(sev){
-      const s = (sev || "").toLowerCase();
-      if (s.includes("alarm")) return "alarm";
-      if (s.includes("warning") || s.includes("warn")) return "warning";
-      if (s.includes("info")) return "info";
-      return "";
+  async function pollLightning(){
+    try{
+      const res = await fetch(LIGHTNING_LAST, { cache:"no-store" });
+      if (!res.ok) throw new Error(`Lightning poll error: ${res.status}`);
+      const j = await res.json();
+      const items = (j && j.items) ? j.items : [];
+      items.forEach(addLightningPoint);
+      setHint(`loaded ${DATA.assets.length} location(s) · lightning +${items.length} (last ${j.seconds || 60}s)`);
+    }catch(err){
+      console.error(err);
+      setHint("lightning poll failed (check /api/blitzortung/last).");
     }
+  }
 
-    function escapeHtml(s){
-      return String(s ?? "")
-        .replaceAll("&","&amp;").replaceAll("<","&lt;")
-        .replaceAll(">","&gt;").replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
+  // =========================
+  // Render AOI map
+  // =========================
+  function renderMap(assets){
+    layerRings.clearLayers();
+    layerCenters.clearLayers();
+    for (const k in assetLayers) delete assetLayers[k];
 
-    function popupHtml(title, rows){
-      const kv = rows.map(([k,v]) => `
-        <div class="k">${escapeHtml(k)}</div>
-        <div class="v">${escapeHtml(v)}</div>
-      `).join("");
-      return `<div><p class="popupTitle">${escapeHtml(title)}</p><div class="kv">${kv}</div></div>`;
-    }
-
-    function getNum(v, fallback){
-      const n = Number(v);
-      return Number.isFinite(n) ? n : fallback;
-    }
-
-    // ===== Lightning icon (Leaflet DivIcon) =====
-    function makeLightningIcon(){
-      const fill = getComputedStyle(document.documentElement).getPropertyValue("--event").trim() || "#FFD34D";
-      return L.divIcon({
-        className: "",
-        html: `
-          <div class="lightningWrap lightningPulse" title="Lightning">
-            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="${fill}" d="M13 2L3 14h7l-1 8 12-14h-7l-1-6z"/>
-            </svg>
-          </div>
-        `,
-        iconSize: [22,22],
-        iconAnchor: [11,11]
-      });
-    }
-    const lightningIcon = makeLightningIcon();
-
-    function parseEpochToDate(ts){
-      // Blitzortung example value looks like ns: 1772013212134505000
-      const n = Number(ts);
-      if (!Number.isFinite(n)) return null;
-
-      let ms = n;
-      if (n > 1e15) ms = Math.floor(n / 1e6);   // ns -> ms
-      else if (n > 1e12) ms = Math.floor(n);    // ms already
-      else if (n > 1e9)  ms = Math.floor(n * 1000); // seconds -> ms
-      else return null;
-
-      const d = new Date(ms);
-      if (isNaN(d.getTime())) return null;
-      return d;
-    }
-
-    function formatUTC(ts){
-      const d = parseEpochToDate(ts);
-      if (!d) return String(ts ?? "—");
-      const yyyy = d.getUTCFullYear();
-      const mm = String(d.getUTCMonth()+1).padStart(2,"0");
-      const dd = String(d.getUTCDate()).padStart(2,"0");
-      const HH = String(d.getUTCHours()).padStart(2,"0");
-      const MM = String(d.getUTCMinutes()).padStart(2,"0");
-      const SS = String(d.getUTCSeconds()).padStart(2,"0");
-      return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}Z`;
-    }
-
-    function getSelectedAsset(){
-      if (!selectedId) return null;
-      return DATA.assets.find(x => String(x.id ?? x.name ?? "") === String(selectedId)) || null;
-    }
-
-    function shouldRenderStrike(lat, lon){
-      // If a location is selected: only show within that location's info ring
-      const a = getSelectedAsset();
-      if (a){
-        const alat = getNum(a.latitude ?? a.lat, NaN);
-        const alon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
-        const infoKm = getNum(a.info_km, 20);
-
-        if (Number.isFinite(alat) && Number.isFinite(alon) && Number.isFinite(infoKm)){
-          const dKm = map.distance([alat, alon], [lat, lon]) / 1000;
-          return dKm <= infoKm;
-        }
-      }
-
-      // If no selected location: only show strikes inside current viewport (avoid global spam)
-      const bounds = map.getBounds();
-      return bounds.contains([lat, lon]);
-    }
-
-    function pruneLightning(){
-      const cutoff = Date.now() - (MAX_AGE_MIN * 60 * 1000);
-      while (liveEvents.length && (liveEvents[0]._t < cutoff || liveEvents.length > MAX_EVENTS)){
-        const old = liveEvents.shift();
-        try { layerEvents.removeLayer(old._mk); } catch(_){}
-      }
-    }
-
-    function addLightningPoint(e){
-      const lat = Number(e.lat);
-      const lon = Number(e.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
-      if (!shouldRenderStrike(lat, lon)) return;
-
-      const mk = L.marker([lat, lon], { icon: lightningIcon, keyboard:false }).addTo(layerEvents);
-
-      mk.bindPopup(popupHtml("Lightning (Blitzortung)", [
-        ["Time (UTC)", formatUTC(e.time)],
-        ["Type", e.type || "strike"],
-        ["Latitude", lat.toFixed(6)],
-        ["Longitude", lon.toFixed(6)],
-      ]));
-
-      liveEvents.push({ ...e, _mk: mk, _t: Date.now() });
-      pruneLightning();
-    }
-
-    function startLightningStream(){
-      if (sseStarted) return;
-      sseStarted = true;
-
-      try{
-        const es = new EventSource(LIGHTNING_SSE);
-
-        es.onopen = () => setHint("SSE connected (Blitzortung).");
-
-        es.onmessage = (ev) => {
-          if (!ev.data) return;
-          let obj = null;
-          try { obj = JSON.parse(ev.data); } catch(e){ return; }
-          if (obj && obj.ok) return; // hello message
-          addLightningPoint(obj);
-        };
-
-        es.onerror = () => {
-          // browser will auto-retry
-          setHint("SSE reconnecting…");
-        };
-      }catch(e){
-        console.error("SSE failed", e);
-        setHint("SSE not supported / failed.");
-      }
-    }
-
-    // Render map
-    function renderMap(assets, events){
-      layerRings.clearLayers();
-      layerCenters.clearLayers();
-      // NOTE: do NOT clear lightning on rerender rings (keep realtime strikes)
-      // layerEvents.clearLayers();
-
-      for (const k in assetLayers) delete assetLayers[k];
-
-      assets.forEach(a => {
-        const lat = getNum(a.latitude ?? a.lat, NaN);
-        const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
-        const key = String(a.id ?? a.asset_id ?? a.name ?? "");
-
-        const rAlarm = getNum(a.alarm_km, 4);
-        const rWarn  = getNum(a.warning_km, 10);
-        const rInfo  = getNum(a.info_km, 20);
-
-        const cAlarm = (a.alarm_color || getComputedStyle(document.documentElement).getPropertyValue("--alarm").trim() || "#EF4444");
-        const cWarn  = (a.warning_color || getComputedStyle(document.documentElement).getPropertyValue("--warning").trim() || "#F97316");
-        const cInfo  = (a.info_color || getComputedStyle(document.documentElement).getPropertyValue("--info").trim() || "#FBBF24");
-
-        const ringInfo  = L.circle([lat, lon], { radius: rInfo*1000, color: cInfo, weight: 2, fill: false, opacity: 0.85 });
-        const ringWarn  = L.circle([lat, lon], { radius: rWarn*1000, color: cWarn, weight: 2, fill: false, opacity: 0.88 });
-        const ringAlarm = L.circle([lat, lon], { radius: rAlarm*1000, color: cAlarm, weight: 2, fill: false, opacity: 0.95 });
-        ringInfo.addTo(layerRings);
-        ringWarn.addTo(layerRings);
-        ringAlarm.addTo(layerRings);
-
-        const marker = L.circleMarker([lat, lon], {
-          radius: 7,
-          color: "#fff",
-          weight: 2,
-          fillColor: "#0A4BBF",
-          fillOpacity: 0.95
-        }).addTo(layerCenters);
-
-        if (key){
-          assetLayers[key] = { rings:[ringInfo, ringWarn, ringAlarm], marker };
-          applyVisibility(key);
-        }
-
-        marker.on("click", () => selectByAsset(a));
-        marker.bindPopup(popupHtml(a.name || "Golf Location", [
-          ["Latitude", lat.toFixed(6)],
-          ["Longitude", lon.toFixed(6)],
-          ["Alarm ring", `${rAlarm} km`],
-          ["Warning ring", `${rWarn} km`],
-          ["Info ring", `${rInfo} km`],
-        ]));
-      });
-
-      // optional preloaded events (not used for realtime, but keep compatible)
-      (events || []).forEach(e => {
-        const lat = getNum(e.lat ?? e.latitude, NaN);
-        const lon = getNum(e.lon ?? e.lng ?? e.longitude, NaN);
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-        addLightningPoint({ lat, lon, time: e.time || e.timestamp, type: e.type || "strike" });
-      });
-    }
-
-    function fitAll(assets){
-      const pts = assets
-        .filter(a => isVisible(String(a.id ?? a.asset_id ?? a.name ?? "")))
-        .map(a => [getNum(a.latitude ?? a.lat, NaN), getNum(a.longitude ?? a.lon ?? a.lng, NaN)])
-        .filter(([lat,lon]) => Number.isFinite(lat) && Number.isFinite(lon));
-      if (!pts.length) return;
-      map.fitBounds(L.latLngBounds(pts).pad(0.15));
-    }
-
-    function fillDropdown(assets){
-      function fill(sel){
-        sel.innerHTML = `<option value="">Select location…</option>`;
-        assets.forEach(a => {
-          const opt = document.createElement("option");
-          const key = String(a.id ?? a.asset_id ?? a.name ?? "");
-          opt.value = key;
-          opt.textContent = a.name || key;
-          sel.appendChild(opt);
-        });
-      }
-      fill(ddl);
-      fill(ddlMobile);
-    }
-
-    function renderList(assets, query){
-      const q = (query || "").trim().toLowerCase();
-      const filtered = !q ? assets : assets.filter(a => String(a.name || "").toLowerCase().includes(q));
-
-      function itemHtml(a){
-        const name = a.name || "Unnamed";
-        const lat = getNum(a.latitude ?? a.lat, NaN);
-        const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
-        const sev = a.severity || a.status || a.state || "";
-        const sevText = sev ? String(sev) : "";
-        const sevPill = sevText ? `<div class="tag ${sevToTag(sev)}">${escapeHtml(sevText)}</div>` : "";
-
-        const key = String(a.id ?? a.asset_id ?? a.name ?? name);
-        const activeClass = (key && key === selectedId) ? " active" : "";
-        const hiddenClass = isVisible(key) ? "" : " hidden";
-
-        return `
-          <div class="item${activeClass}${hiddenClass}" data-key="${escapeHtml(key)}"
-               data-db-id="${escapeHtml(a.id ?? "")}"
-               data-lat="${Number.isFinite(lat)?lat:""}" data-lon="${Number.isFinite(lon)?lon:""}">
-            <div class="meta">
-              <p class="name">${escapeHtml(name)}</p>
-              <p class="coord">${Number.isFinite(lat)&&Number.isFinite(lon) ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : "No coordinate"}</p>
-            </div>
-            <div class="rightActions">
-              <button class="visBtn" title="Hide/Unhide rings & marker" data-vis="${escapeHtml(key)}">${iconEye(isVisible(key))}</button>
-              ${sevPill}
-            </div>
-          </div>
-        `;
-      }
-
-      const html = filtered.map(itemHtml).join("") || `<div style="color:var(--muted); font-size:12px; padding:10px;">No match.</div>`;
-      listEl.innerHTML = html;
-      listMobileEl.innerHTML = html;
-
-      [...document.querySelectorAll(".item")].forEach(el => {
-        const eye = el.querySelector(".visBtn");
-        if (eye){
-          eye.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            const key = eye.getAttribute("data-vis");
-            if (key) toggleVisibility(key);
-          });
-        }
-
-        el.addEventListener("click", () => {
-          const lat = Number(el.getAttribute("data-lat"));
-          const lon = Number(el.getAttribute("data-lon"));
-          const key = el.getAttribute("data-key");
-          const dbId = el.getAttribute("data-db-id");
-
-          selectedId = key;
-          selectedDbId = dbId ? Number(dbId) : null;
-
-          if (Number.isFinite(lat) && Number.isFinite(lon)){
-            map.setView([lat, lon], 12, { animate:true });
-          }
-
-          const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === key) || null;
-          if (a) fillFormFromAsset(a);
-
-          renderList(DATA.assets, qEl.value || qMobileEl.value || "");
-          // prune strikes not matching filter (optional)
-          // (We keep existing strikes; new strikes will follow filter)
-        });
-      });
-    }
-
-    function fillFormFromAsset(a){
-      f.name.value = a.name ?? "";
-      f.lat.value = getNum(a.latitude ?? a.lat, "").toString();
-      f.lon.value = getNum(a.longitude ?? a.lon ?? a.lng, "").toString();
-      f.alarm_km.value = getNum(a.alarm_km, 4);
-      f.warning_km.value = getNum(a.warning_km, 10);
-      f.info_km.value = getNum(a.info_km, 20);
-      f.alarm_color.value = (a.alarm_color || "#EF4444");
-      f.warning_color.value = (a.warning_color || "#F97316");
-      f.info_color.value = (a.info_color || "#FBBF24");
-
-      mf.name.value = f.name.value;
-      mf.lat.value = f.lat.value;
-      mf.lon.value = f.lon.value;
-      mf.alarm_km.value = f.alarm_km.value;
-      mf.warning_km.value = f.warning_km.value;
-      mf.info_km.value = f.info_km.value;
-      mf.alarm_color.value = f.alarm_color.value;
-      mf.warning_color.value = f.warning_color.value;
-      mf.info_color.value = f.info_color.value;
-    }
-
-    function clearForm(){
-      selectedId = null;
-      selectedDbId = null;
-
-      [f.name, f.lat, f.lon].forEach(x => x.value = "");
-      f.alarm_km.value = "4";
-      f.warning_km.value = "10";
-      f.info_km.value = "20";
-      f.alarm_color.value = "#EF4444";
-      f.warning_color.value = "#F97316";
-      f.info_color.value = "#FBBF24";
-
-      [mf.name, mf.lat, mf.lon].forEach(x => x.value = "");
-      mf.alarm_km.value = "4";
-      mf.warning_km.value = "10";
-      mf.info_km.value = "20";
-      mf.alarm_color.value = "#EF4444";
-      mf.warning_color.value = "#F97316";
-      mf.info_color.value = "#FBBF24";
-
-      ddl.value = "";
-      ddlMobile.value = "";
-
-      setHint("new item.");
-    }
-
-    function selectByAsset(a){
-      const key = String(a.id ?? a.name ?? "");
-      selectedId = key;
-      selectedDbId = a.id ? Number(a.id) : null;
-
-      fillFormFromAsset(a);
-      ddl.value = key;
-      ddlMobile.value = key;
-
+    assets.forEach(a => {
       const lat = getNum(a.latitude ?? a.lat, NaN);
       const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
-      if (Number.isFinite(lat) && Number.isFinite(lon)){
-        map.setView([lat, lon], 12, { animate:true });
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+      const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+      const rAlarm = getNum(a.alarm_km, 4);
+      const rWarn  = getNum(a.warning_km, 10);
+      const rInfo  = getNum(a.info_km, 20);
+
+      const cAlarm = (a.alarm_color || getComputedStyle(document.documentElement).getPropertyValue("--alarm").trim() || "#EF4444");
+      const cWarn  = (a.warning_color || getComputedStyle(document.documentElement).getPropertyValue("--warning").trim() || "#F97316");
+      const cInfo  = (a.info_color || getComputedStyle(document.documentElement).getPropertyValue("--info").trim() || "#FBBF24");
+
+      const ringInfo  = L.circle([lat, lon], { radius: rInfo*1000, color: cInfo,  weight: 2, fill: false, opacity: 0.85 });
+      const ringWarn  = L.circle([lat, lon], { radius: rWarn*1000, color: cWarn,  weight: 2, fill: false, opacity: 0.88 });
+      const ringAlarm = L.circle([lat, lon], { radius: rAlarm*1000, color: cAlarm, weight: 2, fill: false, opacity: 0.95 });
+
+      ringInfo.addTo(layerRings);
+      ringWarn.addTo(layerRings);
+      ringAlarm.addTo(layerRings);
+
+      const marker = L.circleMarker([lat, lon], {
+        radius: 7, color: "#fff", weight: 2, fillColor: "#0A4BBF", fillOpacity: 0.95
+      }).addTo(layerCenters);
+
+      if (key){
+        assetLayers[key] = { rings:[ringInfo, ringWarn, ringAlarm], marker };
+        applyVisibility(key);
       }
 
-      renderList(DATA.assets, qEl.value || qMobileEl.value || "");
-      setHint(`selected "${a.name || key}" (filter strikes: within info ring)`);
-    }
+      marker.on("click", () => selectByAsset(a));
+      marker.bindPopup(popupHtml(a.name || "Golf Location", [
+        ["Latitude", lat.toFixed(6)],
+        ["Longitude", lon.toFixed(6)],
+        ["Alarm ring", `${rAlarm} km`],
+        ["Warning ring", `${rWarn} km`],
+        ["Info ring", `${rInfo} km`],
+      ]));
+    });
+  }
 
-    async function loadData(){
-      setHint("loading…");
-      const res = await fetch(API_LIST, { cache:"no-store" });
-      if (!res.ok) throw new Error(`API ${API_LIST} error: ${res.status}`);
-      const json = await res.json();
+  function fitAll(assets){
+    const pts = assets
+      .filter(a => isVisible(String(a.id ?? a.asset_id ?? a.name ?? "")))
+      .map(a => [getNum(a.latitude ?? a.lat, NaN), getNum(a.longitude ?? a.lon ?? a.lng, NaN)])
+      .filter(([lat,lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+    if (!pts.length) return;
+    map.fitBounds(L.latLngBounds(pts).pad(0.15));
+  }
 
-      let assets = [];
-      let events = [];
-
-      if (Array.isArray(json)) assets = json;
-      else if (json && typeof json === "object"){
-        if (Array.isArray(json.rows)) assets = json.rows;
-        else if (Array.isArray(json.assets)) assets = json.assets;
-        else if (Array.isArray(json.data)) assets = json.data;
-        else if (Array.isArray(json.locations)) assets = json.locations;
-        if (Array.isArray(json.events)) events = json.events;
-      }
-
-      assets = (assets || []).map(a => ({
-        ...a,
-        name: a.name ?? a.asset_name ?? a.location_name ?? "Unnamed",
-      }));
-
-      DATA = { assets, events };
-      renderMap(assets, events);
-      renderList(assets, qEl.value || "");
-      fillDropdown(assets);
-      fitAll(assets);
-
-      setHint(`loaded ${assets.length} location(s).`);
-    }
-
-    function readForm(which){
-      const o = (which === "mobile") ? mf : f;
-      return {
-        name: (o.name.value || "").trim(),
-        latitude: Number(o.lat.value),
-        longitude: Number(o.lon.value),
-        alarm_km: Number(o.alarm_km.value),
-        warning_km: Number(o.warning_km.value),
-        info_km: Number(o.info_km.value),
-        alarm_color: o.alarm_color.value,
-        warning_color: o.warning_color.value,
-        info_color: o.info_color.value,
-      };
-    }
-
-    function validatePayload(p){
-      if (!p.name) return "Name is required.";
-      if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return "Latitude/Longitude must be valid numbers.";
-      if (!Number.isFinite(p.alarm_km) || p.alarm_km <= 0) return "Alarm km must be > 0.";
-      if (!Number.isFinite(p.warning_km) || p.warning_km <= 0) return "Warning km must be > 0.";
-      if (!Number.isFinite(p.info_km) || p.info_km <= 0) return "Info km must be > 0.";
-      return null;
-    }
-
-    async function saveLocation(which){
-      const p = readForm(which);
-      const err = validatePayload(p);
-      if (err) { setHint(err); alert(err); return; }
-
-      setHint("saving…");
-
-      const isUpdate = Number.isFinite(selectedDbId) && selectedDbId !== null;
-      const url = isUpdate ? API_UPDATE(selectedDbId) : API_CREATE;
-      const method = isUpdate ? "PUT" : "POST";
-
-      const resp = await fetch(url, {
-        method,
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(p)
+  function fillDropdown(assets){
+    function fill(sel){
+      sel.innerHTML = `<option value="">Select location…</option>`;
+      assets.forEach(a => {
+        const opt = document.createElement("option");
+        const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+        opt.value = key;
+        opt.textContent = a.name || key;
+        sel.appendChild(opt);
       });
+    }
+    fill(ddl); fill(ddlMobile);
+  }
 
-      if (!resp.ok){
-        const t = await resp.text();
-        setHint("save failed.");
-        alert(`Save failed: ${resp.status}\n${t}`);
-        return;
-      }
+  function renderList(assets, query){
+    const q = (query || "").trim().toLowerCase();
+    const filtered = !q ? assets : assets.filter(a => String(a.name || "").toLowerCase().includes(q));
 
-      const out = await resp.json().catch(() => ({}));
-      if (out && out.row && out.row.id){
-        selectedDbId = Number(out.row.id);
-        selectedId = String(out.row.id);
-      }
+    function itemHtml(a){
+      const name = a.name || "Unnamed";
+      const lat = getNum(a.latitude ?? a.lat, NaN);
+      const lon = getNum(a.longitude ?? a.lon ?? a.lng, NaN);
 
-      await loadData();
-      setHint("saved.");
+      const key = String(a.id ?? a.asset_id ?? a.name ?? name);
+      const activeClass = (key && key === selectedId) ? " active" : "";
+      const hiddenClass = isVisible(key) ? "" : " hidden";
+
+      return `
+        <div class="item${activeClass}${hiddenClass}" data-key="${escapeHtml(key)}"
+             data-db-id="${escapeHtml(a.id ?? "")}"
+             data-lat="${Number.isFinite(lat)?lat:""}" data-lon="${Number.isFinite(lon)?lon:""}">
+          <div class="meta">
+            <p class="name">${escapeHtml(name)}</p>
+            <p class="coord">${Number.isFinite(lat)&&Number.isFinite(lon) ? `${lat.toFixed(6)}, ${lon.toFixed(6)}` : "No coordinate"}</p>
+          </div>
+          <div class="rightActions">
+            <button class="visBtn" title="Hide/Unhide rings & marker" data-vis="${escapeHtml(key)}">${iconEye(isVisible(key))}</button>
+          </div>
+        </div>
+      `;
     }
 
-    async function deleteLocation(){
-      if (!Number.isFinite(selectedDbId) || selectedDbId === null){
-        const msg = "Select an existing location first.";
-        setHint(msg);
-        alert(msg);
-        return;
+    const html = filtered.map(itemHtml).join("") || `<div style="color:var(--muted); font-size:12px; padding:10px;">No match.</div>`;
+    listEl.innerHTML = html;
+    listMobileEl.innerHTML = html;
+
+    [...document.querySelectorAll(".item")].forEach(el => {
+      const eye = el.querySelector(".visBtn");
+      if (eye){
+        eye.addEventListener("click", (ev) => {
+          ev.preventDefault(); ev.stopPropagation();
+          const key = eye.getAttribute("data-vis");
+          if (key) toggleVisibility(key);
+        });
       }
 
-      if (!confirm("Delete this location?")) return;
+      el.addEventListener("click", () => {
+        const lat = Number(el.getAttribute("data-lat"));
+        const lon = Number(el.getAttribute("data-lon"));
+        const key = el.getAttribute("data-key");
+        const dbId = el.getAttribute("data-db-id");
 
-      setHint("deleting…");
-      const resp = await fetch(API_DELETE(selectedDbId), { method: "DELETE" });
-      if (!resp.ok){
-        const t = await resp.text();
-        setHint("delete failed.");
-        alert(`Delete failed: ${resp.status}\n${t}`);
-        return;
-      }
+        selectedId = key;
+        selectedDbId = dbId ? Number(dbId) : null;
 
-      clearForm();
-      await loadData();
-      setHint("deleted.");
-    }
+        if (Number.isFinite(lat) && Number.isFinite(lon)){
+          map.setView([lat, lon], 12, { animate:true });
+        }
 
-    // Pick-from-map mode
-    function togglePickMode(){
-      pickMode = !pickMode;
-      setHint(pickMode ? "Pick mode ON: click on map to set Lat/Lon." : "Pick mode OFF.");
-      const btn = document.getElementById("btnPick");
-      btn.textContent = pickMode ? "📍 Picking…" : "📍 Pick from map";
-    }
+        const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === key) || null;
+        if (a) fillFormFromAsset(a);
 
-    map.on("click", (e) => {
-      if (!pickMode) return;
-      const lat = e.latlng.lat.toFixed(6);
-      const lon = e.latlng.lng.toFixed(6);
+        renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+      });
+    });
+  }
 
-      f.lat.value = lat; f.lon.value = lon;
-      mf.lat.value = lat; mf.lon.value = lon;
+  // =========================
+  // CRUD
+  // =========================
+  function readForm(which){
+    const o = (which === "mobile") ? mf : f;
+    return {
+      name: (o.name.value || "").trim(),
+      latitude: Number(o.lat.value),
+      longitude: Number(o.lon.value),
+      alarm_km: Number(o.alarm_km.value),
+      warning_km: Number(o.warning_km.value),
+      info_km: Number(o.info_km.value),
+      alarm_color: o.alarm_color.value,
+      warning_color: o.warning_color.value,
+      info_color: o.info_color.value,
+    };
+  }
 
-      setHint(`Lat/Lon set: ${lat}, ${lon}`);
+  function validatePayload(p){
+    if (!p.name) return "Name is required.";
+    if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return "Latitude/Longitude must be valid numbers.";
+    if (!Number.isFinite(p.alarm_km) || p.alarm_km <= 0) return "Alarm km must be > 0.";
+    if (!Number.isFinite(p.warning_km) || p.warning_km <= 0) return "Warning km must be > 0.";
+    if (!Number.isFinite(p.info_km) || p.info_km <= 0) return "Info km must be > 0.";
+    return null;
+  }
+
+  async function saveLocation(which){
+    const p = readForm(which);
+    const err = validatePayload(p);
+    if (err) { setHint(err); alert(err); return; }
+
+    setHint("saving…");
+    const isUpdate = Number.isFinite(selectedDbId) && selectedDbId !== null;
+    const url = isUpdate ? API_UPDATE(selectedDbId) : API_CREATE;
+    const method = isUpdate ? "PUT" : "POST";
+
+    const resp = await fetch(url, {
+      method,
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(p)
     });
 
-    // Buttons
-    document.getElementById("btnRefresh").addEventListener("click", () => loadData().catch(err => alert(err.message)));
-    document.getElementById("btnFit").addEventListener("click", () => fitAll(DATA.assets));
-    document.getElementById("btnRefreshMobile").addEventListener("click", () => loadData().catch(err => alert(err.message)));
-    document.getElementById("btnPick").addEventListener("click", togglePickMode);
-    document.getElementById("btnPickMobile").addEventListener("click", togglePickMode);
-
-    document.getElementById("btnSave").addEventListener("click", () => saveLocation("desktop"));
-    document.getElementById("btnNew").addEventListener("click", clearForm);
-    document.getElementById("btnDelete").addEventListener("click", deleteLocation);
-
-    document.getElementById("m_save").addEventListener("click", () => saveLocation("mobile"));
-    document.getElementById("m_new").addEventListener("click", clearForm);
-    document.getElementById("m_delete").addEventListener("click", deleteLocation);
-
-    document.getElementById("btnHideAll").addEventListener("click", hideAll);
-    document.getElementById("btnShowAll").addEventListener("click", showAll);
-
-    // Search
-    qEl.addEventListener("input", () => renderList(DATA.assets, qEl.value));
-    qMobileEl.addEventListener("input", () => renderList(DATA.assets, qMobileEl.value));
-
-    // Dropdown select
-    function onPickSelect(value){
-      if (!value) return;
-      const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === value);
-      if (a) selectByAsset(a);
+    if (!resp.ok){
+      const t = await resp.text();
+      setHint("save failed.");
+      alert(`Save failed: ${resp.status}\n${t}`);
+      return;
     }
-    ddl.addEventListener("change", () => onPickSelect(ddl.value));
-    ddlMobile.addEventListener("change", () => onPickSelect(ddlMobile.value));
 
-    // Mobile sheet resize (drag handle)
-    (function(){
-      const sheet = document.getElementById("sheet");
-      const handle = document.getElementById("sheetHandle");
+    await loadData();
+    setHint("saved.");
+  }
 
-      let dragging = false;
-      let startY = 0;
-      let startH = 0;
+  async function deleteLocation(){
+    if (!Number.isFinite(selectedDbId) || selectedDbId === null){
+      const msg = "Select an existing location first.";
+      setHint(msg);
+      alert(msg);
+      return;
+    }
+    if (!confirm("Delete this location?")) return;
 
-      function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+    setHint("deleting…");
+    const resp = await fetch(API_DELETE(selectedDbId), { method: "DELETE" });
+    if (!resp.ok){
+      const t = await resp.text();
+      setHint("delete failed.");
+      alert(`Delete failed: ${resp.status}\n${t}`);
+      return;
+    }
 
-      function onDown(e){
-        dragging = true;
-        startY = (e.touches ? e.touches[0].clientY : e.clientY);
-        startH = sheet.getBoundingClientRect().height;
-        document.body.style.userSelect = "none";
+    clearForm();
+    await loadData();
+    setHint("deleted.");
+  }
+
+  // =========================
+  // Pick mode
+  // =========================
+  function togglePickMode(){
+    pickMode = !pickMode;
+    setHint(pickMode ? "Pick mode ON: click on map to set Lat/Lon." : "Pick mode OFF.");
+    const btn = document.getElementById("btnPick");
+    if (btn) btn.textContent = pickMode ? "📍 Picking…" : "📍 Pick from map";
+  }
+
+  map.on("click", (e) => {
+    if (!pickMode) return;
+    const lat = e.latlng.lat.toFixed(6);
+    const lon = e.latlng.lng.toFixed(6);
+    f.lat.value = lat; f.lon.value = lon;
+    mf.lat.value = lat; mf.lon.value = lon;
+    setHint(`Lat/Lon set: ${lat}, ${lon}`);
+  });
+
+  // =========================
+  // Hide / Show all
+  // =========================
+  function hideAll(){
+    DATA.assets.forEach(a => {
+      const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+      if (key){
+        VIS[key] = false;
+        applyVisibility(key);
       }
-      function onMove(e){
-        if (!dragging) return;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY);
-        const dy = y - startY;
-        const newH = clamp(startH - dy, 180, window.innerHeight * 0.78);
-        sheet.style.height = `${newH}px`;
+    });
+    saveVis();
+    renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+  }
 
-        const legend = document.querySelector(".legend");
-        if (legend){
-          legend.style.bottom = `calc(14px + ${newH}px)`;
-        }
+  function showAll(){
+    DATA.assets.forEach(a => {
+      const key = String(a.id ?? a.asset_id ?? a.name ?? "");
+      if (key){
+        VIS[key] = true;
+        applyVisibility(key);
       }
-      function onUp(){
-        dragging = false;
-        document.body.style.userSelect = "";
-      }
+    });
+    saveVis();
+    renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+  }
 
-      handle.addEventListener("mousedown", onDown);
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+  // =========================
+  // Load data (fitAll only if no saved view)
+  // =========================
+  async function loadData(){
+    setHint("loading…");
+    const res = await fetch(API_LIST, { cache:"no-store" });
+    if (!res.ok) throw new Error(`API ${API_LIST} error: ${res.status}`);
+    const json = await res.json();
 
-      handle.addEventListener("touchstart", onDown, {passive:true});
-      window.addEventListener("touchmove", onMove, {passive:true});
-      window.addEventListener("touchend", onUp);
-    })();
+    let assets = [];
+    if (Array.isArray(json)) assets = json;
+    else if (json && typeof json === "object"){
+      if (Array.isArray(json.rows)) assets = json.rows;
+      else if (Array.isArray(json.assets)) assets = json.assets;
+      else if (Array.isArray(json.data)) assets = json.data;
+      else if (Array.isArray(json.locations)) assets = json.locations;
+    }
 
-    function hideAll(){
-      DATA.assets.forEach(a => {
-        const key = String(a.id ?? a.asset_id ?? a.name ?? "");
-        if (key){
-          VIS[key] = false;
-          applyVisibility(key);
-        }
+    assets = (assets || []).map(a => ({ ...a, name: a.name ?? a.asset_name ?? a.location_name ?? "Unnamed" }));
+    DATA = { assets };
+
+    renderMap(assets);
+    renderList(assets, qEl.value || "");
+    fillDropdown(assets);
+
+    const st = loadState();
+    const hasSavedView = (st.view && Number.isFinite(st.view.lat) && Number.isFinite(st.view.lon) && Number.isFinite(st.view.zoom));
+    if (!hasSavedView) fitAll(assets);
+
+    setHint(`loaded ${assets.length} location(s).`);
+  }
+
+  // =========================
+  // Basemap control (bottom-left)
+  // =========================
+  const BaseControl = L.Control.extend({
+    options: { position: "bottomleft" },
+    onAdd: function(){
+      const container = L.DomUtil.create("div", "");
+      container.style.display = "flex";
+      container.style.flexDirection = "column";
+      container.style.gap = "10px";
+
+      const btn = L.DomUtil.create("button", "layerBtn", container);
+      btn.type = "button";
+      btn.title = "Basemap layers";
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 3l9 5-9 5-9-5 9-5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M3 12l9 5 9-5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M3 17l9 5 9-5" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+      `;
+
+      const panel = L.DomUtil.create("div", "layerPanel", container);
+      panel.style.display = "none";
+      panel.innerHTML = `
+        <p class="ttl">Basemap</p>
+        <label><input type="radio" name="basemap" value="osm"> OpenStreetMap</label>
+        <label><input type="radio" name="basemap" value="carto"> Carto Light</label>
+        <label><input type="radio" name="basemap" value="esri"> ESRI Satellite</label>
+        <label><input type="radio" name="basemap" value="topo"> OpenTopoMap</label>
+      `;
+
+      // set checked from saved state
+      const st = loadState();
+      const picked = st.basemap || baseIdOf(currentBase) || "osm";
+      const r = panel.querySelector(`input[name="basemap"][value="${picked}"]`);
+      if (r) r.checked = true;
+
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+
+      btn.addEventListener("click", () => {
+        panel.style.display = (panel.style.display === "none") ? "block" : "none";
       });
-      saveVis();
-      renderList(DATA.assets, qEl.value || qMobileEl.value || "");
-    }
 
-    function showAll(){
-      DATA.assets.forEach(a => {
-        const key = String(a.id ?? a.asset_id ?? a.name ?? "");
-        if (key){
-          VIS[key] = true;
-          applyVisibility(key);
-        }
+      panel.addEventListener("change", (e) => {
+        const v = e.target && e.target.value;
+        if (v === "osm") setBase(baseOSM);
+        else if (v === "carto") setBase(baseCarto);
+        else if (v === "esri") setBase(baseESRI);
+        else if (v === "topo") setBase(baseTopo);
       });
-      saveVis();
-      renderList(DATA.assets, qEl.value || qMobileEl.value || "");
+
+      return container;
     }
+  });
+  map.addControl(new BaseControl());
 
-    // Keep lightning filter relevant when map moves (viewport mode)
-    map.on("moveend", () => pruneLightning());
+  // =========================
+  // Buttons + events
+  // =========================
+  document.getElementById("btnRefresh")?.addEventListener("click", () => loadData().catch(err => alert(err.message)));
+  document.getElementById("btnFit")?.addEventListener("click", () => fitAll(DATA.assets));
+  document.getElementById("btnRefreshMobile")?.addEventListener("click", () => loadData().catch(err => alert(err.message)));
+  document.getElementById("btnPick")?.addEventListener("click", togglePickMode);
+  document.getElementById("btnPickMobile")?.addEventListener("click", togglePickMode);
 
-    // First load
-    loadData().then(() => {
-      startLightningStream();
-    }).catch(err => {
+  document.getElementById("btnSave")?.addEventListener("click", () => saveLocation("desktop"));
+  document.getElementById("btnNew")?.addEventListener("click", clearForm);
+  document.getElementById("btnDelete")?.addEventListener("click", deleteLocation);
+
+  document.getElementById("m_save")?.addEventListener("click", () => saveLocation("mobile"));
+  document.getElementById("m_new")?.addEventListener("click", clearForm);
+  document.getElementById("m_delete")?.addEventListener("click", deleteLocation);
+
+  document.getElementById("btnHideAll")?.addEventListener("click", hideAll);
+  document.getElementById("btnShowAll")?.addEventListener("click", showAll);
+  document.getElementById("btnPollNow")?.addEventListener("click", pollLightning);
+
+  qEl?.addEventListener("input", () => renderList(DATA.assets, qEl.value));
+  qMobileEl?.addEventListener("input", () => renderList(DATA.assets, qMobileEl.value));
+
+  function onPickSelect(value){
+    if (!value) return;
+    const a = DATA.assets.find(x => String(x.id ?? x.name ?? "") === value);
+    if (a) selectByAsset(a);
+  }
+  ddl?.addEventListener("change", () => onPickSelect(ddl.value));
+  ddlMobile?.addEventListener("change", () => onPickSelect(ddlMobile.value));
+
+  // =========================
+  // Boot
+  // =========================
+  loadData()
+    .then(async () => {
+      await pollLightning();
+      setInterval(pollLightning, POLL_MS);
+    })
+    .catch(err => {
       console.error(err);
-      alert("Failed to load locations. Make sure /api/xweather/golf-locations exists and returns rows/assets.");
-      // still start SSE, in case you want raw map view
-      startLightningStream();
+      alert("Failed to load locations. Make sure /api/xweather/golf-locations exists.");
+      pollLightning();
+      setInterval(pollLightning, POLL_MS);
     });
-  </script>
+</script>
 </body>
 </html>

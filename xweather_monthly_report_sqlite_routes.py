@@ -9,7 +9,7 @@ import queue
 import time
 from datetime import datetime
 from collections import Counter
-
+from collections import deque
 import psycopg
 from psycopg.rows import dict_row
 from openpyxl import load_workbook
@@ -1032,6 +1032,8 @@ except Exception:
 _blitz_clients = set()
 _blitz_lock = threading.Lock()
 _blitz_thread_started = False
+_blitz_buffer = deque(maxlen=20000)   # simpan strike terbaru
+_blitz_buf_lock = threading.Lock()
 
 def _sse_format(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
@@ -1060,6 +1062,40 @@ def _decode_obfuscated_payload(payload_bytes: bytes) -> bytes:
         o += 1
         f = a
     return "".join(g).encode()
+
+def _norm_polarity(v):
+    """
+    Normalize polarity to "+", "-", or None.
+    Supports numeric (+1/-1), string ("+", "-", "CG+", "CG-", "pos/neg").
+    """
+    if v is None:
+        return None
+
+    # numeric
+    if isinstance(v, (int, float)):
+        if v > 0:
+            return "+"
+        if v < 0:
+            return "-"
+        return None
+
+    s = str(v).strip().lower()
+    if not s:
+        return None
+
+    # direct tokens
+    if s in {"+", "pos", "positive", "plus"}:
+        return "+"
+    if s in {"-", "neg", "negative", "minus"}:
+        return "-"
+
+    # embedded in type strings
+    if "cg+" in s or "pos" in s:
+        return "+"
+    if "cg-" in s or "neg" in s:
+        return "-"
+
+    return None
 
 def _start_blitz_ws_thread():
     global _blitz_thread_started
@@ -1112,12 +1148,30 @@ def _start_blitz_ws_thread():
                     if lat is None or lon is None:
                         continue
 
+                    raw_type = j.get("type") or j.get("s") or "strike"
+
+                    # --- added: polarity extraction (defensive) ---
+                    raw_pol = (
+                        j.get("pol") or
+                        j.get("polarity") or
+                        j.get("sgn") or
+                        j.get("sign") or
+                        j.get("p")
+                    )
+                    pol = _norm_polarity(raw_pol) or _norm_polarity(raw_type)
+                    # -------------------------------------------
+
                     out = {
                         "lat": float(lat),
                         "lon": float(lon),
                         "time": ts,
-                        "type": j.get("type") or j.get("s") or "strike"
+                        "type": raw_type,
+                        "polarity": pol,  # "+", "-", or None
                     }
+                    out["_t_rcv"] = time.time()  # epoch seconds saat diterima server
+
+                    with _blitz_buf_lock:
+                        _blitz_buffer.append(out)
 
                     # broadcast to all SSE clients
                     with _blitz_lock:
@@ -1168,3 +1222,29 @@ def api_blitzortung_sse():
                 _blitz_clients.discard(q)
 
     return Response(gen(), mimetype="text/event-stream")
+
+
+@xweather_report_bp.route("/api/blitzortung/last")
+def api_blitzortung_last():
+    """
+    Return strikes received in last N seconds (default 60).
+    """
+    _start_blitz_ws_thread()
+
+    try:
+        seconds = int(request.args.get("seconds", "60"))
+    except Exception:
+        seconds = 60
+    seconds = max(1, min(seconds, 3600))  # 1..3600
+
+    cutoff = time.time() - seconds
+    items = []
+    with _blitz_buf_lock:
+        # ambil yang terbaru saja
+        for it in reversed(_blitz_buffer):
+            if float(it.get("_t_rcv", 0)) < cutoff:
+                break
+            items.append(it)
+
+    items.reverse()
+    return jsonify({"ok": True, "seconds": seconds, "count": len(items), "items": items})
