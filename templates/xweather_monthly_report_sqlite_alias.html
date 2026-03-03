@@ -575,27 +575,6 @@
       background:#fff;
     }
 
-  
-    /* === Date Format Dialog === */
-    .radio-row{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      margin-top:6px;
-    }
-    .radio{
-      display:flex;
-      gap:10px;
-      align-items:flex-start;
-      padding:10px 12px;
-      border:1px solid var(--border);
-      border-radius:14px;
-      background:#fff;
-    }
-    .radio input{ margin-top:3px; }
-    .radio .t{ font-weight:600; font-size:13px; }
-    .radio .d{ font-size:12px; color:var(--muted); margin-top:2px; line-height:1.45; }
-
   </style>
 </head>
 
@@ -698,7 +677,6 @@
               <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.csv?month=">⬇ Download CSV</a>
               <button class="btn" onclick="window.print()">🖨 Print</button>
               <button class="btn" onclick="openAliasDialog()">⚙ Labels</button>
-              <button class="btn" onclick="openDateFmtDialog()">📅 Date Format</button>
               <button class="btn" onclick="resetFilters()">↺ Reset</button>
             </div>
           </div>
@@ -810,71 +788,6 @@
   </div>
 
 
-
-  <!-- Date Format Dialog -->
-  <div id="dateFmtBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true" onclick="dateFmtBackdropClick(event)">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div class="mhead">
-        <div>
-          <h3>Date/Time Format</h3>
-          <p>Pilih format tampilan waktu di tabel, dan format yang dipakai saat <b>Download CSV (Excel)</b>.</p>
-        </div>
-        <button class="btn" style="background:rgba(0,0,0,.06); color:var(--text); border-color:var(--border);" onclick="closeDateFmtDialog()">✕</button>
-      </div>
-
-      <div class="mbody">
-        <div class="help-mini">
-          <b>Catatan:</b> Data dari backend tidak diubah. Ini hanya mengubah <i>penyajian</i> dan file CSV yang di-generate dari tabel untuk kebutuhan Excel.
-        </div>
-
-        <div class="radio-row">
-          <label class="radio">
-            <input type="radio" name="dtfmt" value="excel" />
-            <div>
-              <div class="t">Excel friendly (default)</div>
-              <div class="d">YYYY-MM-DD HH:MM:SS (mudah di-parse Excel)</div>
-            </div>
-          </label>
-
-          <label class="radio">
-            <input type="radio" name="dtfmt" value="id" />
-            <div>
-              <div class="t">Indonesia</div>
-              <div class="d">DD/MM/YYYY HH:MM</div>
-            </div>
-          </label>
-
-          <label class="radio">
-            <input type="radio" name="dtfmt" value="iso" />
-            <div>
-              <div class="t">ISO 8601</div>
-              <div class="d">YYYY-MM-DDTHH:MM:SSZ</div>
-            </div>
-          </label>
-
-          <label class="radio">
-            <input type="radio" name="dtfmt" value="date" />
-            <div>
-              <div class="t">Date only</div>
-              <div class="d">YYYY-MM-DD</div>
-            </div>
-          </label>
-        </div>
-
-        <div class="callout" style="margin:0">
-          <strong>Tip Excel:</strong> gunakan format <b>Excel friendly</b> supaya kolom waktu langsung dikenali sebagai DateTime.
-        </div>
-      </div>
-
-      <div class="mfoot">
-        <button class="btn" style="background:rgba(0,0,0,.06); color:var(--text); border-color:var(--border);" onclick="resetDateFmtDefaults()">↺ Default</button>
-        <button class="btn" style="background:rgba(0,0,0,.06); color:var(--text); border-color:var(--border);" onclick="closeDateFmtDialog()">Cancel</button>
-        <button class="btn primary" onclick="saveDateFmt()">Save</button>
-      </div>
-    </div>
-  </div>
-
-
   <!-- Severity Alias Dialog -->
   <div id="aliasBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true" onclick="backdropClick(event)">
     <div class="modal" onclick="event.stopPropagation()">
@@ -948,150 +861,6 @@
     const SEV_ALIAS_KEY = "xw_sev_aliases_v1";
     const SEV_ALIAS_DEFAULT = { info: "Siaga", warning: "Waspada", alarm: "Evakuasi" };
     let sevAlias = { ...SEV_ALIAS_DEFAULT };
-
-    const DTFMT_KEY = "xw_datetime_fmt_v1";
-    const DTFMT_DEFAULT = "excel"; // excel | id | iso | date
-    let dtFmt = DTFMT_DEFAULT;
-
-    function loadDateFmt(){
-      try{
-        const raw = localStorage.getItem(DTFMT_KEY);
-        if (raw) dtFmt = raw;
-      }catch(e){}
-      applyDateFmtToTable();
-    }
-
-    function pad2(n){ n = Number(n); return (n < 10 ? "0" : "") + n; }
-
-    function parseAnyDate(s){
-      if (!s) return null;
-      if (s instanceof Date) return isNaN(s) ? null : s;
-      const str = String(s).trim();
-      if (!str) return null;
-
-      // If already ISO or with TZ offset, Date can parse directly
-      let d = new Date(str);
-      if (!isNaN(d)) return d;
-
-      // Try "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DD HH:MM"
-      const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
-      if (m){
-        const y=+m[1], mo=+m[2]-1, da=+m[3], hh=+m[4], mi=+m[5], ss=+(m[6]||0);
-        // Assume UTC for backend timestamps (common in DB exports)
-        return new Date(Date.UTC(y,mo,da,hh,mi,ss));
-      }
-
-      return null;
-    }
-
-    function formatDTForMode(d, mode){
-      if (!d) return "";
-      const y = d.getUTCFullYear();
-      const mo = pad2(d.getUTCMonth()+1);
-      const da = pad2(d.getUTCDate());
-      const hh = pad2(d.getUTCHours());
-      const mi = pad2(d.getUTCMinutes());
-      const ss = pad2(d.getUTCSeconds());
-
-      if (mode === "date") return `${y}-${mo}-${da}`;
-      if (mode === "iso") return `${y}-${mo}-${da}T${hh}:${mi}:${ss}Z`;
-      if (mode === "id") return `${da}/${mo}/${y} ${hh}:${mi}`;
-      // excel default
-      return `${y}-${mo}-${da} ${hh}:${mi}:${ss}`;
-    }
-
-    function fmtDT(raw){
-      const d = parseAnyDate(raw);
-      if (!d) return raw ?? "";
-      return formatDTForMode(d, dtFmt);
-    }
-
-    function openDateFmtDialog(){
-      const bd = document.getElementById("dateFmtBackdrop");
-      if (!bd) return;
-      bd.style.display = "flex";
-      bd.setAttribute("aria-hidden","false");
-      // set checked
-      const v = dtFmt || DTFMT_DEFAULT;
-      document.querySelectorAll('input[name="dtfmt"]').forEach(r => r.checked = (r.value === v));
-    }
-
-    function closeDateFmtDialog(){
-      const bd = document.getElementById("dateFmtBackdrop");
-      if (!bd) return;
-      bd.style.display = "none";
-      bd.setAttribute("aria-hidden","true");
-    }
-
-    function dateFmtBackdropClick(e){
-      if (e && e.target && e.target.id === "dateFmtBackdrop") closeDateFmtDialog();
-    }
-
-    function saveDateFmt(){
-      const picked = (document.querySelector('input[name="dtfmt"]:checked') || {}).value || DTFMT_DEFAULT;
-      dtFmt = picked;
-      try{ localStorage.setItem(DTFMT_KEY, dtFmt); }catch(e){}
-      applyDateFmtToTable();
-      closeDateFmtDialog();
-    }
-
-    function resetDateFmtDefaults(){
-      dtFmt = DTFMT_DEFAULT;
-      try{ localStorage.setItem(DTFMT_KEY, dtFmt); }catch(e){}
-      document.querySelectorAll('input[name="dtfmt"]').forEach(r => r.checked = (r.value === dtFmt));
-      applyDateFmtToTable();
-    }
-
-    function applyDateFmtToTable(){
-      // Update visible cells based on raw value kept in data-raw
-      document.querySelectorAll('#reportTable tbody tr').forEach(tr => {
-        ["first","active","last","clear"].forEach(key => {
-          const td = tr.querySelector(`td[data-dt="${key}"]`);
-          if (!td) return;
-          const raw = td.getAttribute("data-raw");
-          td.textContent = fmtDT(raw);
-        });
-      });
-    }
-
-    function csvEscape(v){
-      const s = (v === null || v === undefined) ? "" : String(v);
-      if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
-      return s;
-    }
-
-    function downloadExcelCsv(){
-      // Export current (filtered/visible) rows from table with current date format
-      const table = document.getElementById("reportTable");
-      if (!table) return;
-
-      const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.innerText.replace(/\s+/g," ").trim());
-      const lines = [];
-      lines.push(headers.map(csvEscape).join(","));
-
-      const trs = Array.from(table.querySelectorAll("tbody tr")).filter(tr => tr.style.display !== "none");
-      trs.forEach(tr => {
-        const tds = Array.from(tr.querySelectorAll("td"));
-        const row = tds.map((td, i) => {
-          // Severity column contains dot+label -> take text only
-          let val = td.innerText.replace(/\s+/g," ").trim();
-          return csvEscape(val);
-        });
-        lines.push(row.join(","));
-      });
-
-      const month = (document.getElementById("month")?.value || "monthly").trim() || "monthly";
-      const blob = new Blob(["\ufeff" + lines.join("\n")], {type:"text/csv;charset=utf-8"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `xweather_monthly_${month}_excel.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=> URL.revokeObjectURL(url), 1000);
-    }
-
 
     function loadAlias(){
       try{
@@ -1202,8 +971,6 @@
       if (e.key === "Escape"){
         const bd = document.getElementById("aliasBackdrop");
         if (bd && bd.style.display === "flex") closeAliasDialog();
-        const bd2 = document.getElementById("dateFmtBackdrop");
-        if (bd2 && bd2.style.display === "flex") closeDateFmtDialog();
       }
     });
 
@@ -1250,10 +1017,10 @@
             <td><span class="sev"><span class="dot"></span>${sevLabel(sev)}</span></td>
             <td>${escapeHtml(asset)}</td>
             <td>${escapeHtml(r.extent_km ?? "")}</td>
-            <td data-dt="first" data-raw="${escapeHtml(r.first_event_time ?? "")}">${escapeHtml(fmtDT(r.first_event_time ?? ""))}</td>
-            <td data-dt="active" data-raw="${escapeHtml(r.active_time ?? "")}">${escapeHtml(fmtDT(r.active_time ?? ""))}</td>
-            <td data-dt="last" data-raw="${escapeHtml(r.last_event_time ?? "")}">${escapeHtml(fmtDT(r.last_event_time ?? ""))}</td>
-            <td data-dt="clear" data-raw="${escapeHtml(r.clear_time ?? "")}">${escapeHtml(fmtDT(r.clear_time ?? ""))}</td>
+            <td>${escapeHtml(r.first_event_time ?? "")}</td>
+            <td>${escapeHtml(r.active_time ?? "")}</td>
+            <td>${escapeHtml(r.last_event_time ?? "")}</td>
+            <td>${escapeHtml(r.clear_time ?? "")}</td>
             <td>${escapeHtml(r.duration_min ?? "")}</td>
             <td>${escapeHtml(r.strength_ka ?? "")}</td>
             <td>${escapeHtml(r.event_type ?? "")}</td>
@@ -1306,7 +1073,6 @@
       document.getElementById("month").value = month;
       setCsvLinks(month);
       loadAlias();
-      loadDateFmt();
       loadMonth();
     })();
 
