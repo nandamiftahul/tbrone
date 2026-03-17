@@ -4,7 +4,7 @@ from twincityjakarta_manual_routes import twincityjakarta_manual_bp
 #from xweather_report_routes import xweather_report_bp
 from xweather_monthly_report_sqlite_routes import xweather_report_bp
 from xweather_mapgolf_routes import xweather_mapgolf_bp
-
+from kotatua_routes import kotatua_bp
 
 def create_app():
     app = Flask(__name__)
@@ -18,6 +18,7 @@ def create_app():
     #app.register_blueprint(xweather_report_bp)
     app.config["XWEATHER_DB_PATH"] = "xweather_reports.db"  # boleh diganti path lain
     app.register_blueprint(xweather_report_bp)
+    app.register_blueprint(kotatua_bp)
 
 
     @app.route("/")
