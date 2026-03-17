@@ -416,7 +416,7 @@
     <aside class="sidebar">
       <div class="head">
         <p class="h">Map Layers</p>
-        <p class="s">Highlight DKI mencakup seluruh daratan provinsi Jakarta tanpa area laut, sementara fokus Kota Tua tetap memakai layer kawasan yang lebih presisi.</p>
+        <p class="s">Default awal hanya menampilkan Core Zone. Layer lain bisa diaktifkan dari sidebar jika diperlukan.</p>
       </div>
       <div class="toolbarRow">
         <button class="miniBtn" id="showAllBtn">View All</button>
@@ -434,13 +434,13 @@
       <div class="legend">
         <div style="display:flex; justify-content:space-between; align-items:baseline;">
           <strong>Legend</strong>
-          <small>Illustrative planning map</small>
+          <small>Default: Core Zone only</small>
         </div>
         <div class="row"><span><span class="dot dki"></span> DKI Jakarta</span><span>All mainland municipalities</span></div>
         <div class="row"><span><span class="dot focus"></span> Kota Tua area</span><span>Official / refined area</span></div>
-        <div class="row"><span><span class="dot core"></span> Heritage core</span><span>Core emphasis</span></div>
+        <div class="row"><span><span class="dot core"></span> Heritage core</span><span>Imported from KML</span></div>
         <div class="row"><span><span class="dot poi"></span> Point of interest</span><span>Station / museum / port</span></div>
-        <small>Loading official wilayah, kecamatan, and kelurahan layers...</small>
+        <small id="legendNote">Loading map layers...</small>
       </div>
 
       <div class="sheet" id="sheet">
@@ -459,9 +459,8 @@
     </section>
   </div>
 
-  
   <script>
-    const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([-6.155, 106.81], 11);
+    const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([-6.13, 106.81], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -500,26 +499,46 @@
       properties: {
         name: 'Kota Tua Heritage Core',
         category: 'Core area',
-        description: 'Core emphasis around Taman Fatahillah, Kali Besar Barat/Timur, and adjacent heritage blocks.'
+        description: 'Core zone imported from user KML polygon.'
       },
       geometry: {
         type: 'Polygon',
         coordinates: [[
-          [106.80910, -6.13310],[106.81340, -6.13295],[106.81680, -6.13355],[106.81845, -6.13615],[106.81855, -6.13980],
-          [106.81775, -6.14335],[106.81595, -6.14625],[106.81300, -6.14810],[106.80990, -6.14825],[106.80765, -6.14640],
-          [106.80685, -6.14335],[106.80710, -6.13915],[106.80795, -6.13560],[106.80910, -6.13310]
+          [106.7946671695357, -6.152042293120568],
+          [106.8059037766916, -6.173228635843911],
+          [106.8398289050148, -6.168063893769462],
+          [106.8274619917771, -6.115470721202261],
+          [106.8170630748180, -6.114669587333109],
+          [106.8158981118654, -6.119125531511821],
+          [106.8102510693856, -6.120462606884525],
+          [106.8102508583425, -6.117700024255674],
+          [106.8079203723969, -6.117521929656587],
+          [106.8036173133190, -6.094619505112800],
+          [106.7973434878632, -6.094620075267708],
+          [106.7946547439501, -6.092481454154830],
+          [106.7910698508049, -6.093016400173771],
+          [106.7946671695357, -6.152042293120568]
         ]]
       }
     };
 
-    const visibilityState = { dki:true, kecamatan:true, kelurahan:true, focus:true, core:true, stasiun:true, fatahillah:true, sunda:true };
+    const visibilityState = {
+      dki:false,
+      kecamatan:false,
+      kelurahan:false,
+      focus:false,
+      core:true,
+      stasiun:false,
+      fatahillah:false,
+      sunda:false
+    };
 
     const pois = [
       { id: 'dki', name: 'DKI Jakarta Mainland', type: 'primary', kind: 'Land-only admin base', center: [-6.2000, 106.8456], zoom: 10, popup: [['Layer', 'Batas daratan DKI'], ['Source', 'Kelurahan polygons']] },
       { id: 'kecamatan', name: 'Kecamatan Layer', type: 'primary', kind: 'Official sub-area', center: [-6.1800, 106.8300], zoom: 11, popup: [['Layer', 'Batas Kecamatan'], ['Source', 'Jakarta Satu service']] },
       { id: 'kelurahan', name: 'Kelurahan Layer', type: 'primary', kind: 'Official sub-area', center: [-6.1650, 106.8200], zoom: 13, popup: [['Layer', 'Batas Kelurahan'], ['Source', 'Jakarta Satu service']] },
       { id: 'focus', name: 'Kota Tua Official Area', type: 'core', kind: 'Heritage focus', center: [-6.1375, 106.8135], zoom: 15, popup: [['Layer', 'Kawasan Pemugaran Kota Tua'], ['Source', 'Tata Ruang DKI / UDGL']] },
-      { id: 'core', name: 'Kota Tua Heritage Core', type: 'core', kind: 'Core zone', center: [-6.1360, 106.8134], zoom: 16, popup: [['Layer', 'Refined heritage core'], ['Intent', 'Visual emphasis similar to masterplan']] },
+      { id: 'core', name: 'Kota Tua Heritage Core', type: 'core', kind: 'Core zone', center: [-6.1330, 106.8110], zoom: 13, popup: [['Layer', 'Core zone from KML'], ['Intent', 'Default visible layer']] },
       { id: 'stasiun', name: 'Stasiun Jakarta Kota', type: 'core', kind: 'Point of interest', center: [-6.1376, 106.8145], zoom: 17, popup: [['Category', 'Rail transit'], ['Relation', 'Primary gateway to Kota Tua']] },
       { id: 'fatahillah', name: 'Museum Fatahillah', type: 'core', kind: 'Point of interest', center: [-6.1352, 106.8133], zoom: 17, popup: [['Category', 'Heritage node'], ['Relation', 'Historical core of Kota Tua']] },
       { id: 'sunda', name: 'Pelabuhan Sunda Kelapa', type: 'primary', kind: 'Point of interest', center: [-6.1190, 106.8042], zoom: 15, popup: [['Category', 'Harbor'], ['Relation', 'Northern cultural-maritime anchor']] }
@@ -527,33 +546,49 @@
 
     const layerPolygons = L.layerGroup().addTo(map);
     const layerMarkers = L.layerGroup().addTo(map);
+
     const officialGroup = L.layerGroup().addTo(layerPolygons);
     const mainlandGroup = L.layerGroup().addTo(officialGroup);
     const officialKecamatanGroup = L.layerGroup().addTo(officialGroup);
     const officialKelurahanGroup = L.layerGroup().addTo(officialGroup);
-    const focusGroup = L.layerGroup().addTo(layerPolygons);
+
+    const kotaTuaFocusGroup = L.layerGroup().addTo(layerPolygons);
+    const kotaTuaCoreGroup = L.layerGroup().addTo(layerPolygons);
+
     let mainlandLayerRef = null;
     let kecamatanLayerRef = null;
     let kelurahanLayerRef = null;
     let focusLayerRef = null;
     let coreLayerRef = null;
-    let selectedId = null;
+    let selectedId = 'core';
     let dkiBounds = null;
     let focusBounds = null;
+    let coreBounds = null;
+
+    const listEl = document.getElementById('list');
+    const listMobileEl = document.getElementById('listMobile');
+    const qEl = document.getElementById('q');
+    const qMobileEl = document.getElementById('qMobile');
+    const legendNote = document.getElementById('legendNote');
 
     function escapeHtml(s){
       return String(s ?? '')
-        .replaceAll('&','&amp;').replaceAll('<','&lt;')
-        .replaceAll('>','&gt;').replaceAll('"','&quot;')
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
         .replaceAll("'",'&#039;');
     }
 
     function popupHtml(title, rows){
-      const kv = rows.map(([k,v]) => `\n        <div class="k">${escapeHtml(k)}</div>\n        <div class="v">${escapeHtml(v)}</div>\n      `).join('');
+      const kv = rows.map(([k,v]) => `
+        <div class="k">${escapeHtml(k)}</div>
+        <div class="v">${escapeHtml(v)}</div>
+      `).join('');
       return `<div><p class="popupTitle">${escapeHtml(title)}</p><div class="kv">${kv}</div></div>`;
     }
 
-    function addPolygon(feature, style, popupRows, targetGroup=focusGroup){
+    function addPolygon(feature, style, popupRows, targetGroup = kotaTuaCoreGroup){
       return L.geoJSON(feature, { style }).bindPopup(
         popupHtml(feature.properties.name, popupRows)
       ).addTo(targetGroup);
@@ -571,11 +606,6 @@
       mk.bindPopup(popupHtml(p.name, p.popup));
       p._marker = mk;
     });
-
-    const listEl = document.getElementById('list');
-    const listMobileEl = document.getElementById('listMobile');
-    const qEl = document.getElementById('q');
-    const qMobileEl = document.getElementById('qMobile');
 
     function tagClass(type){
       if (type === 'primary') return 'primary';
@@ -600,16 +630,16 @@
       const html = rows.map(p => {
         const visible = visibilityState[p.id] !== false;
         return `
-        <div class="item${p.id === selectedId ? ' active' : ''}${visible ? '' : ' hiddenItem'}" data-id="${escapeHtml(p.id)}">
-          <div class="meta">
-            <p class="name">${escapeHtml(p.name)}</p>
-            <p class="coord">${p.center[0].toFixed(6)}, ${p.center[1].toFixed(6)}</p>
-          </div>
-          <div class="rightSide">
-            <div class="tag ${tagClass(p.type)}">${escapeHtml(p.kind)}</div>
-            <button class="iconBtn toggleBtn" data-toggle-id="${escapeHtml(p.id)}" title="${visible ? 'Hide' : 'View'} ${escapeHtml(p.name)}">${getEyeIcon(visible)}</button>
-          </div>
-        </div>`;
+          <div class="item${p.id === selectedId ? ' active' : ''}${visible ? '' : ' hiddenItem'}" data-id="${escapeHtml(p.id)}">
+            <div class="meta">
+              <p class="name">${escapeHtml(p.name)}</p>
+              <p class="coord">${p.center[0].toFixed(6)}, ${p.center[1].toFixed(6)}</p>
+            </div>
+            <div class="rightSide">
+              <div class="tag ${tagClass(p.type)}">${escapeHtml(p.kind)}</div>
+              <button class="iconBtn toggleBtn" data-toggle-id="${escapeHtml(p.id)}" title="${visible ? 'Hide' : 'View'} ${escapeHtml(p.name)}">${getEyeIcon(visible)}</button>
+            </div>
+          </div>`;
       }).join('') || `<div style="color:var(--muted); font-size:12px; padding:10px;">No match.</div>`;
 
       listEl.innerHTML = html;
@@ -626,7 +656,8 @@
           if (id === 'dki' && dkiBounds) map.fitBounds(dkiBounds.pad(0.04));
           else if (id === 'kecamatan' && dkiBounds) map.fitBounds(dkiBounds.pad(0.08));
           else if (id === 'kelurahan' && focusBounds) map.fitBounds(focusBounds.pad(1.1));
-          else if ((id === 'focus' || id === 'core') && focusBounds) map.fitBounds(focusBounds.pad(id === 'core' ? 0.4 : 0.28));
+          else if (id === 'focus' && focusBounds) map.fitBounds(focusBounds.pad(0.28));
+          else if (id === 'core' && coreBounds) map.fitBounds(coreBounds.pad(0.08));
           else map.setView(item.center, item.zoom, { animate: true });
 
           if (item._marker && map.hasLayer(item._marker)) item._marker.openPopup();
@@ -694,7 +725,7 @@
       if (level === 'kotatua-plan') {
         return () => ({ color: '#DC2626', weight: 2.2, dashArray: '8 6', fillColor: '#DC2626', fillOpacity: 0.14, opacity: 1 });
       }
-      return () => ({ color: '#EF4444', weight: 2.6, fillColor: '#EF4444', fillOpacity: 0.16, opacity: 1 });
+      return () => ({ color: '#EF4444', weight: 4, fillColor: '#EF4444', fillOpacity: 0.16, opacity: 1 });
     }
 
     function popupRowsForFeature(props, level){
@@ -723,11 +754,13 @@
 
     function updateVisibilityByZoom(){
       const z = map.getZoom();
+
       if (visibilityState.kecamatan !== false && z >= 11) {
         if (!map.hasLayer(officialKecamatanGroup)) map.addLayer(officialKecamatanGroup);
       } else if (map.hasLayer(officialKecamatanGroup)) {
         map.removeLayer(officialKecamatanGroup);
       }
+
       if (visibilityState.kelurahan !== false && z >= 13) {
         if (!map.hasLayer(officialKelurahanGroup)) map.addLayer(officialKelurahanGroup);
       } else if (map.hasLayer(officialKelurahanGroup)) {
@@ -737,31 +770,50 @@
 
     function setLayerVisibility(id, visible){
       visibilityState[id] = visible;
-      if (id === 'dki' && mainlandGroup) {
-        if (visible) { if (!map.hasLayer(mainlandGroup)) map.addLayer(mainlandGroup); }
-        else if (map.hasLayer(mainlandGroup)) map.removeLayer(mainlandGroup);
+
+      if (id === 'dki') {
+        if (visible) {
+          if (!map.hasLayer(mainlandGroup)) map.addLayer(mainlandGroup);
+        } else {
+          if (map.hasLayer(mainlandGroup)) map.removeLayer(mainlandGroup);
+        }
       }
-      if (id === 'kecamatan' && officialKecamatanGroup) {
+
+      if (id === 'kecamatan') {
         if (visible) updateVisibilityByZoom();
         else if (map.hasLayer(officialKecamatanGroup)) map.removeLayer(officialKecamatanGroup);
       }
-      if (id === 'kelurahan' && officialKelurahanGroup) {
+
+      if (id === 'kelurahan') {
         if (visible) updateVisibilityByZoom();
         else if (map.hasLayer(officialKelurahanGroup)) map.removeLayer(officialKelurahanGroup);
       }
-      if (id === 'focus' && focusLayerRef) {
-        if (visible) { if (!focusGroup.hasLayer(focusLayerRef)) focusGroup.addLayer(focusLayerRef); }
-        else if (focusGroup.hasLayer(focusLayerRef)) focusGroup.removeLayer(focusLayerRef);
+
+      if (id === 'focus') {
+        if (visible) {
+          if (!map.hasLayer(kotaTuaFocusGroup)) map.addLayer(kotaTuaFocusGroup);
+        } else {
+          if (map.hasLayer(kotaTuaFocusGroup)) map.removeLayer(kotaTuaFocusGroup);
+        }
       }
-      if (id === 'core' && coreLayerRef) {
-        if (visible) { if (!focusGroup.hasLayer(coreLayerRef)) focusGroup.addLayer(coreLayerRef); }
-        else if (focusGroup.hasLayer(coreLayerRef)) focusGroup.removeLayer(coreLayerRef);
+
+      if (id === 'core') {
+        if (visible) {
+          if (!map.hasLayer(kotaTuaCoreGroup)) map.addLayer(kotaTuaCoreGroup);
+        } else {
+          if (map.hasLayer(kotaTuaCoreGroup)) map.removeLayer(kotaTuaCoreGroup);
+        }
       }
+
       const poi = pois.find(p => p.id === id);
       if (poi && poi._marker) {
-        if (visible) { if (!layerMarkers.hasLayer(poi._marker)) layerMarkers.addLayer(poi._marker); }
-        else if (layerMarkers.hasLayer(poi._marker)) layerMarkers.removeLayer(poi._marker);
+        if (visible) {
+          if (!layerMarkers.hasLayer(poi._marker)) layerMarkers.addLayer(poi._marker);
+        } else {
+          if (layerMarkers.hasLayer(poi._marker)) layerMarkers.removeLayer(poi._marker);
+        }
       }
+
       renderList(qEl.value || qMobileEl.value || '');
     }
 
@@ -771,6 +823,12 @@
 
     function setAllVisibility(visible){
       pois.forEach(p => setLayerVisibility(p.id, visible));
+    }
+
+    function applyInitialVisibility(){
+      Object.entries(visibilityState).forEach(([id, visible]) => {
+        setLayerVisibility(id, visible);
+      });
     }
 
     async function loadMainlandLayers(){
@@ -786,39 +844,60 @@
           const city = String(props.WADMKK || props.wadmkk || props.NAMOBJ || '').toUpperCase();
           return city && city !== 'KEPULAUAN SERIBU';
         });
-        const mainlandData = { type: 'FeatureCollection', features: cityFeatures };
-        mainlandLayerRef = addOfficialGeoJSON(mainlandData, 'mainland', mainlandGroup, 'DKI Jakarta Mainland');
+
+        mainlandLayerRef = addOfficialGeoJSON(
+          { type: 'FeatureCollection', features: cityFeatures },
+          'mainland',
+          mainlandGroup,
+          'DKI Jakarta Mainland'
+        );
         dkiBounds = mainlandLayerRef.getBounds();
 
         const kecamatanFeatures = (kecamatan.features || []).filter(isMainlandDKI);
         const kelurahanFeatures = (kelurahanOutline.features || []).filter(isMainlandDKI);
-        kecamatanLayerRef = addOfficialGeoJSON({ type:'FeatureCollection', features:kecamatanFeatures }, 'kecamatan', officialKecamatanGroup, 'Batas Kecamatan');
-        kelurahanLayerRef = addOfficialGeoJSON({ type:'FeatureCollection', features:kelurahanFeatures }, 'kelurahan', officialKelurahanGroup, 'Batas Kelurahan');
 
-        const note = document.querySelector('.legend small');
-        if (note) note.textContent = 'DKI highlight now uses official city-level polygons for all mainland DKI Jakarta, while sea area and Kepulauan Seribu are excluded from the fill.';
+        kecamatanLayerRef = addOfficialGeoJSON(
+          { type:'FeatureCollection', features:kecamatanFeatures },
+          'kecamatan',
+          officialKecamatanGroup,
+          'Batas Kecamatan'
+        );
+
+        kelurahanLayerRef = addOfficialGeoJSON(
+          { type:'FeatureCollection', features:kelurahanFeatures },
+          'kelurahan',
+          officialKelurahanGroup,
+          'Batas Kelurahan'
+        );
+
+        if (legendNote) {
+          legendNote.textContent = 'Core Zone active by default. Other layers start hidden.';
+        }
       } catch (err) {
         console.error(err);
-        const note = document.querySelector('.legend small');
-        if (note) note.textContent = 'Mainland DKI layer could not be loaded in this session.';
+        if (legendNote) {
+          legendNote.textContent = 'Some official layers could not be loaded in this session.';
+        }
       }
 
       updateVisibilityByZoom();
-      if (dkiBounds) map.fitBounds(dkiBounds.pad(0.03));
     }
 
     async function loadKotaTuaLayers(){
       let mainLayer = null;
+
       try {
         const [officialArea, planArea] = await Promise.all([
           fetchGeoJSON(sources.kotaTuaOfficial),
           fetchGeoJSON(sources.kotaTuaPlan)
         ]);
+
         if ((planArea.features || []).length) {
-          focusLayerRef = addOfficialGeoJSON(planArea, 'kotatua-plan', focusGroup, 'Rencana Induk Kawasan Kota Tua');
+          addOfficialGeoJSON(planArea, 'kotatua-plan', kotaTuaFocusGroup, 'Rencana Induk Kawasan Kota Tua');
         }
+
         if ((officialArea.features || []).length) {
-          mainLayer = addOfficialGeoJSON(officialArea, 'kotatua-official', focusGroup, 'Kawasan Pemugaran Kota Tua');
+          mainLayer = addOfficialGeoJSON(officialArea, 'kotatua-official', kotaTuaFocusGroup, 'Kawasan Pemugaran Kota Tua');
           focusLayerRef = mainLayer;
         }
       } catch (err) {
@@ -827,19 +906,32 @@
 
       if (!mainLayer) {
         focusLayerRef = addPolygon(fallbackKotaTua, {
-          color: '#DC2626', weight: 2.4, dashArray: '8 6', fillColor: '#DC2626', fillOpacity: 0.14
-        }, [['Category', fallbackKotaTua.properties.category], ['Description', fallbackKotaTua.properties.description]]);
+          color: '#DC2626',
+          weight: 2.4,
+          dashArray: '8 6',
+          fillColor: '#DC2626',
+          fillOpacity: 0.14
+        }, [
+          ['Category', fallbackKotaTua.properties.category],
+          ['Description', fallbackKotaTua.properties.description]
+        ], kotaTuaFocusGroup);
+
         mainLayer = focusLayerRef;
-        coreLayerRef = addPolygon(fallbackKotaTuaCore, {
-          color: '#B91C1C', weight: 2.8, fillColor: '#EF4444', fillOpacity: 0.18
-        }, [['Category', fallbackKotaTuaCore.properties.category], ['Description', fallbackKotaTuaCore.properties.description]]);
-      } else {
-        coreLayerRef = addPolygon(fallbackKotaTuaCore, {
-          color: '#B91C1C', weight: 2.6, fillColor: '#EF4444', fillOpacity: 0.12
-        }, [['Category', fallbackKotaTuaCore.properties.category], ['Description', fallbackKotaTuaCore.properties.description]]);
       }
 
-      focusBounds = mainLayer.getBounds();
+      coreLayerRef = addPolygon(fallbackKotaTuaCore, {
+        color: '#EF4444',
+        weight: 4,
+        fillColor: '#EF4444',
+        fillOpacity: 0.16,
+        opacity: 1
+      }, [
+        ['Category', fallbackKotaTuaCore.properties.category],
+        ['Description', fallbackKotaTuaCore.properties.description]
+      ], kotaTuaCoreGroup);
+
+      focusBounds = mainLayer ? mainLayer.getBounds() : null;
+      coreBounds = coreLayerRef ? coreLayerRef.getBounds() : null;
     }
 
     map.on('zoomend', updateVisibilityByZoom);
@@ -847,8 +939,10 @@
     document.getElementById('btnJakarta').addEventListener('click', () => {
       if (dkiBounds) map.fitBounds(dkiBounds.pad(0.04));
     });
+
     document.getElementById('btnKotaTua').addEventListener('click', () => {
-      if (focusBounds) map.fitBounds(focusBounds.pad(0.28));
+      if (coreBounds) map.fitBounds(coreBounds.pad(0.08));
+      else if (focusBounds) map.fitBounds(focusBounds.pad(0.28));
     });
 
     qEl.addEventListener('input', () => renderList(qEl.value));
@@ -857,8 +951,20 @@
     document.getElementById('hideAllBtn').addEventListener('click', () => setAllVisibility(false));
     document.getElementById('showAllBtnMobile').addEventListener('click', () => setAllVisibility(true));
     document.getElementById('hideAllBtnMobile').addEventListener('click', () => setAllVisibility(false));
+
     renderList();
-    Promise.allSettled([loadMainlandLayers(), loadKotaTuaLayers()]);
+
+    Promise.allSettled([loadMainlandLayers(), loadKotaTuaLayers()]).then(() => {
+      applyInitialVisibility();
+      renderList();
+
+      if (coreBounds) {
+        map.fitBounds(coreBounds.pad(0.08));
+      } else {
+        const corePoi = pois.find(p => p.id === 'core');
+        map.setView(corePoi.center, corePoi.zoom);
+      }
+    });
 
     (function(){
       const sheet = document.getElementById('sheet');
@@ -868,12 +974,14 @@
       let startH = 0;
 
       function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
       function onDown(e){
         dragging = true;
         startY = (e.touches ? e.touches[0].clientY : e.clientY);
         startH = sheet.getBoundingClientRect().height;
         document.body.style.userSelect = 'none';
       }
+
       function onMove(e){
         if (!dragging) return;
         const y = (e.touches ? e.touches[0].clientY : e.clientY);
@@ -885,6 +993,7 @@
           legend.style.bottom = `calc(14px + ${newH}px)`;
         }
       }
+
       function onUp(){
         dragging = false;
         document.body.style.userSelect = '';
@@ -898,6 +1007,5 @@
       window.addEventListener('touchend', onUp);
     })();
   </script>
-
 </body>
 </html>
