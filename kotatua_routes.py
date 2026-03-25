@@ -169,18 +169,63 @@ def serialize_row(row):
 def normalize_geometry(value):
     if not isinstance(value, dict):
         raise ValueError('Geometry harus berupa object GeoJSON.')
-    if value.get('type') == 'Feature':
-        return normalize_geometry(value.get('geometry'))
-    if value.get('type') == 'FeatureCollection':
+
+    geo_type = value.get('type')
+
+    if geo_type == 'Feature':
+        geometry = value.get('geometry')
+        if not isinstance(geometry, dict):
+            raise ValueError('Geometry pada Feature tidak valid.')
+        props = value.get('properties') if isinstance(value.get('properties'), dict) else {}
+        return {
+            'type': 'FeatureCollection',
+            'features': [{
+                'type': 'Feature',
+                'properties': props,
+                'geometry': normalize_geometry(geometry)['features'][0]['geometry']
+            }]
+        }
+
+    if geo_type == 'FeatureCollection':
         features = value.get('features') or []
-        if not features:
+        if not isinstance(features, list) or not features:
             raise ValueError('FeatureCollection kosong.')
-        if len(features) > 1:
-            raise ValueError('Saat ini import hanya mendukung 1 feature per area. Gabungkan dulu jika perlu.')
-        return normalize_geometry(features[0])
-    if not value.get('type') or value.get('coordinates') is None:
+
+        normalized_features = []
+        for feature in features:
+            if not isinstance(feature, dict) or feature.get('type') != 'Feature':
+                raise ValueError('Semua item pada FeatureCollection harus berupa Feature yang valid.')
+            geometry = feature.get('geometry')
+            if not isinstance(geometry, dict):
+                raise ValueError('Geometry pada FeatureCollection tidak valid.')
+            normalized_geom = normalize_geometry(geometry)['features'][0]['geometry']
+            normalized_features.append({
+                'type': 'Feature',
+                'properties': feature.get('properties') if isinstance(feature.get('properties'), dict) else {},
+                'geometry': normalized_geom,
+            })
+
+        return {
+            'type': 'FeatureCollection',
+            'features': normalized_features,
+        }
+
+    if geo_type not in ('Polygon', 'MultiPolygon'):
+        raise ValueError('Hanya Polygon, MultiPolygon, Feature, atau FeatureCollection yang didukung.')
+    if value.get('coordinates') is None:
         raise ValueError('Geometry GeoJSON tidak valid.')
-    return value
+
+    return {
+        'type': 'FeatureCollection',
+        'features': [{
+            'type': 'Feature',
+            'properties': {},
+            'geometry': {
+                'type': geo_type,
+                'coordinates': value.get('coordinates'),
+            }
+        }]
+    }
 
 
 def normalize_layer_group(value):

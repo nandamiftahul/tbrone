@@ -579,7 +579,16 @@
         </div>
         <div class="field">
           <label>Warna layer</label>
-          <input id="saveColor" placeholder="#2563EB atau #14532D" value="#10B981" />
+          <input id="saveColor" type="color" value="#10B981" style="height:44px;padding:6px 8px;cursor:pointer;" />
+        </div>
+        <div class="field">
+          <label>Style garis</label>
+          <select id="saveLineStyle">
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+            <option value="dashdot">Dash Dot</option>
+          </select>
         </div>
       </div>
       <div class="modalFoot">
@@ -593,7 +602,7 @@
     <div class="modalCard">
       <div class="modalHead">
         <h3>Import GeoJSON</h3>
-        <p>Pilih preset data library atau paste Geometry, Feature, atau FeatureCollection untuk menambah area dari data luar.</p>
+        <p>Pilih preset data library atau paste Geometry, Feature, atau FeatureCollection untuk menambah area dari data luar. FeatureCollection dengan banyak polygon akan disimpan sebagai satu nama zona dan ditampilkan semuanya dalam satu layer.</p>
       </div>
       <div class="modalBody">
         <div class="field">
@@ -609,7 +618,16 @@
         </div>
         <div class="field">
           <label>Warna layer</label>
-          <input id="importColor" placeholder="#2563EB atau #14532D" value="#2563EB" />
+          <input id="importColor" type="color" value="#2563EB" style="height:44px;padding:6px 8px;cursor:pointer;" />
+        </div>
+        <div class="field">
+          <label>Style garis</label>
+          <select id="importLineStyle">
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+            <option value="dashdot">Dash Dot</option>
+          </select>
         </div>
         <div class="field">
           <label>Preset data library</label>
@@ -635,6 +653,34 @@
       <div class="modalFoot">
         <button class="miniBtn" id="btnImportCancel">Batal</button>
         <button class="miniBtn" id="btnImportSubmit">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modalBackdrop" id="styleModal">
+    <div class="modalCard">
+      <div class="modalHead">
+        <h3>Ubah Style Layer</h3>
+        <p>Atur warna dan gaya garis tanpa mengetik kode warna manual.</p>
+      </div>
+      <div class="modalBody">
+        <div class="field">
+          <label>Warna layer</label>
+          <input id="styleColor" type="color" value="#2563EB" style="height:44px;padding:6px 8px;cursor:pointer;" />
+        </div>
+        <div class="field">
+          <label>Style garis</label>
+          <select id="styleLineStyle">
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+            <option value="dashdot">Dash Dot</option>
+          </select>
+        </div>
+      </div>
+      <div class="modalFoot">
+        <button class="miniBtn" id="btnStyleCancel">Batal</button>
+        <button class="miniBtn" id="btnStyleSubmit">Simpan Style</button>
       </div>
     </div>
   </div>
@@ -715,6 +761,7 @@
     let selectedId = null;
     let pendingCreateLayer = null;
     let activeEditId = null;
+    let activeStyleId = null;
 
     const listEl = document.getElementById('list');
     const listMobileEl = document.getElementById('listMobile');
@@ -728,6 +775,7 @@
     const saveModal = document.getElementById('saveModal');
     const importModal = document.getElementById('importModal');
     const editBar = document.getElementById('editBar');
+    const styleModal = document.getElementById('styleModal');
 
     const drawControl = new L.Control.Draw({
       position: 'topright',
@@ -800,21 +848,25 @@
       return lat < -6.0 && lat > -6.42 && lng > 106.65 && lng < 107.05;
     }
 
-    function normalizeGeometry(input){
+    function normalizeGeoJSON(input){
       if (!input || typeof input !== 'object') throw new Error('GeoJSON tidak valid');
       if (input.type === 'FeatureCollection') {
         if (!input.features?.length) throw new Error('FeatureCollection kosong');
-        return input.features[0].geometry;
+        return input;
       }
-      if (input.type === 'Feature') return input.geometry;
-      if (input.type === 'Polygon' || input.type === 'MultiPolygon') return input;
+      if (input.type === 'Feature') {
+        return { type:'FeatureCollection', features:[input] };
+      }
+      if (['Polygon','MultiPolygon'].includes(input.type)) {
+        return { type:'FeatureCollection', features:[{ type:'Feature', properties:{}, geometry: input }] };
+      }
       throw new Error('Hanya Polygon / MultiPolygon yang didukung');
     }
 
-    function centerFromGeometry(geometry){
+    function centerFromGeometry(geojson){
       try {
-        const feat = { type:'Feature', properties:{}, geometry };
-        const c = turf.centroid(feat).geometry.coordinates;
+        const fc = normalizeGeoJSON(geojson);
+        const c = turf.centroid(fc).geometry.coordinates;
         return [c[1], c[0]];
       } catch {
         return [-6.13, 106.81];
@@ -829,10 +881,8 @@
 
     function getAreaSqKm(featureOrGeometry){
       try {
-        const feature = featureOrGeometry.type === 'Feature'
-          ? featureOrGeometry
-          : { type:'Feature', properties:{}, geometry: featureOrGeometry };
-        return turf.area(feature) / 1000000;
+        const fc = normalizeGeoJSON(featureOrGeometry);
+        return turf.area(fc) / 1000000;
       } catch {
         return null;
       }
@@ -862,16 +912,32 @@
       return root.getPropertyValue('--dki').trim() || '#2563EB';
     }
 
+    function dashArrayFromStyleName(styleName){
+      if (styleName === 'dashed') return '8 6';
+      if (styleName === 'dotted') return '2 6';
+      if (styleName === 'dashdot') return '10 5 2 5';
+      return null;
+    }
+    function styleNameFromDashArray(dashArray){
+      const v = String(dashArray || '').trim();
+      if (v === '8 6') return 'dashed';
+      if (v === '2 6') return 'dotted';
+      if (v === '10 5 2 5') return 'dashdot';
+      return 'solid';
+    }
+
     function normalizeStyle(style = {}, group='custom', name=''){
       const base = styleColorByGroup(group, name);
       const color = style.color || style.fillColor || base;
+      const lineStyle = style.lineStyle || styleNameFromDashArray(style.dashArray);
       return {
         color,
         fillColor: style.fillColor || color,
         weight: Number(style.weight || (group === 'default' ? 3 : 2.6)),
         opacity: Number(style.opacity ?? 1),
         fillOpacity: Number(style.fillOpacity ?? (group === 'default' ? 0.10 : 0.14)),
-        dashArray: style.dashArray || null
+        dashArray: style.dashArray || dashArrayFromStyleName(lineStyle),
+        lineStyle
       };
     }
 
@@ -882,6 +948,7 @@
     }
     function getEditIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z"></path></svg>`; }
     function getRenameIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4Z"></path><path d="m13.5 6.5 4 4"></path></svg>`; }
+    function getStyleIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 8-9 9H3v-8l9-9z"></path><path d="M7 8l9 9"></path></svg>`; }
     function getDeleteIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>`; }
 
     function buildPopup(row){
@@ -889,6 +956,7 @@
       return popupHtml(row.name, [
         ['Grup', groupLabel(row.layer_group || 'custom')],
         ['Visible', row.visible === false ? 'No' : 'Yes'],
+        ['Garis', row.style?.lineStyle || styleNameFromDashArray(row.style?.dashArray || '')],
         ['Luas', formatAreaSqKm(area)],
         ['ID', row.id]
       ]);
@@ -896,11 +964,16 @@
 
     function createLeafletLayer(row){
       const style = normalizeStyle(row.style || {}, row.layer_group || 'custom', row.name || '');
-      const geo = L.geoJSON({ type:'Feature', properties:{ id: row.id, name: row.name }, geometry: row.geometry }, { style });
-      const layer = geo.getLayers()[0];
-      layer.bindPopup(() => buildPopup(row));
-      layer.on('click', () => selectLayer(row.id, true));
-      return layer;
+      const geo = L.geoJSON(row.geometry, { style });
+      const sublayers = [];
+      geo.eachLayer(layer => {
+        sublayers.push(layer);
+        layer.bindPopup(() => buildPopup(row));
+        layer.on('click', () => selectLayer(row.id, true));
+      });
+      geo.__editTarget = sublayers.length === 1 ? sublayers[0] : null;
+      geo.__firstPopupLayer = sublayers[0] || null;
+      return geo;
     }
 
     function mountRow(row, fit=false){
@@ -926,7 +999,7 @@
       if (zoom && item.layer?.getBounds) {
         try { map.fitBounds(item.layer.getBounds().pad(0.18)); } catch {}
       }
-      if (item.row.visible !== false && item.layer?.openPopup) item.layer.openPopup();
+      if (item.row.visible !== false && item.layer?.__firstPopupLayer?.openPopup) item.layer.__firstPopupLayer.openPopup();
     }
 
     function renderList(query=''){
@@ -950,6 +1023,7 @@
                 <div class="tag ${tagClass(row.layer_group || 'custom', row.name || '')}">${escapeHtml(groupLabel(row.layer_group || 'custom'))}</div>
                 <button class="iconBtn toggleBtn" data-id="${escapeHtml(row.id)}" title="${visible ? 'Hide' : 'View'}">${getEyeIcon(visible)}</button>
                 <button class="iconBtn renameBtn" data-id="${escapeHtml(row.id)}" title="Rename">${getRenameIcon()}</button>
+                <button class="iconBtn styleBtn" data-id="${escapeHtml(row.id)}" title="Ubah style">${getStyleIcon()}</button>
                 <button class="iconBtn editBtn" data-id="${escapeHtml(row.id)}" title="Edit geometry">${getEditIcon()}</button>
                 <button class="iconBtn danger deleteBtn" data-id="${escapeHtml(row.id)}" title="Delete">${getDeleteIcon()}</button>
               </div>
@@ -963,12 +1037,13 @@
 
       document.querySelectorAll('.item').forEach(el => {
         el.addEventListener('click', ev => {
-          if (ev.target.closest('.toggleBtn,.renameBtn,.editBtn,.deleteBtn')) return;
+          if (ev.target.closest('.toggleBtn,.renameBtn,.styleBtn,.editBtn,.deleteBtn')) return;
           selectLayer(el.getAttribute('data-id'), true);
         });
       });
       document.querySelectorAll('.toggleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); toggleVisibility(btn.dataset.id); }));
       document.querySelectorAll('.renameBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); renameLayer(btn.dataset.id); }));
+      document.querySelectorAll('.styleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); openStyleEditor(btn.dataset.id); }));
       document.querySelectorAll('.editBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); startEdit(btn.dataset.id); }));
       document.querySelectorAll('.deleteBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); deleteLayer(btn.dataset.id); }));
     }
@@ -1001,12 +1076,13 @@
       try { map.fitBounds(group.getBounds().pad(0.12)); } catch {}
     }
 
-    function layerToGeometry(layer){
+    function layerToGeoJSON(layer){
       if (layer instanceof L.Circle) {
         const center = layer.getLatLng();
-        return turf.circle([center.lng, center.lat], layer.getRadius()/1000, { steps:96, units:'kilometers' }).geometry;
+        return { type:'FeatureCollection', features:[{ type:'Feature', properties:{}, geometry: turf.circle([center.lng, center.lat], layer.getRadius()/1000, { steps:96, units:'kilometers' }).geometry }] };
       }
-      return layer.toGeoJSON().geometry;
+      const gj = layer.toGeoJSON();
+      return normalizeGeoJSON(gj);
     }
 
     function resetPendingCreate(){
@@ -1015,6 +1091,7 @@
       document.getElementById('saveName').value = '';
       document.getElementById('saveGroup').value = 'custom';
       document.getElementById('saveColor').value = '#10B981';
+      document.getElementById('saveLineStyle').value = 'solid';
     }
 
     map.on(L.Draw.Event.CREATED, evt => {
@@ -1030,17 +1107,19 @@
       if (!pendingCreateLayer) return;
       const name = document.getElementById('saveName').value.trim();
       const layer_group = document.getElementById('saveGroup').value;
-      const color = document.getElementById('saveColor').value.trim() || (layer_group === 'default' ? '#2563EB' : '#10B981');
+      const color = document.getElementById('saveColor').value || (layer_group === 'default' ? '#2563EB' : '#10B981');
+      const lineStyle = document.getElementById('saveLineStyle').value || 'solid';
       if (!name) return alert('Nama layer harus diisi.');
       try {
         const payload = {
           name,
           layer_group,
           visible: true,
-          style: normalizeStyle({ color, fillColor: color }, layer_group, name),
-          geometry: layerToGeometry(pendingCreateLayer)
+          style: normalizeStyle({ color, fillColor: color, lineStyle, dashArray: dashArrayFromStyleName(lineStyle) }, layer_group, name),
+          geometry: layerToGeoJSON(pendingCreateLayer)
         };
         const data = await api(API_BASE, { method:'POST', body: JSON.stringify(payload) });
+        // payload.geometry can be a full FeatureCollection with many polygons; keep it as one zone name
         closeModal(saveModal);
         const row = data.row;
         mountRow(row, true);
@@ -1062,13 +1141,14 @@
       if (!preset) throw new Error('Preset tidak ditemukan.');
       setStatus(`Mengambil preset ${preset.name}...`);
       const parsed = await preset.loader();
-      const geometry = normalizeGeometry(parsed);
-      document.getElementById('importGeoJSON').value = JSON.stringify({ type:'Feature', properties:{}, geometry }, null, 2);
+      const geometry = normalizeGeoJSON(parsed);
+      document.getElementById('importGeoJSON').value = JSON.stringify(geometry, null, 2);
       if (!document.getElementById('importName').value.trim()) {
         document.getElementById('importName').value = preset.name;
       }
       document.getElementById('importColor').value = preset.color || document.getElementById('importColor').value;
       document.getElementById('importGroup').value = preset.group || document.getElementById('importGroup').value;
+      document.getElementById('importLineStyle').value = key === 'kotatua_plan' ? 'dashed' : 'solid';
       if (!fillOnly) setStatus(`Preset ${preset.name} berhasil dimuat. Silakan cek lalu klik Import.`);
       return geometry;
     }
@@ -1078,13 +1158,14 @@
       let raw = document.getElementById('importGeoJSON').value.trim();
       const name = document.getElementById('importName').value.trim();
       const layer_group = document.getElementById('importGroup').value;
-      const color = document.getElementById('importColor').value.trim() || (layer_group === 'default' ? '#2563EB' : '#10B981');
+      const color = document.getElementById('importColor').value || (layer_group === 'default' ? '#2563EB' : '#10B981');
+      const lineStyle = document.getElementById('importLineStyle').value || 'solid';
       if (!name) return alert('Nama layer wajib diisi.');
       try {
         let geometry;
         if (raw) {
           const parsed = JSON.parse(raw);
-          geometry = normalizeGeometry(parsed);
+          geometry = normalizeGeoJSON(parsed);
         } else if (document.getElementById('importPreset').value.trim()) {
           geometry = await loadPresetIntoImport(true);
           raw = document.getElementById('importGeoJSON').value.trim();
@@ -1095,14 +1176,16 @@
           name,
           layer_group,
           visible:true,
-          style: normalizeStyle({ color, fillColor: color }, layer_group, name),
+          style: normalizeStyle({ color, fillColor: color, lineStyle, dashArray: dashArrayFromStyleName(lineStyle) }, layer_group, name),
           geometry
         };
         const data = await api(API_BASE, { method:'POST', body: JSON.stringify(payload) });
+        // payload.geometry can be a full FeatureCollection with many polygons; keep it as one zone name
         closeModal(importModal);
         document.getElementById('importName').value = '';
         document.getElementById('importGeoJSON').value = '';
         document.getElementById('importPreset').value = '';
+        document.getElementById('importLineStyle').value = 'solid';
         const row = data.row;
         mountRow(row, true);
         selectLayer(row.id, false);
@@ -1142,6 +1225,34 @@
       }
     }
 
+    function openStyleEditor(id){
+      const item = layersStore.get(id); if (!item) return;
+      activeStyleId = id;
+      const style = normalizeStyle(item.row.style || {}, item.row.layer_group || 'custom', item.row.name || '');
+      document.getElementById('styleColor').value = style.color || '#2563EB';
+      document.getElementById('styleLineStyle').value = style.lineStyle || 'solid';
+      openModal(styleModal);
+    }
+
+    async function saveStyleChanges(){
+      if (!activeStyleId) return;
+      const item = layersStore.get(activeStyleId); if (!item) return;
+      const color = document.getElementById('styleColor').value || '#2563EB';
+      const lineStyle = document.getElementById('styleLineStyle').value || 'solid';
+      try {
+        const style = normalizeStyle({ ...(item.row.style || {}), color, fillColor: color, lineStyle, dashArray: dashArrayFromStyleName(lineStyle) }, item.row.layer_group || 'custom', item.row.name || '');
+        const data = await api(`${API_BASE}/${activeStyleId}`, { method:'PUT', body: JSON.stringify({ style }) });
+        mountRow(data.row, false);
+        renderList(qEl.value || qMobileEl.value || '');
+        if (selectedId === activeStyleId) selectLayer(activeStyleId, false);
+        closeModal(styleModal);
+        activeStyleId = null;
+        setStatus('Style layer berhasil diperbarui.');
+      } catch (err) {
+        setStatus(err.message || 'Gagal memperbarui style layer.', true);
+      }
+    }
+
     function disableLayerEditing(layer){
       if (layer.editing?.disable) layer.editing.disable();
       if (layer.dragging?.disable) layer.dragging.disable();
@@ -1153,12 +1264,18 @@
 
     function startEdit(id){
       const item = layersStore.get(id); if (!item) return;
+      const fc = normalizeGeoJSON(item.row.geometry);
+      if ((fc.features || []).length !== 1) {
+        alert('Edit geometry langsung di map saat ini hanya untuk layer dengan satu polygon. Untuk layer blok-blok multi feature, gunakan import ulang atau ubah stylenya saja.');
+        return;
+      }
       if (activeEditId && activeEditId !== id) cancelEdit(activeEditId);
       activeEditId = id;
       drawnItems.clearLayers();
       displayGroup.removeLayer(item.layer);
-      drawnItems.addLayer(item.layer);
-      enableLayerEditing(item.layer);
+      const editTarget = item.layer.__editTarget || item.layer;
+      drawnItems.addLayer(editTarget);
+      enableLayerEditing(editTarget);
       editBar.style.display = 'flex';
       selectLayer(id, false);
       setStatus(`Edit geometry aktif untuk ${item.row.name}.`);
@@ -1168,9 +1285,10 @@
       if (!activeEditId) return;
       const item = layersStore.get(activeEditId); if (!item) return;
       try {
-        const geometry = layerToGeometry(item.layer);
+        const editTarget = item.layer.__editTarget || item.layer;
+        const geometry = layerToGeoJSON(editTarget);
         const data = await api(`${API_BASE}/${activeEditId}`, { method:'PUT', body: JSON.stringify({ geometry }) });
-        disableLayerEditing(item.layer);
+        disableLayerEditing(editTarget);
         drawnItems.clearLayers();
         editBar.style.display = 'none';
         activeEditId = null;
@@ -1186,7 +1304,7 @@
     function cancelEdit(id=activeEditId){
       if (!id) return;
       const item = layersStore.get(id);
-      if (item) disableLayerEditing(item.layer);
+      if (item) disableLayerEditing(item.layer.__editTarget || item.layer);
       drawnItems.clearLayers();
       editBar.style.display = 'none';
       activeEditId = null;
@@ -1266,12 +1384,16 @@
       if (!document.getElementById('importName').value.trim()) document.getElementById('importName').value = preset.name;
       document.getElementById('importColor').value = preset.color || document.getElementById('importColor').value;
       document.getElementById('importGroup').value = preset.group || document.getElementById('importGroup').value;
+      document.getElementById('importLineStyle').value = key === 'kotatua_plan' ? 'dashed' : 'solid';
     });
     document.getElementById('btnImportSubmit').addEventListener('click', importGeoJSON);
     document.getElementById('btnSaveEdit').addEventListener('click', saveEdit);
+    document.getElementById('btnStyleCancel').addEventListener('click', () => { closeModal(styleModal); activeStyleId = null; });
+    document.getElementById('btnStyleSubmit').addEventListener('click', saveStyleChanges);
     document.getElementById('btnCancelEdit').addEventListener('click', () => cancelEdit());
     saveModal.addEventListener('click', e => { if (e.target === saveModal) { closeModal(saveModal); resetPendingCreate(); } });
     importModal.addEventListener('click', e => { if (e.target === importModal) closeModal(importModal); });
+    styleModal.addEventListener('click', e => { if (e.target === styleModal) { closeModal(styleModal); activeStyleId = null; } });
 
     (function(){
       const sheet = document.getElementById('sheet');
