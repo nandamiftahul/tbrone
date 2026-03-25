@@ -10,431 +10,145 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <style>
     :root{
-      --xw-blue: #003A8F;
-      --xw-blue-2:#0A4BBF;
+      --xw-blue:#003A8F;
       --tbr-orange:#F28C28;
       --bg:#F4F7FB;
       --card:#FFFFFF;
       --text:#1F2937;
       --muted:#6B7280;
       --border:rgba(17,24,39,.10);
-      --shadow: 0 10px 30px rgba(2, 22, 55, .08);
-      --radius: 16px;
-
+      --shadow:0 10px 30px rgba(2,22,55,.08);
+      --radius:16px;
       --dki:#2563EB;
       --focus:#DC2626;
       --core:#EF4444;
       --poi:#0A4BBF;
       --kemayoran:#C46A12;
+      --custom:#10B981;
     }
-
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{
       margin:0;
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
       color:var(--text);
-      background: linear-gradient(180deg, #EAF1FF 0%, var(--bg) 40%, #F7FAFF 100%);
+      background:linear-gradient(180deg,#EAF1FF 0%,var(--bg) 40%,#F7FAFF 100%);
       overflow:hidden;
     }
-
     .topbar{
-      position: sticky;
-      top:0;
-      z-index: 50;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding: 14px 18px;
-      background: rgba(0, 58, 143, .94);
-      backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(255,255,255,.15);
-      gap: 12px;
+      position:sticky; top:0; z-index:50;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:14px 18px;
+      background:rgba(0,58,143,.94);
+      backdrop-filter:blur(8px);
+      border-bottom:1px solid rgba(255,255,255,.15);
     }
-    .brand{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      min-width: 240px;
+    .brand{display:flex; align-items:center; gap:12px; min-width:220px}
+    .logo{
+      width:38px; height:38px; border-radius:12px;
+      display:grid; place-items:center; font-weight:900; color:#17335f;
+      background:linear-gradient(135deg,#F28C28 0%,#FFD089 100%);
+      box-shadow:0 8px 18px rgba(0,0,0,.16);
     }
-    .brand .logo{
-      width: 38px;
-      height: 38px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #F28C28 0%, #FFD089 100%);
-      display:grid;
-      place-items:center;
-      color:#17335f;
-      font-weight:900;
-      box-shadow: 0 8px 18px rgba(0,0,0,.16);
-    }
-    .brand .title{
-      display:flex;
-      flex-direction:column;
-      line-height:1.1;
-      color:#fff;
-      min-width:0;
-    }
-    .brand .title strong{
-      font-size:14px;
-      letter-spacing:.2px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .brand .title span{
-      font-size:12px;
-      opacity:.85;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .top-actions{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      flex-wrap: wrap;
-      justify-content:flex-end;
-    }
+    .title{color:#fff; line-height:1.1; min-width:0}
+    .title strong,.title span{display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .title strong{font-size:14px}
+    .title span{font-size:12px; opacity:.86}
+    .top-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end}
     .btn{
-      appearance:none;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.10);
-      color:#fff;
-      padding: 10px 12px;
-      border-radius: 12px;
-      cursor:pointer;
-      font-weight:600;
-      font-size:13px;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      transition: transform .12s ease, background .12s ease, border-color .12s ease;
-      text-decoration:none;
-      user-select:none;
-      white-space:nowrap;
+      appearance:none; border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10); color:#fff; padding:10px 12px;
+      border-radius:12px; cursor:pointer; font-weight:700; font-size:13px;
+      display:inline-flex; align-items:center; gap:8px; text-decoration:none;
     }
-    .btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); }
-    .btn.primary{
-      background: linear-gradient(135deg, var(--tbr-orange) 0%, #FFB565 100%);
-      border-color: rgba(255,255,255,.10);
-      color:#1A1A1A;
-    }
-    .btn.primary:hover{ background: linear-gradient(135deg, #FF9B3A 0%, #FFC27A 100%); }
-
+    .btn:hover{transform:translateY(-1px); background:rgba(255,255,255,.16)}
+    .btn.primary{background:linear-gradient(135deg,var(--tbr-orange) 0%,#FFB565 100%); color:#1A1A1A; border-color:transparent}
+    .btn.success{background:linear-gradient(135deg,#10B981 0%,#5EEAD4 100%); color:#062a23; border-color:transparent}
     .shell{
-      height: calc(100vh - 62px);
-      display:grid;
-      grid-template-columns: 360px 1fr;
-      gap: 12px;
-      padding: 12px;
+      height:calc(100vh - 66px);
+      display:grid; grid-template-columns:380px 1fr; gap:12px; padding:12px;
     }
-
-    .sidebar{
-      background: var(--card);
-      border:1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      min-height:0;
+    .sidebar,.mapCard{
+      background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+      overflow:hidden; min-height:0;
     }
-    .sidebar .head{
-      padding: 14px 14px 10px;
-      border-bottom:1px solid var(--border);
-      background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
-    }
-    .sidebar .head .h{
-      margin:0;
-      font-weight:900;
-      font-size:14px;
-      color: var(--xw-blue);
-      letter-spacing:.2px;
-    }
-    .sidebar .head .s{
-      margin:6px 0 0;
-      font-size:12px;
-      color:var(--muted);
-      line-height:1.4;
-    }
-
-    .item .rightSide{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      margin-left:auto;
-    }
-    .iconBtn{
-      width:34px;
-      height:34px;
-      border-radius:10px;
-      border:1px solid var(--border);
-      background: rgba(17,24,39,.04);
-      display:grid;
-      place-items:center;
-      cursor:pointer;
-      color: var(--muted);
-      transition: transform .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
-      flex: 0 0 auto;
-    }
-    .iconBtn:hover{
-      transform: translateY(-1px);
-      background: rgba(0,58,143,.08);
-      border-color: rgba(0,58,143,.22);
-      color: var(--xw-blue);
-    }
-    .iconBtn svg{ width:18px; height:18px; }
-    .item.hiddenItem{
-      opacity:.62;
-      background: rgba(17,24,39,.025);
-    }
-    .toolbarRow{
-      padding: 10px 14px 0;
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
+    .sidebar{display:flex; flex-direction:column}
+    .head{padding:14px 14px 10px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,rgba(0,58,143,.06) 0%,rgba(0,58,143,0) 100%)}
+    .head .h{margin:0; font-weight:900; font-size:14px; color:var(--xw-blue)}
+    .head .s{margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.45}
+    .toolbarRow{padding:10px 14px 0; display:flex; gap:8px; flex-wrap:wrap}
     .miniBtn{
-      appearance:none;
-      border:1px solid var(--border);
-      background:#fff;
-      color:var(--text);
-      padding:8px 10px;
-      border-radius:10px;
-      cursor:pointer;
-      font-size:12px;
-      font-weight:700;
+      appearance:none; border:1px solid var(--border); background:#fff; color:var(--text);
+      padding:8px 10px; border-radius:10px; cursor:pointer; font-size:12px; font-weight:800;
     }
-    .miniBtn:hover{
-      border-color: rgba(0,58,143,.22);
-      background: rgba(0,58,143,.05);
-    }
-
-    .search{
-      padding: 10px 14px;
-      border-bottom:1px solid var(--border);
-      display:flex;
-      gap:10px;
-    }
-    .search input{
-      flex:1;
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid var(--border);
-      background: rgba(17,24,39,.04);
-      color:var(--text);
-      outline:none;
-    }
-    .list{
-      padding: 10px;
-      overflow:auto;
-      min-height:0;
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-    }
+    .miniBtn:hover{background:rgba(0,58,143,.05); border-color:rgba(0,58,143,.22)}
+    .search{padding:10px 14px; border-bottom:1px solid var(--border); display:flex; gap:10px}
+    .search input{flex:1; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:rgba(17,24,39,.04); outline:none}
+    .list{padding:10px; overflow:auto; display:flex; flex-direction:column; gap:8px; min-height:0}
+    .sectionLabel{padding:6px 4px 0; font-size:11px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:.08em}
     .item{
-      border:1px solid var(--border);
-      border-radius: 14px;
-      padding: 10px 12px;
-      background:#fff;
-      cursor:pointer;
-      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:10px;
+      border:1px solid var(--border); border-radius:14px; padding:10px 12px; background:#fff;
+      display:flex; align-items:flex-start; justify-content:space-between; gap:10px; cursor:pointer;
+      transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;
     }
-    .item:hover{
-      transform: translateY(-1px);
-      border-color: rgba(0,58,143,.22);
-      box-shadow: 0 10px 22px rgba(0,58,143,.08);
+    .item:hover{transform:translateY(-1px); border-color:rgba(0,58,143,.22); box-shadow:0 10px 22px rgba(0,58,143,.08)}
+    .item.active{border-color:rgba(242,140,40,.45); box-shadow:0 12px 26px rgba(242,140,40,.12); background:rgba(242,140,40,.05)}
+    .item.hiddenItem{opacity:.58; background:rgba(17,24,39,.025)}
+    .meta{min-width:0; flex:1}
+    .name{margin:0; font-weight:800; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .coord{margin:4px 0 0; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .tag{font-size:11px; font-weight:800; padding:7px 10px; border-radius:999px; border:1px solid var(--border); white-space:nowrap}
+    .tag.primary{background:rgba(37,99,235,.12); border-color:rgba(37,99,235,.26); color:#1d4ed8}
+    .tag.focus{background:rgba(245,158,11,.14); border-color:rgba(245,158,11,.35); color:#92400e}
+    .tag.core{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.28); color:#b91c1c}
+    .tag.custom{background:rgba(16,185,129,.12); border-color:rgba(16,185,129,.28); color:#047857}
+    .rightSide{display:flex; align-items:center; gap:8px; margin-left:auto}
+    .actions{display:flex; align-items:center; gap:6px}
+    .iconBtn{
+      width:32px; height:32px; border-radius:10px; border:1px solid var(--border); background:rgba(17,24,39,.04);
+      display:grid; place-items:center; cursor:pointer; color:var(--muted);
     }
-    .item.active{
-      border-color: rgba(242,140,40,.45);
-      box-shadow: 0 12px 26px rgba(242,140,40,.12);
-      background: rgba(242,140,40,.05);
-    }
-    .meta{min-width:0;}
-    .meta .name{
-      margin:0;
-      font-weight:800;
-      font-size:13px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .meta .coord{
-      margin:4px 0 0;
-      font-size:12px;
-      color:var(--muted);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .tag{
-      font-size:11px;
-      font-weight:800;
-      padding:7px 10px;
-      border-radius:999px;
-      border:1px solid var(--border);
-      background: rgba(17,24,39,.04);
-      color: var(--muted);
-      white-space:nowrap;
-      height: fit-content;
-    }
-    .tag.primary{ background: rgba(37,99,235,.12); border-color: rgba(37,99,235,.26); color: #1d4ed8;}
-    .tag.focus{ background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.35); color: #92400e;}
-    .tag.core{ background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.28); color: #b91c1c;}
+    .iconBtn:hover{background:rgba(0,58,143,.08); color:var(--xw-blue); border-color:rgba(0,58,143,.22)}
+    .iconBtn.danger:hover{background:rgba(239,68,68,.08); color:#b91c1c; border-color:rgba(239,68,68,.22)}
+    .iconBtn svg{width:17px; height:17px}
+    .hint{margin:8px 14px 0; padding:10px 12px; border:1px dashed rgba(16,185,129,.35); border-radius:12px; background:rgba(16,185,129,.06); font-size:12px; color:#065f46; line-height:1.45}
 
-    .mapCard{
-      background: var(--card);
-      border:1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      position:relative;
-      min-height:0;
+    .mapCard{position:relative}
+    #map{position:absolute; inset:0}
+    .legend,.areaPanel,.editPanel{
+      position:absolute; z-index:9999; background:rgba(255,255,255,.94); border:1px solid var(--border);
+      border-radius:14px; box-shadow:var(--shadow); backdrop-filter:blur(8px);
     }
-    #map{
-      position:absolute;
-      inset:0;
-    }
+    .legend{left:14px; bottom:14px; padding:10px 12px; min-width:270px; font-size:12px}
+    .legend .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0}
+    .dot{width:10px; height:10px; border-radius:99px; display:inline-block}
+    .dot.dki{background:var(--dki)} .dot.focus{background:var(--focus)} .dot.core{background:var(--core)} .dot.poi{background:var(--poi)} .dot.custom{background:var(--custom)}
+    .areaPanel{right:14px; bottom:14px; padding:12px 14px; min-width:260px; max-width:330px}
+    .editPanel{right:14px; top:14px; padding:12px 14px; min-width:250px; display:none}
+    .areaTitle{font-size:12px; font-weight:900; color:var(--xw-blue); margin-bottom:4px}
+    .areaName{font-size:13px; font-weight:800; margin-bottom:6px}
+    .areaValue{font-size:24px; font-weight:900; color:var(--tbr-orange); line-height:1}
+    .areaSub{margin-top:6px; font-size:11px; color:var(--muted); line-height:1.35}
+    .panelText{font-size:12px; color:var(--muted); line-height:1.45; margin:6px 0 10px}
+    .panelActions{display:flex; gap:8px; flex-wrap:wrap}
 
-    .legend{
-      position:absolute;
-      left: 14px;
-      bottom: 14px;
-      z-index: 9999;
-      background: rgba(255,255,255,.92);
-      border:1px solid var(--border);
-      border-radius: 14px;
-      padding: 10px 12px;
-      box-shadow: var(--shadow);
-      font-size:12px;
-      backdrop-filter: blur(8px);
-      min-width: 250px;
-    }
-    .legend .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;}
-    .dot{width:10px; height:10px; border-radius:99px; display:inline-block;}
-    .dot.dki{background:var(--dki)}
-    .dot.focus{background:var(--focus)}
-    .dot.core{background:var(--core)}
-    .dot.poi{background:var(--poi)}
-    .legend small{color:var(--muted)}
+    .leaflet-popup-content{font-family:Inter,system-ui,sans-serif; font-size:12.5px; line-height:1.45}
+    .popupTitle{margin:0 0 6px; font-weight:900; color:var(--xw-blue)}
+    .kv{display:grid; grid-template-columns:110px 1fr; gap:6px 10px}
+    .k{color:var(--muted)} .v{color:var(--text); font-weight:700}
 
-
-
-    .areaPanel{
-      position:absolute;
-      right:14px;
-      bottom:14px;
-      z-index:20;
-      background: rgba(255,255,255,.94);
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:12px 14px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(8px);
-      min-width:240px;
-      max-width:320px;
-      z-index: 9999;
-    }
-    .areaTitle{ font-size:12px; font-weight:900; color:var(--xw-blue); margin-bottom:4px; }
-    .areaName{ font-size:13px; font-weight:800; margin-bottom:6px; }
-    .areaValue{ font-size:24px; font-weight:900; color:var(--tbr-orange); line-height:1; }
-    .areaSub{ margin-top:6px; font-size:11px; color:var(--muted); line-height:1.35; }
-
-    .sheet{
-      display:none;
-      position:absolute;
-      left:0; right:0; bottom:0;
-      z-index: 40;
-      background: rgba(255,255,255,.95);
-      border-top:1px solid var(--border);
-      border-radius: 18px 18px 0 0;
-      box-shadow: 0 -18px 40px rgba(2,22,55,.18);
-      overflow:hidden;
-      height: 44vh;
-      min-height: 180px;
-      max-height: 78vh;
-    }
-    .sheet .handle{
-      height: 36px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      border-bottom:1px solid var(--border);
-      cursor: ns-resize;
-      user-select:none;
-      background: linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
-    }
-    .grab{
-      width: 52px;
-      height: 5px;
-      border-radius: 999px;
-      background: rgba(17,24,39,.18);
-    }
-    .sheet .content{
-      height: calc(100% - 36px);
-      display:flex;
-      flex-direction:column;
-      min-height:0;
-    }
-
-    .leaflet-popup-content{
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      font-size: 12.5px;
-      line-height: 1.45;
-    }
-    .popupTitle{
-      margin: 0 0 6px;
-      font-weight: 900;
-      color: var(--xw-blue);
-    }
-    .kv{
-      display:grid;
-      grid-template-columns: 110px 1fr;
-      gap: 6px 10px;
-    }
-    .k{ color: var(--muted); }
-    .v{ color: var(--text); font-weight:700; }
-
-    @media (max-width: 980px){
-      .shell{ grid-template-columns: 1fr; }
-      .sidebar{ display:none; }
-  
-
-    .areaPanel{
-      position:absolute;
-      right:14px;
-      bottom:14px;
-      z-index:20;
-      background: rgba(255,255,255,.94);
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:12px 14px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(8px);
-      min-width:240px;
-      max-width:320px;
-    }
-    .areaTitle{ font-size:12px; font-weight:900; color:var(--xw-blue); margin-bottom:4px; }
-    .areaName{ font-size:13px; font-weight:800; margin-bottom:6px; }
-    .areaValue{ font-size:24px; font-weight:900; color:var(--tbr-orange); line-height:1; }
-    .areaSub{ margin-top:6px; font-size:11px; color:var(--muted); line-height:1.35; }
-
-    .sheet{ display:block; }
-      .mapCard{ border-radius: 18px; }
-      .legend{ bottom: calc(14px + 44vh); }
-      .areaPanel{ bottom: calc(14px + 44vh); right:14px; max-width:220px; }
+    @media (max-width:980px){
+      .shell{grid-template-columns:1fr}
+      .sidebar{display:none}
+      .legend{max-width:calc(100vw - 28px)}
+      .areaPanel{max-width:220px}
     }
   </style>
 </head>
@@ -444,13 +158,13 @@
       <div class="logo">JT</div>
       <div class="title">
         <strong>Terrindo Bumi Raya · DKI Jakarta Planning View</strong>
-        <span>DKI Highlight with Kota Tua Focus Area</span>
+        <span>DKI Highlight with Kota Tua Focus Area + Draw / Edit / Delete Area</span>
       </div>
     </div>
-
     <div class="top-actions">
       <button class="btn" id="btnJakarta">Fit DKI</button>
       <button class="btn" id="btnKotaTua">Focus Core Zone</button>
+      <button class="btn success" id="btnDrawMode">Gambar Area Baru</button>
       <button class="btn" id="btnCalcArea">Hitung Luasan</button>
       <button class="btn primary" onclick="window.print()">Print</button>
     </div>
@@ -459,15 +173,18 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="head">
-        <p class="h">Map Layers</p>
-        <p class="s">Default awal hanya menampilkan Core Zone. Core zone dibentuk dari boundary resmi terdekat sehingga yang tampil hanya outline luarnya, tanpa garis batas dalam.</p>
+        <p class="h">Map Layers & Areas</p>
+        <p class="s">Sekarang area custom bisa dibuat langsung di map. Area custom mendukung create, edit, delete, rename, hide/show, dan tersimpan di browser via localStorage.</p>
       </div>
       <div class="toolbarRow">
         <button class="miniBtn" id="showAllBtn">View All</button>
         <button class="miniBtn" id="hideAllBtn">Hide All</button>
+        <button class="miniBtn" id="restoreBuiltinsBtn">Restore Default Layers</button>
+        <button class="miniBtn" id="clearCustomBtn">Delete All Custom</button>
       </div>
+      <div class="hint">Untuk membuat area baru: klik <strong>Gambar Area Baru</strong> atau gunakan toolbar gambar di pojok kanan atas peta, lalu gambar polygon / rectangle / circle.</div>
       <div class="search">
-        <input id="q" placeholder="Search layer or point of interest..." />
+        <input id="q" placeholder="Search layer or custom area..." />
       </div>
       <div class="list" id="list"></div>
     </aside>
@@ -475,8 +192,18 @@
     <section class="mapCard">
       <div id="map"></div>
 
+      <div class="editPanel" id="editPanel">
+        <div class="areaTitle">Mode Edit Area</div>
+        <div class="areaName" id="editAreaName">-</div>
+        <div class="panelText">Geser vertex / boundary area di peta, lalu klik Simpan Edit. Untuk circle, Anda bisa ubah posisi dan radius.</div>
+        <div class="panelActions">
+          <button class="miniBtn" id="saveEditBtn">Simpan Edit</button>
+          <button class="miniBtn" id="cancelEditBtn">Batal</button>
+        </div>
+      </div>
+
       <div class="legend">
-        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
           <strong>Legend</strong>
           <small>Default: Core Zone only</small>
         </div>
@@ -484,38 +211,26 @@
         <div class="row"><span><span class="dot focus"></span> Heritage focus</span><span>Official / refined area</span></div>
         <div class="row"><span><span class="dot core"></span> Core zone</span><span>Outer boundary only</span></div>
         <div class="row"><span><span class="dot poi"></span> Point of interest</span><span>Station / museum / port</span></div>
-        <div class="row"><span><span class="dot" style="background:var(--kemayoran)"></span> Kemayoran zone</span><span>Kecamatan boundary highlight</span></div>
+        <div class="row"><span><span class="dot custom"></span> Custom area</span><span>Drawn directly on map</span></div>
         <small id="legendNote">Loading map layers...</small>
       </div>
-
-
 
       <div class="areaPanel" id="areaPanel">
         <div class="areaTitle">Informasi Luasan</div>
         <div class="areaName" id="areaName">Belum ada area dipilih</div>
         <div class="areaValue" id="areaValue">-</div>
-        <div class="areaSub" id="areaSub">Klik layer polygon atau tombol Hitung Luasan.</div>
-      </div>
-
-      <div class="sheet" id="sheet">
-        <div class="handle" id="sheetHandle"><div class="grab"></div></div>
-        <div class="content">
-          <div class="toolbarRow" style="padding-top:10px;">
-            <button class="miniBtn" id="showAllBtnMobile">View All</button>
-            <button class="miniBtn" id="hideAllBtnMobile">Hide All</button>
-          </div>
-          <div class="search" style="border-bottom:1px solid var(--border);">
-            <input id="qMobile" placeholder="Search layer or point of interest..." />
-          </div>
-          <div class="list" id="listMobile" style="padding:10px;"></div>
-        </div>
+        <div class="areaSub" id="areaSub">Klik layer polygon atau custom area untuk melihat luasannya.</div>
       </div>
     </section>
   </div>
 
   <script>
-    const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([-6.13, 106.81], 13);
+    const STORAGE_KEYS = {
+      customAreas: 'kotatua_custom_areas_v1',
+      removedBuiltins: 'kotatua_removed_builtins_v1'
+    };
 
+    const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([-6.13, 106.81], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap'
@@ -531,312 +246,370 @@
 
     const fallbackKotaTua = {
       type: 'Feature',
-      properties: {
-        name: 'Kota Tua Jakarta (refined fallback)',
-        category: 'Heritage area',
-        description: 'Fallback polygon around the heritage core near Fatahillah, Kali Besar, and Stasiun Jakarta Kota.'
-      },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [106.80810, -6.13125],[106.81100, -6.13075],[106.81440, -6.13075],[106.81785, -6.13135],[106.82090, -6.13240],
-          [106.82185, -6.13525],[106.82135, -6.13860],[106.82105, -6.14180],[106.82125, -6.14485],[106.82095, -6.14835],
-          [106.81915, -6.15110],[106.81635, -6.15245],[106.81310, -6.15280],[106.80955, -6.15230],[106.80665, -6.15055],
-          [106.80515, -6.14765],[106.80470, -6.14415],[106.80480, -6.14055],[106.80555, -6.13680],[106.80695, -6.13340],
-          [106.80810, -6.13125]
-        ]]
-      }
+      properties: { name: 'Kota Tua Jakarta (refined fallback)', category: 'Heritage area' },
+      geometry: { type: 'Polygon', coordinates: [[[106.80810,-6.13125],[106.81100,-6.13075],[106.81440,-6.13075],[106.81785,-6.13135],[106.82090,-6.13240],[106.82185,-6.13525],[106.82135,-6.13860],[106.82105,-6.14180],[106.82125,-6.14485],[106.82095,-6.14835],[106.81915,-6.15110],[106.81635,-6.15245],[106.81310,-6.15280],[106.80955,-6.15230],[106.80665,-6.15055],[106.80515,-6.14765],[106.80470,-6.14415],[106.80480,-6.14055],[106.80555,-6.13680],[106.80695,-6.13340],[106.80810,-6.13125]]] }
     };
-
     const fallbackKotaTuaCore = {
       type: 'Feature',
-      properties: {
-        name: 'Kota Tua Heritage Core',
-        category: 'Core area',
-        description: 'Core zone imported from user KML polygon as mask.'
-      },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [106.7946671695357, -6.152042293120568],
-          [106.8059037766916, -6.173228635843911],
-          [106.8398289050148, -6.168063893769462],
-          [106.8274619917771, -6.115470721202261],
-          [106.8170630748180, -6.114669587333109],
-          [106.8158981118654, -6.119125531511821],
-          [106.8102510693856, -6.120462606884525],
-          [106.8102508583425, -6.117700024255674],
-          [106.8079203723969, -6.117521929656587],
-          [106.8036173133190, -6.094619505112800],
-          [106.7973434878632, -6.094620075267708],
-          [106.7946547439501, -6.092481454154830],
-          [106.7910698508049, -6.093016400173771],
-          [106.7946671695357, -6.152042293120568]
-        ]]
-      }
+      properties: { name: 'Kota Tua Heritage Core', category: 'Core area' },
+      geometry: { type: 'Polygon', coordinates: [[[106.7946671695357,-6.152042293120568],[106.8059037766916,-6.173228635843911],[106.8398289050148,-6.168063893769462],[106.8274619917771,-6.115470721202261],[106.8170630748180,-6.114669587333109],[106.8158981118654,-6.119125531511821],[106.8102510693856,-6.120462606884525],[106.8102508583425,-6.117700024255674],[106.8079203723969,-6.117521929656587],[106.8036173133190,-6.094619505112800],[106.7973434878632,-6.094620075267708],[106.7946547439501,-6.092481454154830],[106.7910698508049,-6.093016400173771],[106.7946671695357,-6.152042293120568]]] }
     };
 
-    const visibilityState = {
-      dki:false,
-      kecamatan:false,
-      kelurahan:false,
-      kemayoran:false,
-      focus:false,
-      core:true,
-      stasiun:false,
-      fatahillah:false,
-      sunda:false
-    };
-
-    const pois = [
-      { id: 'dki', name: 'DKI Jakarta Mainland', type: 'primary', kind: 'Land-only admin base', center: [-6.2000, 106.8456], zoom: 10, popup: [['Layer', 'Batas daratan DKI'], ['Source', 'City polygons']] },
-      { id: 'kecamatan', name: 'Kecamatan Layer', type: 'primary', kind: 'Official sub-area', center: [-6.1800, 106.8300], zoom: 11, popup: [['Layer', 'Batas Kecamatan'], ['Source', 'Jakarta Satu service']] },
-      { id: 'kelurahan', name: 'Kelurahan Layer', type: 'primary', kind: 'Official sub-area', center: [-6.1650, 106.8200], zoom: 13, popup: [['Layer', 'Batas Kelurahan'], ['Source', 'Jakarta Satu service']] },
-      { id: 'kemayoran', name: 'Kemayoran Zone', type: 'focus', kind: 'Kecamatan highlight', center: [-6.1608, 106.8530], zoom: 13, popup: [['Layer', 'Zona Kemayoran'], ['Source', 'Jakarta Satu service']] },
-      { id: 'focus', name: 'Kota Tua Heritage Focus', type: 'focus', kind: 'Heritage focus', center: [-6.1375, 106.8135], zoom: 15, popup: [['Layer', 'Kawasan Pemugaran Kota Tua'], ['Source', 'Tata Ruang DKI / UDGL']] },
-      { id: 'core', name: 'Kota Tua Heritage Core', type: 'core', kind: 'Core zone', center: [-6.1330, 106.8110], zoom: 13, popup: [['Layer', 'Core zone from official snapped boundary'], ['Intent', 'Default visible layer']] },
-      { id: 'stasiun', name: 'Stasiun Jakarta Kota', type: 'core', kind: 'Point of interest', center: [-6.1376, 106.8145], zoom: 17, popup: [['Category', 'Rail transit'], ['Relation', 'Primary gateway to Kota Tua']] },
-      { id: 'fatahillah', name: 'Museum Fatahillah', type: 'core', kind: 'Point of interest', center: [-6.1352, 106.8133], zoom: 17, popup: [['Category', 'Heritage node'], ['Relation', 'Historical core of Kota Tua']] },
-      { id: 'sunda', name: 'Pelabuhan Sunda Kelapa', type: 'primary', kind: 'Point of interest', center: [-6.1190, 106.8042], zoom: 15, popup: [['Category', 'Harbor'], ['Relation', 'Northern cultural-maritime anchor']] }
+    const builtInItems = [
+      { id:'dki', name:'DKI Jakarta Mainland', type:'primary', kind:'Land-only admin base', center:[-6.2000,106.8456], zoom:10 },
+      { id:'kecamatan', name:'Kecamatan Layer', type:'primary', kind:'Official sub-area', center:[-6.1800,106.8300], zoom:11 },
+      { id:'kelurahan', name:'Kelurahan Layer', type:'primary', kind:'Official sub-area', center:[-6.1650,106.8200], zoom:13 },
+      { id:'kemayoran', name:'Kemayoran Zone', type:'focus', kind:'Kecamatan highlight', center:[-6.1608,106.8530], zoom:13 },
+      { id:'focus', name:'Kota Tua Heritage Focus', type:'focus', kind:'Heritage focus', center:[-6.1375,106.8135], zoom:15 },
+      { id:'core', name:'Kota Tua Heritage Core', type:'core', kind:'Core zone', center:[-6.1330,106.8110], zoom:13 },
+      { id:'stasiun', name:'Stasiun Jakarta Kota', type:'core', kind:'Point of interest', center:[-6.1376,106.8145], zoom:17 },
+      { id:'fatahillah', name:'Museum Fatahillah', type:'core', kind:'Point of interest', center:[-6.1352,106.8133], zoom:17 },
+      { id:'sunda', name:'Pelabuhan Sunda Kelapa', type:'primary', kind:'Point of interest', center:[-6.1190,106.8042], zoom:15 }
     ];
+
+    const visibilityState = { dki:false, kecamatan:false, kelurahan:false, kemayoran:false, focus:false, core:true, stasiun:false, fatahillah:false, sunda:false };
+    const removedBuiltins = new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.removedBuiltins) || '[]'));
 
     const layerPolygons = L.layerGroup().addTo(map);
     const layerMarkers = L.layerGroup().addTo(map);
-
     const officialGroup = L.layerGroup().addTo(layerPolygons);
     const mainlandGroup = L.layerGroup().addTo(officialGroup);
     const officialKecamatanGroup = L.layerGroup().addTo(officialGroup);
     const officialKelurahanGroup = L.layerGroup().addTo(officialGroup);
     const kemayoranGroup = L.layerGroup().addTo(layerPolygons);
-
     const kotaTuaFocusGroup = L.layerGroup().addTo(layerPolygons);
     const kotaTuaCoreGroup = L.layerGroup().addTo(layerPolygons);
+    const customGroup = new L.FeatureGroup().addTo(map);
 
-    let mainlandLayerRef = null;
-    let kecamatanLayerRef = null;
-    let kelurahanLayerRef = null;
-    let kemayoranLayerRef = null;
-    let focusLayerRef = null;
-    let coreLayerRef = null;
+    const drawControl = new L.Control.Draw({
+      position: 'topright',
+      edit: { featureGroup: customGroup, edit: false, remove: false },
+      draw: {
+        polyline: false,
+        marker: false,
+        circlemarker: false,
+        polygon: { allowIntersection: false, showArea: true, shapeOptions: { color:'#10B981', weight:3, fillColor:'#10B981', fillOpacity:0.14 } },
+        rectangle: { shapeOptions: { color:'#10B981', weight:3, fillColor:'#10B981', fillOpacity:0.14 } },
+        circle: { shapeOptions: { color:'#10B981', weight:3, fillColor:'#10B981', fillOpacity:0.14 } }
+      }
+    });
+    map.addControl(drawControl);
 
+    let mainlandLayerRef = null, kecamatanLayerRef = null, kelurahanLayerRef = null, kemayoranLayerRef = null, focusLayerRef = null, coreLayerRef = null;
     let kelurahanGeojsonData = null;
+    let dkiBounds = null, focusBounds = null, coreBounds = null;
     let selectedId = 'core';
-    let dkiBounds = null;
-    let focusBounds = null;
-    let coreBounds = null;
+    let activeEditId = null;
+
+    const builtInLayerRefs = {};
+    const builtInAreaRegistry = {};
+    const customAreas = new Map();
 
     const listEl = document.getElementById('list');
-    const listMobileEl = document.getElementById('listMobile');
     const qEl = document.getElementById('q');
-    const qMobileEl = document.getElementById('qMobile');
     const legendNote = document.getElementById('legendNote');
     const areaNameEl = document.getElementById('areaName');
     const areaValueEl = document.getElementById('areaValue');
     const areaSubEl = document.getElementById('areaSub');
+    const editPanel = document.getElementById('editPanel');
+    const editAreaName = document.getElementById('editAreaName');
 
-    const areaRegistry = {};
+    const pois = [
+      { id:'stasiun', popup:[['Category','Rail transit'],['Relation','Primary gateway to Kota Tua']] },
+      { id:'fatahillah', popup:[['Category','Heritage node'],['Relation','Historical core of Kota Tua']] },
+      { id:'sunda', popup:[['Category','Harbor'],['Relation','Northern cultural-maritime anchor']] }
+    ];
 
-    function escapeHtml(s){
-      return String(s ?? '')
-        .replaceAll('&','&amp;')
-        .replaceAll('<','&lt;')
-        .replaceAll('>','&gt;')
-        .replaceAll('"','&quot;')
-        .replaceAll("'",'&#039;');
+    function escapeHtml(s){ return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
+    function popupHtml(title, rows){ return `<div><p class="popupTitle">${escapeHtml(title)}</p><div class="kv">${rows.map(([k,v])=>`<div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div>`).join('')}</div></div>`; }
+    function formatAreaSqKm(areaSqKm){ if(!isFinite(areaSqKm)||areaSqKm<=0) return '-'; return areaSqKm >= 1 ? `${areaSqKm.toFixed(2)} km²` : `${(areaSqKm*1000000).toFixed(0)} m²`; }
+    function getAreaSqKmFromGeoJSON(geojson){ try { return turf.area(geojson)/1000000; } catch(err){ return null; } }
+    function latLngToLabel(ll){ return `${Number(ll.lat ?? ll[0]).toFixed(6)}, ${Number(ll.lng ?? ll[1]).toFixed(6)}`; }
+    function saveRemovedBuiltins(){ localStorage.setItem(STORAGE_KEYS.removedBuiltins, JSON.stringify([...removedBuiltins])); }
+    function tagClass(type){ return type === 'primary' ? 'primary' : type === 'focus' ? 'focus' : type === 'core' ? 'core' : 'custom'; }
+
+    function getEyeIcon(isVisible){
+      return isVisible
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19C5 19 1 12 1 12a21.77 21.77 0 0 1 5.06-5.94"></path><path d="M9.9 4.24A10.93 10.93 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-4.31 5.07"></path><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><path d="M1 1l22 22"></path></svg>`;
     }
+    function getEditIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>`; }
+    function getDeleteIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>`; }
+    function getRestoreIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 3v6h6"></path></svg>`; }
 
-    function popupHtml(title, rows){
-      const kv = rows.map(([k,v]) => `
-        <div class="k">${escapeHtml(k)}</div>
-        <div class="v">${escapeHtml(v)}</div>
-      `).join('');
-      return `<div><p class="popupTitle">${escapeHtml(title)}</p><div class="kv">${kv}</div></div>`;
-    }
-
-
-
-    function formatAreaSqKm(areaSqKm){
-      if (!isFinite(areaSqKm) || areaSqKm <= 0) return '-';
-      if (areaSqKm >= 1) return `${areaSqKm.toFixed(2)} km²`;
-      return `${(areaSqKm * 1000000).toFixed(0)} m²`;
-    }
-
-    function getAreaSqKm(geojson){
-      try {
-        return turf.area(geojson) / 1000000;
-      } catch (err) {
-        console.warn('Area calculation failed:', err);
-        return null;
+    function getCustomAreaGeoJSON(layer){
+      if (layer instanceof L.Circle) {
+        const center = layer.getLatLng();
+        return turf.circle([center.lng, center.lat], layer.getRadius()/1000, { steps: 96, units: 'kilometers' });
       }
+      return layer.toGeoJSON();
     }
 
-    function updateAreaPanel(name, geojson, note='Luasan dihitung dari geometri layer aktif.') {
-      const areaSqKm = getAreaSqKm(geojson);
+    function updateAreaPanel(name, geojson, note='Luasan dihitung dari geometri layer aktif.'){
+      const areaSqKm = getAreaSqKmFromGeoJSON(geojson);
       areaNameEl.textContent = name || 'Area terpilih';
       areaValueEl.textContent = formatAreaSqKm(areaSqKm);
       areaSubEl.textContent = areaSqKm ? `${note} (${areaSqKm.toFixed(4)} km²)` : 'Luasan belum tersedia untuk layer ini.';
     }
 
-    function registerLayerArea(id, name, geojson){
-      if (!geojson) return;
-      areaRegistry[id] = { name, geojson };
+    function bindBuiltInLayerInteraction(layer, name, geojsonProvider){
+      const clickFn = () => {
+        selectedId = Object.keys(builtInLayerRefs).find(k => builtInLayerRefs[k] === layer) || selectedId;
+        const gj = typeof geojsonProvider === 'function' ? geojsonProvider() : geojsonProvider;
+        if (gj) updateAreaPanel(name, gj);
+        renderList(qEl.value || '');
+      };
+      if (layer.eachLayer) layer.eachLayer(l => l.on('click', clickFn));
+      else layer.on('click', clickFn);
     }
 
-    function updateAreaForSelection(id){
-      const entry = areaRegistry[id];
-      if (!entry) return;
-      updateAreaPanel(entry.name, entry.geojson);
+    function registerBuiltInArea(id, name, geojson){ builtInAreaRegistry[id] = { name, geojson }; }
+
+    function addCustomLayerFromObject(obj){
+      let layer;
+      const style = { color:'#10B981', weight:3, fillColor:'#10B981', fillOpacity:0.14 };
+      if (obj.shapeType === 'circle') {
+        layer = L.circle(obj.center, { radius: obj.radius, ...style });
+      } else {
+        layer = L.geoJSON(obj.geojson, { style }).getLayers()[0];
+      }
+      layer.addTo(customGroup);
+      layer.customAreaId = obj.id;
+      layer.bindPopup(() => popupHtml(obj.name, [['Category','Custom area'], ['Shape', obj.shapeType], ['Luas', formatAreaSqKm(getAreaSqKmFromGeoJSON(getCustomAreaGeoJSON(layer)))]]));
+      layer.on('click', () => {
+        selectedId = obj.id;
+        updateAreaPanel(obj.name, getCustomAreaGeoJSON(layer), 'Luasan dihitung dari custom area yang digambar di map.');
+        renderList(qEl.value || '');
+      });
+      customAreas.set(obj.id, { ...obj, layer, visible: obj.visible !== false });
+      if (obj.visible === false) customGroup.removeLayer(layer);
     }
 
-    function addPolygon(feature, style, popupRows, targetGroup = kotaTuaCoreGroup){
-      const areaSqKm = getAreaSqKm(feature);
-      const rows = [...popupRows, ['Luas', formatAreaSqKm(areaSqKm)]];
-      const layer = L.geoJSON(feature, { style }).bindPopup(
-        popupHtml(feature.properties.name, rows)
-      ).addTo(targetGroup);
-      layer.eachLayer(lyr => lyr.on('click', () => updateAreaPanel(feature.properties.name, feature)));
-      return layer;
+    function serializeCustomArea(layer, name, id=null, visible=true){
+      const areaId = id || `custom_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      const base = { id: areaId, name, visible };
+      if (layer instanceof L.Circle) {
+        const center = layer.getLatLng();
+        return { ...base, shapeType:'circle', center:{lat:center.lat,lng:center.lng}, radius: layer.getRadius() };
+      }
+      return { ...base, shapeType: layer instanceof L.Rectangle ? 'rectangle' : 'polygon', geojson: layer.toGeoJSON() };
     }
 
-    const markerStyle = { primary: '#0A4BBF', focus: '#F59E0B', core: '#EF4444' };
-    pois.filter(p => p.kind === 'Point of interest').forEach(p => {
-      const mk = L.circleMarker(p.center, {
-        radius: 7,
-        color: '#ffffff',
-        weight: 2,
-        fillColor: markerStyle[p.type] || '#0A4BBF',
-        fillOpacity: 0.95
-      }).addTo(layerMarkers);
-      mk.bindPopup(popupHtml(p.name, p.popup));
-      p._marker = mk;
-    });
-
-    function tagClass(type){
-      if (type === 'primary') return 'primary';
-      if (type === 'focus') return 'focus';
-      if (type === 'core') return 'core';
-      return '';
+    function persistCustomAreas(){
+      const serialized = [...customAreas.values()].map(item => serializeCustomArea(item.layer, item.name, item.id, item.visible));
+      localStorage.setItem(STORAGE_KEYS.customAreas, JSON.stringify(serialized));
     }
 
-    function getEyeIcon(isVisible){
-      return isVisible
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>`
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19C5 19 1 12 1 12a21.77 21.77 0 0 1 5.06-5.94"></path><path d="M9.9 4.24A10.93 10.93 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-4.31 5.07"></path><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><path d="M1 1l22 22"></path></svg>`;
+    function loadSavedCustomAreas(){
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.customAreas) || '[]');
+      saved.forEach(addCustomLayerFromObject);
     }
+
+    function createCustomArea(layer){
+      const defaultName = `Custom Area ${customAreas.size + 1}`;
+      const name = (window.prompt('Masukkan nama area baru:', defaultName) || '').trim() || defaultName;
+      const obj = serializeCustomArea(layer, name);
+      addCustomLayerFromObject(obj);
+      const added = customAreas.get(obj.id);
+      if (!added) return;
+      persistCustomAreas();
+      selectedId = obj.id;
+      if (added.layer?.getBounds) {
+        map.fitBounds(added.layer.getBounds().pad(0.12));
+      } else if (obj.center) {
+        map.setView([obj.center.lat, obj.center.lng], Math.max(map.getZoom(), 15));
+      }
+      updateAreaPanel(added.name, getCustomAreaGeoJSON(added.layer), 'Luasan dihitung dari custom area yang baru dibuat.');
+      renderList(qEl.value || '');
+      if (added.layer?.bringToFront) added.layer.bringToFront();
+      if (added.layer?.openPopup) added.layer.openPopup();
+    }
+
+    function startEditCustomArea(id){
+      const item = customAreas.get(id);
+      if (!item) return;
+      stopActiveEdit(false);
+      activeEditId = id;
+      editAreaName.textContent = item.name;
+      editPanel.style.display = 'block';
+      if (!item.visible) toggleCustomVisibility(id, true);
+      if (item.layer.editing && item.layer.editing.enable) item.layer.editing.enable();
+      if (item.layer instanceof L.Polygon && item.layer.dragging && item.layer.dragging.enable) item.layer.dragging.enable();
+      if (item.layer instanceof L.Circle && item.layer.editing && item.layer.editing.enable) item.layer.editing.enable();
+      if (item.layer.getBounds) map.fitBounds(item.layer.getBounds().pad(0.18));
+    }
+
+    function stopActiveEdit(save){
+      if (!activeEditId) return;
+      const item = customAreas.get(activeEditId);
+      if (item) {
+        if (item.layer.editing && item.layer.editing.disable) item.layer.editing.disable();
+        if (item.layer.dragging && item.layer.dragging.disable) item.layer.dragging.disable();
+        if (save) persistCustomAreas();
+      }
+      activeEditId = null;
+      editPanel.style.display = 'none';
+      renderList(qEl.value || '');
+    }
+
+    function renameCustomArea(id){
+      const item = customAreas.get(id);
+      if (!item) return;
+      const next = (window.prompt('Ubah nama area:', item.name) || '').trim();
+      if (!next) return;
+      item.name = next;
+      item.layer.bindPopup(() => popupHtml(item.name, [['Category','Custom area'], ['Shape', item.shapeType], ['Luas', formatAreaSqKm(getAreaSqKmFromGeoJSON(getCustomAreaGeoJSON(item.layer)))]]));
+      persistCustomAreas();
+      if (selectedId === id) updateAreaPanel(item.name, getCustomAreaGeoJSON(item.layer), 'Luasan dihitung dari custom area yang diubah namanya.');
+      renderList(qEl.value || '');
+    }
+
+    function deleteCustomArea(id){
+      const item = customAreas.get(id);
+      if (!item) return;
+      if (!confirm(`Delete area \"${item.name}\"?`)) return;
+      if (activeEditId === id) stopActiveEdit(false);
+      customGroup.removeLayer(item.layer);
+      customAreas.delete(id);
+      persistCustomAreas();
+      if (selectedId === id) {
+        selectedId = 'core';
+        if (builtInAreaRegistry.core) updateAreaPanel(builtInAreaRegistry.core.name, builtInAreaRegistry.core.geojson);
+      }
+      renderList(qEl.value || '');
+    }
+
+    function toggleCustomVisibility(id, visible = null){
+      const item = customAreas.get(id);
+      if (!item) return;
+      item.visible = visible == null ? !item.visible : visible;
+      if (item.visible) customGroup.addLayer(item.layer); else customGroup.removeLayer(item.layer);
+      persistCustomAreas();
+      renderList(qEl.value || '');
+    }
+
+    function removeBuiltInFromSidebar(id){
+      removedBuiltins.add(id);
+      saveRemovedBuiltins();
+      setLayerVisibility(id, false);
+      renderList(qEl.value || '');
+    }
+
+    function restoreBuiltIn(id){
+      removedBuiltins.delete(id);
+      saveRemovedBuiltins();
+      renderList(qEl.value || '');
+    }
+
+    function getFilteredBuiltIns(){ return builtInItems.filter(item => !removedBuiltins.has(item.id)); }
 
     function renderList(query=''){
       const q = query.trim().toLowerCase();
-      const rows = pois.filter(p => {
-        const hay = `${p.name} ${p.kind}`.toLowerCase();
-        return !q || hay.includes(q);
-      });
+      const builtIns = getFilteredBuiltIns().filter(item => (`${item.name} ${item.kind}`).toLowerCase().includes(q));
+      const customs = [...customAreas.values()].filter(item => (`${item.name} custom area`).toLowerCase().includes(q));
 
-      const html = rows.map(p => {
-        const visible = visibilityState[p.id] !== false;
-        return `
-          <div class="item${p.id === selectedId ? ' active' : ''}${visible ? '' : ' hiddenItem'}" data-id="${escapeHtml(p.id)}">
-            <div class="meta">
-              <p class="name">${escapeHtml(p.name)}</p>
-              <p class="coord">${p.center[0].toFixed(6)}, ${p.center[1].toFixed(6)}</p>
+      const builtHtml = builtIns.map(item => {
+        const visible = visibilityState[item.id] !== false;
+        return `<div class="item${item.id===selectedId?' active':''}${visible?'':' hiddenItem'}" data-id="${escapeHtml(item.id)}" data-kind="builtin">
+          <div class="meta"><p class="name">${escapeHtml(item.name)}</p><p class="coord">${item.center ? `${item.center[0].toFixed(6)}, ${item.center[1].toFixed(6)}` : '-'}</p></div>
+          <div class="rightSide">
+            <div class="tag ${tagClass(item.type)}">${escapeHtml(item.kind)}</div>
+            <div class="actions">
+              <button class="iconBtn toggleBtn" data-toggle-id="${escapeHtml(item.id)}" title="${visible ? 'Hide' : 'View'}">${getEyeIcon(visible)}</button>
+              <button class="iconBtn danger removeBuiltinBtn" data-remove-id="${escapeHtml(item.id)}" title="Remove from sidebar">${getDeleteIcon()}</button>
             </div>
-            <div class="rightSide">
-              <div class="tag ${tagClass(p.type)}">${escapeHtml(p.kind)}</div>
-              <button class="iconBtn toggleBtn" data-toggle-id="${escapeHtml(p.id)}" title="${visible ? 'Hide' : 'View'} ${escapeHtml(p.name)}">${getEyeIcon(visible)}</button>
+          </div>
+        </div>`;
+      }).join('');
+
+      const customHtml = customs.map(item => {
+        const centerTxt = item.layer.getBounds ? latLngToLabel(item.layer.getBounds().getCenter()) : (item.center ? latLngToLabel(item.center) : '-');
+        return `<div class="item${item.id===selectedId?' active':''}${item.visible?'':' hiddenItem'}" data-id="${escapeHtml(item.id)}" data-kind="custom">
+          <div class="meta"><p class="name">${escapeHtml(item.name)}</p><p class="coord">${escapeHtml(centerTxt)}</p></div>
+          <div class="rightSide">
+            <div class="tag custom">Custom area</div>
+            <div class="actions">
+              <button class="iconBtn toggleCustomBtn" data-custom-toggle-id="${escapeHtml(item.id)}" title="${item.visible ? 'Hide' : 'View'}">${getEyeIcon(item.visible)}</button>
+              <button class="iconBtn renameCustomBtn" data-custom-rename-id="${escapeHtml(item.id)}" title="Rename">${getRestoreIcon()}</button>
+              <button class="iconBtn editCustomBtn" data-custom-edit-id="${escapeHtml(item.id)}" title="Edit">${getEditIcon()}</button>
+              <button class="iconBtn danger deleteCustomBtn" data-custom-delete-id="${escapeHtml(item.id)}" title="Delete">${getDeleteIcon()}</button>
             </div>
-          </div>`;
-      }).join('') || `<div style="color:var(--muted); font-size:12px; padding:10px;">No match.</div>`;
+          </div>
+        </div>`;
+      }).join('');
 
-      listEl.innerHTML = html;
-      listMobileEl.innerHTML = html;
+      const removedHtml = [...removedBuiltins].filter(id => {
+        const item = builtInItems.find(x => x.id === id);
+        return item && (`${item.name} ${item.kind}`).toLowerCase().includes(q);
+      }).map(id => {
+        const item = builtInItems.find(x => x.id === id);
+        return `<div class="item hiddenItem"><div class="meta"><p class="name">${escapeHtml(item.name)}</p><p class="coord">Removed from sidebar</p></div><div class="rightSide"><div class="tag ${tagClass(item.type)}">${escapeHtml(item.kind)}</div><button class="iconBtn restoreBuiltinBtn" data-restore-id="${escapeHtml(item.id)}" title="Restore">${getRestoreIcon()}</button></div></div>`;
+      }).join('');
 
-      [...document.querySelectorAll('.item')].forEach(el => {
-        el.addEventListener('click', (ev) => {
-          if (ev.target.closest('.toggleBtn')) return;
-          const id = el.getAttribute('data-id');
-          const item = pois.find(x => x.id === id);
-          if (!item) return;
-          selectedId = id;
+      listEl.innerHTML = `
+        <div class="sectionLabel">Default Layers</div>
+        ${builtHtml || '<div style="color:var(--muted);font-size:12px;padding:10px;">No default layer match.</div>'}
+        <div class="sectionLabel">Custom Areas</div>
+        ${customHtml || '<div style="color:var(--muted);font-size:12px;padding:10px;">Belum ada custom area.</div>'}
+        ${removedHtml ? `<div class="sectionLabel">Removed from Sidebar</div>${removedHtml}` : ''}
+      `;
 
-          if (id === 'dki' && dkiBounds) map.fitBounds(dkiBounds.pad(0.04));
-          else if (id === 'kecamatan' && dkiBounds) map.fitBounds(dkiBounds.pad(0.08));
-          else if (id === 'kelurahan' && focusBounds) map.fitBounds(focusBounds.pad(1.1));
-          else if (id === 'kemayoran' && kemayoranLayerRef) map.fitBounds(kemayoranLayerRef.getBounds().pad(0.15));
-          else if (id === 'focus' && focusBounds) map.fitBounds(focusBounds.pad(0.28));
-          else if (id === 'core' && coreBounds) map.fitBounds(coreBounds.pad(0.06));
-          else map.setView(item.center, item.zoom, { animate: true });
-
-          if (item._marker && map.hasLayer(item._marker)) item._marker.openPopup();
-          updateAreaForSelection(id);
-          renderList(qEl.value || qMobileEl.value || '');
-        });
-      });
-
-      [...document.querySelectorAll('.toggleBtn')].forEach(btn => {
-        btn.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          toggleVisibility(btn.getAttribute('data-toggle-id'));
-        });
-      });
+      [...document.querySelectorAll('.item[data-id]')].forEach(el => el.addEventListener('click', (ev) => {
+        if (ev.target.closest('button')) return;
+        const id = el.dataset.id;
+        const kind = el.dataset.kind;
+        if (kind === 'builtin') focusBuiltIn(id); else focusCustom(id);
+      }));
+      [...document.querySelectorAll('.toggleBtn')].forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); toggleVisibility(btn.dataset.toggleId); }));
+      [...document.querySelectorAll('.removeBuiltinBtn')].forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); removeBuiltInFromSidebar(btn.dataset.removeId); }));
+      [...document.querySelectorAll('.restoreBuiltinBtn')].forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); restoreBuiltIn(btn.dataset.restoreId); }));
+      [...document.querySelectorAll('.toggleCustomBtn')].forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); toggleCustomVisibility(btn.dataset.customToggleId); }));
+      [...document.querySelectorAll('.renameCustomBtn')].forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); renameCustomArea(btn.dataset.customRenameId); }));
+      [...document.querySelectorAll('.editCustomBtn')].forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); startEditCustomArea(btn.dataset.customEditId); }));
+      [...document.querySelectorAll('.deleteCustomBtn')].forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); deleteCustomArea(btn.dataset.customDeleteId); }));
     }
 
-    async function fetchGeoJSON(url){
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
+    function focusBuiltIn(id){
+      const item = builtInItems.find(x => x.id === id); if (!item) return;
+      selectedId = id;
+      if (id === 'dki' && dkiBounds) map.fitBounds(dkiBounds.pad(0.04));
+      else if (id === 'kecamatan' && dkiBounds) map.fitBounds(dkiBounds.pad(0.08));
+      else if (id === 'kelurahan' && focusBounds) map.fitBounds(focusBounds.pad(1.1));
+      else if (id === 'kemayoran' && kemayoranLayerRef) map.fitBounds(kemayoranLayerRef.getBounds().pad(0.15));
+      else if (id === 'focus' && focusBounds) map.fitBounds(focusBounds.pad(0.28));
+      else if (id === 'core' && coreBounds) map.fitBounds(coreBounds.pad(0.06));
+      else map.setView(item.center, item.zoom, { animate: true });
+      const markerItem = markerRegistry[id];
+      if (markerItem && map.hasLayer(markerItem)) markerItem.openPopup();
+      const reg = builtInAreaRegistry[id];
+      if (reg) updateAreaPanel(reg.name, reg.geojson);
+      renderList(qEl.value || '');
     }
 
-    function flattenCoords(coords, out=[]){
-      if (!Array.isArray(coords)) return out;
-      if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-        out.push([coords[1], coords[0]]);
-      } else {
-        coords.forEach(c => flattenCoords(c, out));
-      }
-      return out;
+    function focusCustom(id){
+      const item = customAreas.get(id); if (!item) return;
+      selectedId = id;
+      if (!item.visible) toggleCustomVisibility(id, true);
+      if (item.layer.getBounds) map.fitBounds(item.layer.getBounds().pad(0.18));
+      updateAreaPanel(item.name, getCustomAreaGeoJSON(item.layer), 'Luasan dihitung dari custom area yang digambar di map.');
+      if (item.layer.openPopup) item.layer.openPopup();
+      renderList(qEl.value || '');
     }
 
-    function featureCenterLat(feature){
-      const pts = flattenCoords(feature?.geometry?.coordinates || []);
-      if (!pts.length) return null;
-      return pts.reduce((a,b)=>a+b[0],0) / pts.length;
-    }
-
-    function featureCenterLng(feature){
-      const pts = flattenCoords(feature?.geometry?.coordinates || []);
-      if (!pts.length) return null;
-      return pts.reduce((a,b)=>a+b[1],0) / pts.length;
-    }
-
-    function isMainlandDKI(feature){
-      const lat = featureCenterLat(feature);
-      const lng = featureCenterLng(feature);
-      if (lat == null || lng == null) return false;
-      return lat < -6.0 && lat > -6.42 && lng > 106.65 && lng < 107.05;
-    }
+    async function fetchGeoJSON(url){ const res = await fetch(url); if (!res.ok) throw new Error(`HTTP ${res.status}`); return await res.json(); }
+    function flattenCoords(coords, out=[]){ if (!Array.isArray(coords)) return out; if (typeof coords[0] === 'number') out.push([coords[1], coords[0]]); else coords.forEach(c => flattenCoords(c,out)); return out; }
+    function featureCenterLat(feature){ const pts = flattenCoords(feature?.geometry?.coordinates || []); return pts.length ? pts.reduce((a,b)=>a+b[0],0)/pts.length : null; }
+    function featureCenterLng(feature){ const pts = flattenCoords(feature?.geometry?.coordinates || []); return pts.length ? pts.reduce((a,b)=>a+b[1],0)/pts.length : null; }
+    function isMainlandDKI(feature){ const lat = featureCenterLat(feature), lng = featureCenterLng(feature); return lat != null && lng != null && lat < -6.0 && lat > -6.42 && lng > 106.65 && lng < 107.05; }
 
     function styleForLevel(level){
-      const css = getComputedStyle(document.documentElement);
-      const dki = css.getPropertyValue('--dki').trim();
-      if (level === 'mainland') {
-        return () => ({ color: dki, weight: 1.5, fillColor: dki, fillOpacity: 0.12, opacity: 0.9 });
-      }
-      if (level === 'kecamatan') {
-        return () => ({ color: '#4F46E5', weight: 1.4, dashArray: '6 4', fillOpacity: 0, opacity: 0.85 });
-      }
-      if (level === 'kelurahan') {
-        return () => ({ color: '#94A3B8', weight: 0.9, fillOpacity: 0, opacity: 0.75 });
-      }
-      if (level === 'kotatua-plan') {
-        return () => ({ color: '#DC2626', weight: 2.2, dashArray: '8 6', fillColor: '#DC2626', fillOpacity: 0.10, opacity: 1 });
-      }
-      if (level === 'kemayoran') {
-        const kem = css.getPropertyValue('--kemayoran').trim() || '#C46A12';
-        return () => ({ color: kem, weight: 3, dashArray: '10 6', fillColor: kem, fillOpacity: 0.16, opacity: 1 });
-      }
-      if (level === 'kotatua-official') {
-        return () => ({ color: '#DC2626', weight: 2.4, fillColor: '#DC2626', fillOpacity: 0.12, opacity: 1 });
-      }
-      return () => ({ color: '#EF4444', weight: 4, fillColor: '#EF4444', fillOpacity: 0.08, opacity: 1 });
+      if (level === 'mainland') return () => ({ color:'#2563EB', weight:1.5, fillColor:'#2563EB', fillOpacity:0.12, opacity:0.9 });
+      if (level === 'kecamatan') return () => ({ color:'#4F46E5', weight:1.4, dashArray:'6 4', fillOpacity:0, opacity:0.85 });
+      if (level === 'kelurahan') return () => ({ color:'#94A3B8', weight:0.9, fillOpacity:0, opacity:0.75 });
+      if (level === 'kemayoran') return () => ({ color:'#C46A12', weight:3, dashArray:'10 6', fillColor:'#C46A12', fillOpacity:0.16, opacity:1 });
+      if (level === 'kotatua-plan') return () => ({ color:'#DC2626', weight:2.2, dashArray:'8 6', fillColor:'#DC2626', fillOpacity:0.10, opacity:1 });
+      if (level === 'kotatua-official') return () => ({ color:'#DC2626', weight:2.4, fillColor:'#DC2626', fillOpacity:0.12, opacity:1 });
+      return () => ({ color:'#EF4444', weight:4, fillColor:'#EF4444', fillOpacity:0.08, opacity:1 });
     }
 
     function popupRowsForFeature(props, level, feature=null){
@@ -845,13 +618,9 @@
       const kec = props.wadmkc || props.WADMKC || '-';
       const kel = props.wadmkd || props.WADMKD || '-';
       if (wilayah && wilayah !== '-') rows.push(['Wilayah', wilayah]);
-      if (level === 'mainland' && props.WADMPR) rows.push(['Provinsi', props.WADMPR]);
       if (kec && kec !== '-') rows.push(['Kecamatan', kec]);
       if (kel && kel !== '-') rows.push(['Kelurahan', kel]);
-      if (feature && ['mainland','kecamatan','kelurahan','kemayoran','kotatua-plan','kotatua-official'].includes(level)) {
-        const areaSqKm = getAreaSqKm(feature);
-        if (areaSqKm) rows.push(['Luas', formatAreaSqKm(areaSqKm)]);
-      }
+      if (feature) rows.push(['Luas', formatAreaSqKm(getAreaSqKmFromGeoJSON(feature))]);
       return rows;
     }
 
@@ -869,363 +638,175 @@
 
     function updateVisibilityByZoom(){
       const z = map.getZoom();
-
-      if (visibilityState.kecamatan !== false && z >= 11) {
-        if (!map.hasLayer(officialKecamatanGroup)) map.addLayer(officialKecamatanGroup);
-      } else if (map.hasLayer(officialKecamatanGroup)) {
-        map.removeLayer(officialKecamatanGroup);
-      }
-
-      if (visibilityState.kelurahan !== false && z >= 13) {
-        if (!map.hasLayer(officialKelurahanGroup)) map.addLayer(officialKelurahanGroup);
-      } else if (map.hasLayer(officialKelurahanGroup)) {
-        map.removeLayer(officialKelurahanGroup);
-      }
+      if (visibilityState.kecamatan !== false && z >= 11) { if (!map.hasLayer(officialKecamatanGroup)) map.addLayer(officialKecamatanGroup); }
+      else if (map.hasLayer(officialKecamatanGroup)) map.removeLayer(officialKecamatanGroup);
+      if (visibilityState.kelurahan !== false && z >= 13) { if (!map.hasLayer(officialKelurahanGroup)) map.addLayer(officialKelurahanGroup); }
+      else if (map.hasLayer(officialKelurahanGroup)) map.removeLayer(officialKelurahanGroup);
     }
 
     function setLayerVisibility(id, visible){
       visibilityState[id] = visible;
-
-      if (id === 'dki') {
-        if (visible) {
-          if (!map.hasLayer(mainlandGroup)) map.addLayer(mainlandGroup);
-        } else if (map.hasLayer(mainlandGroup)) {
-          map.removeLayer(mainlandGroup);
-        }
-      }
-
-      if (id === 'kecamatan') {
-        if (visible) updateVisibilityByZoom();
-        else if (map.hasLayer(officialKecamatanGroup)) map.removeLayer(officialKecamatanGroup);
-      }
-
-      if (id === 'kelurahan') {
-        if (visible) updateVisibilityByZoom();
-        else if (map.hasLayer(officialKelurahanGroup)) map.removeLayer(officialKelurahanGroup);
-      }
-
-      if (id === 'focus') {
-        if (visible) {
-          if (!map.hasLayer(kotaTuaFocusGroup)) map.addLayer(kotaTuaFocusGroup);
-        } else if (map.hasLayer(kotaTuaFocusGroup)) {
-          map.removeLayer(kotaTuaFocusGroup);
-        }
-      }
-
-      if (id === 'kemayoran') {
-        if (visible) {
-          if (!map.hasLayer(kemayoranGroup)) map.addLayer(kemayoranGroup);
-        } else if (map.hasLayer(kemayoranGroup)) {
-          map.removeLayer(kemayoranGroup);
-        }
-      }
-
-      if (id === 'core') {
-        if (visible) {
-          if (!map.hasLayer(kotaTuaCoreGroup)) map.addLayer(kotaTuaCoreGroup);
-        } else if (map.hasLayer(kotaTuaCoreGroup)) {
-          map.removeLayer(kotaTuaCoreGroup);
-        }
-      }
-
-      const poi = pois.find(p => p.id === id);
-      if (poi && poi._marker) {
-        if (visible) {
-          if (!layerMarkers.hasLayer(poi._marker)) layerMarkers.addLayer(poi._marker);
-        } else if (layerMarkers.hasLayer(poi._marker)) {
-          layerMarkers.removeLayer(poi._marker);
-        }
-      }
-
-      renderList(qEl.value || qMobileEl.value || '');
+      if (id === 'dki') visible ? map.addLayer(mainlandGroup) : map.removeLayer(mainlandGroup);
+      if (id === 'kecamatan') visible ? updateVisibilityByZoom() : map.removeLayer(officialKecamatanGroup);
+      if (id === 'kelurahan') visible ? updateVisibilityByZoom() : map.removeLayer(officialKelurahanGroup);
+      if (id === 'focus') visible ? map.addLayer(kotaTuaFocusGroup) : map.removeLayer(kotaTuaFocusGroup);
+      if (id === 'kemayoran') visible ? map.addLayer(kemayoranGroup) : map.removeLayer(kemayoranGroup);
+      if (id === 'core') visible ? map.addLayer(kotaTuaCoreGroup) : map.removeLayer(kotaTuaCoreGroup);
+      const marker = markerRegistry[id];
+      if (marker) visible ? layerMarkers.addLayer(marker) : layerMarkers.removeLayer(marker);
+      renderList(qEl.value || '');
     }
+    function toggleVisibility(id){ setLayerVisibility(id, !(visibilityState[id] !== false)); }
+    function setAllVisibility(visible){ getFilteredBuiltIns().forEach(p => setLayerVisibility(p.id, visible)); [...customAreas.keys()].forEach(id => toggleCustomVisibility(id, visible)); }
+    function applyInitialVisibility(){ Object.entries(visibilityState).forEach(([id, visible]) => { if (!removedBuiltins.has(id)) setLayerVisibility(id, visible); }); }
 
-    function toggleVisibility(id){
-      setLayerVisibility(id, !(visibilityState[id] !== false));
-    }
-
-    function setAllVisibility(visible){
-      pois.forEach(p => setLayerVisibility(p.id, visible));
-    }
-
-    function applyInitialVisibility(){
-      Object.entries(visibilityState).forEach(([id, visible]) => {
-        setLayerVisibility(id, visible);
-      });
-    }
-
-    function buildCoreZoneFromKelurahan(maskFeature, kelurahanFC, minOverlapRatio = 0.15) {
+    function buildCoreZoneFromKelurahan(maskFeature, kelurahanFC, minOverlapRatio=0.15){
       if (!maskFeature || !kelurahanFC?.features?.length) return null;
-
       const selected = [];
-
       for (const feat of kelurahanFC.features) {
         try {
           if (!turf.booleanIntersects(feat, maskFeature)) continue;
-
-          const inter = turf.intersect(feat, maskFeature);
-          if (!inter) continue;
-
-          const interArea = turf.area(inter);
-          const featArea = turf.area(feat);
-          const ratio = featArea > 0 ? interArea / featArea : 0;
-
-          if (ratio >= minOverlapRatio) {
-            selected.push(feat);
-          }
-        } catch (err) {
-          console.warn('Overlap check failed:', err);
-        }
+          const inter = turf.intersect(feat, maskFeature); if (!inter) continue;
+          const interArea = turf.area(inter), featArea = turf.area(feat), ratio = featArea > 0 ? interArea / featArea : 0;
+          if (ratio >= minOverlapRatio) selected.push(feat);
+        } catch (err) { console.warn('Overlap check failed', err); }
       }
-
-      if (!selected.length) {
-        return null;
-      }
-
+      if (!selected.length) return null;
       let merged = selected[0];
       for (let i = 1; i < selected.length; i++) {
-        try {
-          const unioned = turf.union(merged, selected[i]);
-          if (unioned) merged = unioned;
-        } catch (err) {
-          console.warn('Union failed on feature', i, err);
-        }
+        try { const unioned = turf.union(merged, selected[i]); if (unioned) merged = unioned; } catch(err){ console.warn('Union failed', err); }
       }
-
       return merged;
     }
 
     async function loadMainlandLayers(){
       try {
-        const [dkiCities, kecamatan, kelurahanOutline] = await Promise.all([
-          fetchGeoJSON(sources.dkiCities),
-          fetchGeoJSON(sources.kecamatan),
-          fetchGeoJSON(sources.kelurahanOutline)
-        ]);
-
+        const [dkiCities, kecamatan, kelurahanOutline] = await Promise.all([fetchGeoJSON(sources.dkiCities), fetchGeoJSON(sources.kecamatan), fetchGeoJSON(sources.kelurahanOutline)]);
         const cityFeatures = (dkiCities.features || []).filter(f => {
-          const props = f.properties || {};
-          const city = String(props.WADMKK || props.wadmkk || props.NAMOBJ || '').toUpperCase();
+          const city = String((f.properties || {}).WADMKK || '').toUpperCase();
           return city && city !== 'KEPULAUAN SERIBU';
         });
-
-        mainlandLayerRef = addOfficialGeoJSON(
-          { type: 'FeatureCollection', features: cityFeatures },
-          'mainland',
-          mainlandGroup,
-          'DKI Jakarta Mainland'
-        );
+        mainlandLayerRef = addOfficialGeoJSON({ type:'FeatureCollection', features:cityFeatures }, 'mainland', mainlandGroup, 'DKI Jakarta Mainland');
+        builtInLayerRefs.dki = mainlandLayerRef;
         dkiBounds = mainlandLayerRef.getBounds();
-        registerLayerArea('dki', 'DKI Jakarta Mainland', { type: 'FeatureCollection', features: cityFeatures });
+        registerBuiltInArea('dki', 'DKI Jakarta Mainland', { type:'FeatureCollection', features:cityFeatures });
 
         const kecamatanFeatures = (kecamatan.features || []).filter(isMainlandDKI);
         const kelurahanFeatures = (kelurahanOutline.features || []).filter(isMainlandDKI);
-        const kemayoranFeatures = kecamatanFeatures.filter(f => {
-          const props = f.properties || {};
-          const kec = String(props.wadmkc || props.WADMKC || props.NAMOBJ || '').toUpperCase();
-          return kec.includes('KEMAYORAN');
-        });
-
-        kelurahanGeojsonData = {
-          type: 'FeatureCollection',
-          features: kelurahanFeatures
-        };
+        const kemayoranFeatures = kecamatanFeatures.filter(f => String((f.properties||{}).wadmkc || (f.properties||{}).WADMKC || '').toUpperCase().includes('KEMAYORAN'));
+        kelurahanGeojsonData = { type:'FeatureCollection', features:kelurahanFeatures };
 
         const kecamatanFC = { type:'FeatureCollection', features:kecamatanFeatures };
-        kecamatanLayerRef = addOfficialGeoJSON(
-          kecamatanFC,
-          'kecamatan',
-          officialKecamatanGroup,
-          'Batas Kecamatan'
-        );
+        kecamatanLayerRef = addOfficialGeoJSON(kecamatanFC, 'kecamatan', officialKecamatanGroup, 'Batas Kecamatan');
+        builtInLayerRefs.kecamatan = kecamatanLayerRef;
+        registerBuiltInArea('kecamatan', 'Kecamatan Layer', kecamatanFC);
 
-        registerLayerArea('kecamatan', 'Kecamatan Layer', kecamatanFC);
-
-        kelurahanLayerRef = addOfficialGeoJSON(
-          kelurahanGeojsonData,
-          'kelurahan',
-          officialKelurahanGroup,
-          'Batas Kelurahan'
-        );
-
-        registerLayerArea('kelurahan', 'Kelurahan Layer', kelurahanGeojsonData);
+        kelurahanLayerRef = addOfficialGeoJSON(kelurahanGeojsonData, 'kelurahan', officialKelurahanGroup, 'Batas Kelurahan');
+        builtInLayerRefs.kelurahan = kelurahanLayerRef;
+        registerBuiltInArea('kelurahan', 'Kelurahan Layer', kelurahanGeojsonData);
 
         if (kemayoranFeatures.length) {
-          const kemayoranFC = { type:'FeatureCollection', features: kemayoranFeatures };
-          kemayoranLayerRef = addOfficialGeoJSON(
-            kemayoranFC,
-            'kemayoran',
-            kemayoranGroup,
-            'Zona Kemayoran'
-          );
-          registerLayerArea('kemayoran', 'Kemayoran Zone', kemayoranFC);
+          const kemFC = { type:'FeatureCollection', features:kemayoranFeatures };
+          kemayoranLayerRef = addOfficialGeoJSON(kemFC, 'kemayoran', kemayoranGroup, 'Zona Kemayoran');
+          builtInLayerRefs.kemayoran = kemayoranLayerRef;
+          registerBuiltInArea('kemayoran', 'Kemayoran Zone', kemFC);
         }
-
-        if (legendNote) legendNote.textContent = 'Core Zone active by default. Other layers start hidden.';
-      } catch (err) {
+        legendNote.textContent = 'Core Zone active by default. Other layers start hidden.';
+      } catch(err) {
         console.error(err);
-        if (legendNote) legendNote.textContent = 'Some official layers could not be loaded in this session.';
+        legendNote.textContent = 'Some official layers could not be loaded in this session.';
       }
-
       updateVisibilityByZoom();
     }
 
     async function loadKotaTuaLayers(){
       let mainLayer = null;
-
       try {
-        const [officialArea, planArea] = await Promise.all([
-          fetchGeoJSON(sources.kotaTuaOfficial),
-          fetchGeoJSON(sources.kotaTuaPlan)
-        ]);
-
-        if ((planArea.features || []).length) {
-          addOfficialGeoJSON(
-            planArea,
-            'kotatua-plan',
-            kotaTuaFocusGroup,
-            'Rencana Induk Kawasan Kota Tua'
-          );
-        }
-
+        const [officialArea, planArea] = await Promise.all([fetchGeoJSON(sources.kotaTuaOfficial), fetchGeoJSON(sources.kotaTuaPlan)]);
+        if ((planArea.features || []).length) addOfficialGeoJSON(planArea, 'kotatua-plan', kotaTuaFocusGroup, 'Rencana Induk Kawasan Kota Tua');
         if ((officialArea.features || []).length) {
-          mainLayer = addOfficialGeoJSON(
-            officialArea,
-            'kotatua-official',
-            kotaTuaFocusGroup,
-            'Kawasan Pemugaran Kota Tua'
-          );
-          focusLayerRef = mainLayer;
-          registerLayerArea('focus', 'Kota Tua Heritage Focus', officialArea);
+          mainLayer = addOfficialGeoJSON(officialArea, 'kotatua-official', kotaTuaFocusGroup, 'Kawasan Pemugaran Kota Tua');
+          focusLayerRef = mainLayer; builtInLayerRefs.focus = mainLayer; registerBuiltInArea('focus', 'Kota Tua Heritage Focus', officialArea);
         }
-      } catch (err) {
-        console.error(err);
-      }
-
+      } catch(err) { console.error(err); }
       if (!mainLayer) {
-        focusLayerRef = addPolygon(fallbackKotaTua, {
-          color: '#DC2626',
-          weight: 2.4,
-          dashArray: '8 6',
-          fillColor: '#DC2626',
-          fillOpacity: 0.12,
-          opacity: 1
-        }, [
-          ['Category', fallbackKotaTua.properties.category],
-          ['Description', fallbackKotaTua.properties.description]
-        ], kotaTuaFocusGroup);
-
-        mainLayer = focusLayerRef;
-        registerLayerArea('focus', 'Kota Tua Heritage Focus', fallbackKotaTua);
+        focusLayerRef = L.geoJSON(fallbackKotaTua, { style: styleForLevel('kotatua-official') }).bindPopup(popupHtml(fallbackKotaTua.properties.name, [['Category','Heritage area'],['Luas', formatAreaSqKm(getAreaSqKmFromGeoJSON(fallbackKotaTua))]])).addTo(kotaTuaFocusGroup);
+        mainLayer = focusLayerRef; builtInLayerRefs.focus = mainLayer; registerBuiltInArea('focus', 'Kota Tua Heritage Focus', fallbackKotaTua);
       }
 
       let finalCoreFeature = fallbackKotaTuaCore;
-
       if (kelurahanGeojsonData?.features?.length) {
         const snappedCore = buildCoreZoneFromKelurahan(fallbackKotaTuaCore, kelurahanGeojsonData, 0.15);
         if (snappedCore) {
-          snappedCore.properties = {
-            name: 'Kota Tua Heritage Core',
-            category: 'Core area',
-            description: 'Core zone snapped to nearest official land/admin boundaries, outer boundary only.'
-          };
+          snappedCore.properties = { name:'Kota Tua Heritage Core', category:'Core area', description:'Core zone snapped to nearest official land/admin boundaries, outer boundary only.' };
           finalCoreFeature = snappedCore;
         }
       }
-
-      registerLayerArea('core', 'Kota Tua Heritage Core', finalCoreFeature);
-
-      coreLayerRef = addPolygon(finalCoreFeature, {
-        color: '#EF4444',
-        weight: 4,
-        fillColor: '#EF4444',
-        fillOpacity: 0.08,
-        opacity: 1
-      }, [
-        ['Category', finalCoreFeature.properties.category || 'Core area'],
-        ['Description', finalCoreFeature.properties.description || 'Core zone']
-      ], kotaTuaCoreGroup);
-
-      focusBounds = mainLayer ? mainLayer.getBounds() : null;
-      coreBounds = coreLayerRef ? coreLayerRef.getBounds() : null;
+      registerBuiltInArea('core', 'Kota Tua Heritage Core', finalCoreFeature);
+      coreLayerRef = L.geoJSON(finalCoreFeature, { style: styleForLevel('core') }).bindPopup(popupHtml('Kota Tua Heritage Core', [['Category','Core area'],['Luas', formatAreaSqKm(getAreaSqKmFromGeoJSON(finalCoreFeature))]])).addTo(kotaTuaCoreGroup);
+      builtInLayerRefs.core = coreLayerRef;
+      focusBounds = mainLayer.getBounds ? mainLayer.getBounds() : null;
+      coreBounds = coreLayerRef.getBounds ? coreLayerRef.getBounds() : null;
     }
 
+    const markerRegistry = {};
+    builtInItems.filter(p => p.kind === 'Point of interest').forEach(p => {
+      const mk = L.circleMarker(p.center, { radius:7, color:'#fff', weight:2, fillColor:p.id === 'sunda' ? '#0A4BBF' : '#EF4444', fillOpacity:0.95 }).addTo(layerMarkers);
+      const popupData = (pois.find(x => x.id === p.id) || {}).popup || [['Category','POI']];
+      mk.bindPopup(popupHtml(p.name, popupData));
+      markerRegistry[p.id] = mk;
+    });
+
     map.on('zoomend', updateVisibilityByZoom);
+    map.on(L.Draw.Event.CREATED, e => createCustomArea(e.layer));
 
-    document.getElementById('btnJakarta').addEventListener('click', () => {
-      if (dkiBounds) map.fitBounds(dkiBounds.pad(0.04));
+    document.getElementById('btnJakarta').addEventListener('click', () => { if (dkiBounds) map.fitBounds(dkiBounds.pad(0.04)); });
+    document.getElementById('btnKotaTua').addEventListener('click', () => { if (coreBounds) map.fitBounds(coreBounds.pad(0.06)); else if (focusBounds) map.fitBounds(focusBounds.pad(0.28)); });
+    document.getElementById('btnDrawMode').addEventListener('click', () => new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable());
+    document.getElementById('btnCalcArea').addEventListener('click', () => {
+      if (customAreas.has(selectedId)) {
+        const item = customAreas.get(selectedId);
+        updateAreaPanel(item.name, getCustomAreaGeoJSON(item.layer), 'Luasan dihitung dari custom area yang aktif.');
+      } else if (builtInAreaRegistry[selectedId]) {
+        updateAreaPanel(builtInAreaRegistry[selectedId].name, builtInAreaRegistry[selectedId].geojson);
+      }
     });
-
-    document.getElementById('btnCalcArea').addEventListener('click', () => updateAreaForSelection(selectedId));
-
-    document.getElementById('btnKotaTua').addEventListener('click', () => {
-      if (coreBounds) map.fitBounds(coreBounds.pad(0.06));
-      else if (focusBounds) map.fitBounds(focusBounds.pad(0.28));
-    });
-
-    qEl.addEventListener('input', () => renderList(qEl.value));
-    qMobileEl.addEventListener('input', () => renderList(qMobileEl.value));
     document.getElementById('showAllBtn').addEventListener('click', () => setAllVisibility(true));
     document.getElementById('hideAllBtn').addEventListener('click', () => setAllVisibility(false));
-    document.getElementById('showAllBtnMobile').addEventListener('click', () => setAllVisibility(true));
-    document.getElementById('hideAllBtnMobile').addEventListener('click', () => setAllVisibility(false));
+    document.getElementById('restoreBuiltinsBtn').addEventListener('click', () => { removedBuiltins.clear(); saveRemovedBuiltins(); renderList(qEl.value || ''); applyInitialVisibility(); });
+    document.getElementById('clearCustomBtn').addEventListener('click', () => {
+      if (!customAreas.size || !confirm('Delete all custom areas?')) return;
+      stopActiveEdit(false);
+      [...customAreas.keys()].forEach(id => { const item = customAreas.get(id); customGroup.removeLayer(item.layer); customAreas.delete(id); });
+      persistCustomAreas();
+      renderList(qEl.value || '');
+    });
+    document.getElementById('saveEditBtn').addEventListener('click', () => {
+      if (!activeEditId) return;
+      const item = customAreas.get(activeEditId);
+      if (item) updateAreaPanel(item.name, getCustomAreaGeoJSON(item.layer), 'Luasan dihitung dari custom area setelah edit.');
+      stopActiveEdit(true);
+    });
+    document.getElementById('cancelEditBtn').addEventListener('click', () => {
+      stopActiveEdit(false);
+      const saved = localStorage.getItem(STORAGE_KEYS.customAreas);
+      [...customAreas.values()].forEach(item => customGroup.removeLayer(item.layer));
+      customAreas.clear();
+      if (saved) loadSavedCustomAreas();
+      renderList(qEl.value || '');
+    });
+    qEl.addEventListener('input', () => renderList(qEl.value));
 
     renderList();
+    loadSavedCustomAreas();
 
     Promise.allSettled([loadMainlandLayers(), loadKotaTuaLayers()]).then(() => {
       applyInitialVisibility();
       renderList();
-
-      updateAreaForSelection('core');
-
-      if (coreBounds) {
-        map.fitBounds(coreBounds.pad(0.06));
-      } else {
-        const corePoi = pois.find(p => p.id === 'core');
-        map.setView(corePoi.center, corePoi.zoom);
-      }
+      if (builtInAreaRegistry.core) updateAreaPanel(builtInAreaRegistry.core.name, builtInAreaRegistry.core.geojson);
+      if (coreBounds) map.fitBounds(coreBounds.pad(0.06));
+      else map.setView([-6.1330,106.8110], 13);
     });
-
-    (function(){
-      const sheet = document.getElementById('sheet');
-      const handle = document.getElementById('sheetHandle');
-      let dragging = false;
-      let startY = 0;
-      let startH = 0;
-
-      function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
-
-      function onDown(e){
-        dragging = true;
-        startY = (e.touches ? e.touches[0].clientY : e.clientY);
-        startH = sheet.getBoundingClientRect().height;
-        document.body.style.userSelect = 'none';
-      }
-
-      function onMove(e){
-        if (!dragging) return;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY);
-        const dy = y - startY;
-        const newH = clamp(startH - dy, 180, window.innerHeight * 0.78);
-        sheet.style.height = `${newH}px`;
-        const legend = document.querySelector('.legend');
-        if (legend){
-          legend.style.bottom = `calc(14px + ${newH}px)`;
-        }
-      }
-
-      function onUp(){
-        dragging = false;
-        document.body.style.userSelect = '';
-      }
-
-      handle.addEventListener('mousedown', onDown);
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-      handle.addEventListener('touchstart', onDown, {passive:true});
-      window.addEventListener('touchmove', onMove, {passive:true});
-      window.addEventListener('touchend', onUp);
-    })();
   </script>
 </body>
 </html>
