@@ -757,7 +757,9 @@
     const displayGroup = new L.FeatureGroup().addTo(map);
     const drawnItems = new L.FeatureGroup().addTo(map);
     const layersStore = new Map();
-    let selectedId = null;
+    const builtInLayersStore = new Map();
+    const BUILTIN_KOTATUA_FOCUS_ID = 'builtin-kotatua-heritage-focus';
+    let selectedId = BUILTIN_KOTATUA_FOCUS_ID;
     let pendingCreateLayer = null;
     let activeEditId = null;
     let activeStyleId = null;
@@ -894,7 +896,13 @@
       areaSubEl.textContent = areaSqKm ? `${note} (${areaSqKm.toFixed(4)} km²)` : 'Luasan belum tersedia untuk layer ini.';
     }
 
-    function groupLabel(group){ return group === 'default' ? 'Default Layer' : 'Custom Area'; }
+function isBuiltInRow(row){ return row?.source === 'builtin'; }
+function getStoreEntry(id){ return builtInLayersStore.get(id) || layersStore.get(id) || null; }
+function getAllEntries(){ return [...builtInLayersStore.values(), ...layersStore.values()]; }
+function getAllRows(){ return getAllEntries().map(v => v.row); }
+function measureGeometryOf(row){ return row?.measureGeometry || row?.geometry; }
+
+function groupLabel(group){ return group === 'default' ? 'Default Layer' : 'Custom Area'; }
     function tagClass(group, name=''){
       const n = (name || '').toLowerCase();
       if (group !== 'default') return 'custom';
@@ -950,126 +958,201 @@
     function getStyleIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 8-9 9H3v-8l9-9z"></path><path d="M7 8l9 9"></path></svg>`; }
     function getDeleteIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>`; }
 
-    function buildPopup(row){
-      const area = getAreaSqKm(row.geometry);
-      return popupHtml(row.name, [
-        ['Grup', groupLabel(row.layer_group || 'custom')],
-        ['Visible', row.visible === false ? 'No' : 'Yes'],
-        ['Garis', row.style?.lineStyle || styleNameFromDashArray(row.style?.dashArray || '')],
-        ['Luas', formatAreaSqKm(area)],
-        ['ID', row.id]
-      ]);
-    }
+function buildPopup(row){
+  const area = getAreaSqKm(measureGeometryOf(row));
+  return popupHtml(row.name, [
+    ['Grup', groupLabel(row.layer_group || 'custom')],
+    ['Sumber', isBuiltInRow(row) ? 'Built-in layer' : 'Database'],
+    ['Visible', row.visible === false ? 'No' : 'Yes'],
+    ['Garis', row.style?.lineStyle || styleNameFromDashArray(row.style?.dashArray || '')],
+    ['Luas', formatAreaSqKm(area)],
+    ['ID', row.id]
+  ]);
+}
 
-    function createLeafletLayer(row){
-      const style = normalizeStyle(row.style || {}, row.layer_group || 'custom', row.name || '');
-      const geo = L.geoJSON(row.geometry, { style });
-      const sublayers = [];
-      geo.eachLayer(layer => {
-        sublayers.push(layer);
-        layer.bindPopup(() => buildPopup(row));
-        layer.on('click', () => selectLayer(row.id, true));
-      });
-      geo.__editTarget = sublayers.length === 1 ? sublayers[0] : null;
-      geo.__firstPopupLayer = sublayers[0] || null;
-      return geo;
-    }
-
-    function mountRow(row, fit=false){
-      const old = layersStore.get(row.id);
-      if (old?.layer) {
-        displayGroup.removeLayer(old.layer);
-        drawnItems.removeLayer(old.layer);
+function createLeafletLayer(row){
+  const style = normalizeStyle(row.style || {}, row.layer_group || 'custom', row.name || '');
+  const geo = L.geoJSON(row.geometry, {
+    style: feature => {
+      const role = feature?.properties?.__heritageRole;
+      if (row.id === BUILTIN_KOTATUA_FOCUS_ID || role === 'official' || role === 'plan') {
+        if (role === 'plan') {
+          return {
+            color: '#DC2626',
+            weight: 2.2,
+            dashArray: '8 6',
+            fillColor: '#DC2626',
+            fillOpacity: 0.10,
+            opacity: 1
+          };
+        }
+        return {
+          color: '#DC2626',
+          weight: 2.4,
+          fillColor: '#DC2626',
+          fillOpacity: 0.12,
+          opacity: 1
+        };
       }
-      const layer = createLeafletLayer(row);
-      if (row.visible !== false) displayGroup.addLayer(layer);
-      layersStore.set(row.id, { row, layer });
-      if (fit && layer.getBounds) {
-        try { map.fitBounds(layer.getBounds().pad(0.18)); } catch {}
-      }
+      return style;
     }
+  });
+  const sublayers = [];
+  geo.eachLayer(layer => {
+    sublayers.push(layer);
+    layer.bindPopup(() => buildPopup(row));
+    layer.on('click', () => selectLayer(row.id, true));
+  });
+  geo.__editTarget = sublayers.length === 1 ? sublayers[0] : null;
+  geo.__firstPopupLayer = sublayers[0] || null;
+  return geo;
+}
 
-    function selectLayer(id, zoom=true){
-      const item = layersStore.get(id);
-      if (!item) return;
-      selectedId = id;
-      updateAreaPanel(item.row.name, item.row.geometry);
-      renderList(qEl.value || qMobileEl.value || '');
-      if (zoom && item.layer?.getBounds) {
-        try { map.fitBounds(item.layer.getBounds().pad(0.18)); } catch {}
-      }
-      if (item.row.visible !== false && item.layer?.__firstPopupLayer?.openPopup) item.layer.__firstPopupLayer.openPopup();
-    }
+function mountRow(row, fit=false, storeName=null){
+  const targetStore = storeName === 'builtin' ? builtInLayersStore : (storeName === 'db' ? layersStore : (isBuiltInRow(row) ? builtInLayersStore : layersStore));
+  const old = targetStore.get(row.id);
+  if (old?.layer) {
+    displayGroup.removeLayer(old.layer);
+    drawnItems.removeLayer(old.layer);
+  }
+  const layer = createLeafletLayer(row);
+  if (row.visible !== false) displayGroup.addLayer(layer);
+  targetStore.set(row.id, { row, layer });
+  if (fit && layer.getBounds) {
+    try { map.fitBounds(layer.getBounds().pad(0.18)); } catch {}
+  }
+}
 
-    function renderList(query=''){
-      const q = query.trim().toLowerCase();
-      const rows = [...layersStore.values()].map(v => v.row).filter(r => (`${r.name} ${r.layer_group}`).toLowerCase().includes(q));
-      const defaults = rows.filter(r => (r.layer_group || 'custom') === 'default');
-      const customs = rows.filter(r => (r.layer_group || 'custom') !== 'default');
+function selectLayer(id, zoom=true){
+  const item = getStoreEntry(id);
+  if (!item) return;
+  selectedId = id;
+  updateAreaPanel(item.row.name, measureGeometryOf(item.row));
+  renderList(qEl.value || qMobileEl.value || '');
+  if (zoom && item.layer?.getBounds) {
+    try { map.fitBounds(item.layer.getBounds().pad(0.18)); } catch {}
+  }
+  if (item.row.visible !== false && item.layer?.__firstPopupLayer?.openPopup) item.layer.__firstPopupLayer.openPopup();
+}
 
-      const renderGroup = (items, title) => {
-        if (!items.length) return '';
-        return `<div class="sectionLabel">${title}</div>` + items.map(row => {
-          const center = centerFromGeometry(row.geometry);
-          const visible = row.visible !== false;
-          return `
-            <div class="item${row.id === selectedId ? ' active' : ''}${visible ? '' : ' hiddenItem'}" data-id="${escapeHtml(row.id)}">
-              <div class="meta">
-                <p class="name">${escapeHtml(row.name)}</p>
-                <p class="coord">${center[0].toFixed(6)}, ${center[1].toFixed(6)}</p>
-              </div>
-              <div class="rightSide">
-                <div class="tag ${tagClass(row.layer_group || 'custom', row.name || '')}">${escapeHtml(groupLabel(row.layer_group || 'custom'))}</div>
-                <button class="iconBtn toggleBtn" data-id="${escapeHtml(row.id)}" title="${visible ? 'Hide' : 'View'}">${getEyeIcon(visible)}</button>
-                <button class="iconBtn renameBtn" data-id="${escapeHtml(row.id)}" title="Rename">${getRenameIcon()}</button>
-                <button class="iconBtn styleBtn" data-id="${escapeHtml(row.id)}" title="Ubah style">${getStyleIcon()}</button>
-                <button class="iconBtn editBtn" data-id="${escapeHtml(row.id)}" title="Edit geometry">${getEditIcon()}</button>
-                <button class="iconBtn danger deleteBtn" data-id="${escapeHtml(row.id)}" title="Delete">${getDeleteIcon()}</button>
-              </div>
-            </div>`;
-        }).join('');
-      };
+function renderList(query=''){
+  const q = query.trim().toLowerCase();
+  const rows = getAllRows().filter(r => (`${r.name} ${r.layer_group}`).toLowerCase().includes(q));
+  const defaults = rows.filter(r => (r.layer_group || 'custom') === 'default');
+  const customs = rows.filter(r => (r.layer_group || 'custom') !== 'default');
 
-      const html = renderGroup(defaults, 'Default Layers') + renderGroup(customs, 'Custom Areas') || '<div class="sectionLabel">Belum ada layer</div>';
-      listEl.innerHTML = html;
-      listMobileEl.innerHTML = html;
+  const renderGroup = (items, title) => {
+    if (!items.length) return '';
+    return `<div class="sectionLabel">${title}</div>` + items.map(row => {
+      const center = centerFromGeometry(measureGeometryOf(row));
+      const visible = row.visible !== false;
+      const readOnly = isBuiltInRow(row);
+      return `
+        <div class="item${row.id === selectedId ? ' active' : ''}${visible ? '' : ' hiddenItem'}" data-id="${escapeHtml(row.id)}">
+          <div class="meta">
+            <p class="name">${escapeHtml(row.name)}</p>
+            <p class="coord">${center[0].toFixed(6)}, ${center[1].toFixed(6)}</p>
+          </div>
+          <div class="rightSide">
+            <div class="tag ${tagClass(row.layer_group || 'custom', row.name || '')}">${escapeHtml(groupLabel(row.layer_group || 'custom'))}</div>
+            <button class="iconBtn toggleBtn" data-id="${escapeHtml(row.id)}" title="${visible ? 'Hide' : 'View'}">${getEyeIcon(visible)}</button>
+            ${readOnly ? '' : `<button class="iconBtn renameBtn" data-id="${escapeHtml(row.id)}" title="Rename">${getRenameIcon()}</button>
+            <button class="iconBtn styleBtn" data-id="${escapeHtml(row.id)}" title="Ubah style">${getStyleIcon()}</button>
+            <button class="iconBtn editBtn" data-id="${escapeHtml(row.id)}" title="Edit geometry">${getEditIcon()}</button>
+            <button class="iconBtn danger deleteBtn" data-id="${escapeHtml(row.id)}" title="Delete">${getDeleteIcon()}</button>`}
+          </div>
+        </div>`;
+    }).join('');
+  };
 
-      document.querySelectorAll('.item').forEach(el => {
-        el.addEventListener('click', ev => {
-          if (ev.target.closest('.toggleBtn,.renameBtn,.styleBtn,.editBtn,.deleteBtn')) return;
-          selectLayer(el.getAttribute('data-id'), true);
-        });
-      });
-      document.querySelectorAll('.toggleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); toggleVisibility(btn.dataset.id); }));
-      document.querySelectorAll('.renameBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); renameLayer(btn.dataset.id); }));
-      document.querySelectorAll('.styleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); openStyleEditor(btn.dataset.id); }));
-      document.querySelectorAll('.editBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); startEdit(btn.dataset.id); }));
-      document.querySelectorAll('.deleteBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); deleteLayer(btn.dataset.id); }));
-    }
+  const html = renderGroup(defaults, 'Default Layers') + renderGroup(customs, 'Custom Areas') || '<div class="sectionLabel">Belum ada layer</div>';
+  listEl.innerHTML = html;
+  listMobileEl.innerHTML = html;
 
-    async function loadLayers(selectFirst=true){
-      setStatus('Memuat layer dari database...');
-      const data = await api(API_BASE);
-      const rows = data.rows || [];
-      displayGroup.clearLayers();
-      drawnItems.clearLayers();
-      layersStore.clear();
-      rows.forEach(row => mountRow(row, false));
-      renderList(qEl.value || qMobileEl.value || '');
-      if (rows.length) {
-        if (selectFirst) selectLayer(selectedId && layersStore.has(selectedId) ? selectedId : rows[0].id, false);
-        fitVisible();
-      } else {
-        areaNameEl.textContent = 'Belum ada area';
-        areaValueEl.textContent = '-';
-        areaSubEl.textContent = 'Tambahkan area dengan gambar atau import GeoJSON.';
-      }
-      legendNote.textContent = `${rows.length} layer aktif di database.`;
-      setStatus(`${rows.length} layer dimuat.`);
-    }
+  document.querySelectorAll('.item').forEach(el => {
+    el.addEventListener('click', ev => {
+      if (ev.target.closest('.toggleBtn,.renameBtn,.styleBtn,.editBtn,.deleteBtn')) return;
+      selectLayer(el.getAttribute('data-id'), true);
+    });
+  });
+  document.querySelectorAll('.toggleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); toggleVisibility(btn.dataset.id); }));
+  document.querySelectorAll('.renameBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); renameLayer(btn.dataset.id); }));
+  document.querySelectorAll('.styleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); openStyleEditor(btn.dataset.id); }));
+  document.querySelectorAll('.editBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); startEdit(btn.dataset.id); }));
+  document.querySelectorAll('.deleteBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); deleteLayer(btn.dataset.id); }));
+}
 
-    function fitVisible(){
-      const visible = [...layersStore.values()].filter(v => v.row.visible !== false && v.layer?.getBounds);
+async function ensureBuiltInFocusLayer(){
+  if (builtInLayersStore.has(BUILTIN_KOTATUA_FOCUS_ID)) return builtInLayersStore.get(BUILTIN_KOTATUA_FOCUS_ID).row;
+
+  const [officialArea, planArea] = await Promise.all([
+    fetchJSON('https://tataruang.jakarta.go.id/server/rest/services/UDGL/UDGL_Jakarta_Publik_Baru/MapServer/48/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson'),
+    fetchJSON('https://tataruang.jakarta.go.id/server/rest/services/UDGL/UDGL_Jakarta_Publik_Baru/MapServer/15/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson')
+  ]);
+
+  const officialFeatures = (normalizeGeoJSON(officialArea).features || []).map(f => ({
+    ...f,
+    properties: { ...(f.properties || {}), __heritageRole: 'official' }
+  }));
+  const planFeatures = (normalizeGeoJSON(planArea).features || []).map(f => ({
+    ...f,
+    properties: { ...(f.properties || {}), __heritageRole: 'plan' }
+  }));
+
+  const row = {
+    id: BUILTIN_KOTATUA_FOCUS_ID,
+    name: 'Kota Tua Heritage Focus',
+    layer_group: 'default',
+    visible: true,
+    source: 'builtin',
+    read_only: true,
+    style: normalizeStyle({ color:'#DC2626', fillColor:'#DC2626', lineStyle:'solid' }, 'default', 'Kota Tua Heritage Focus'),
+    geometry: { type:'FeatureCollection', features:[...planFeatures, ...officialFeatures] },
+    measureGeometry: { type:'FeatureCollection', features: officialFeatures }
+  };
+
+  mountRow(row, false, 'builtin');
+  return row;
+}
+
+async function loadLayers(selectFirst=true){
+  setStatus('Memuat layer dari database...');
+  builtInLayersStore.clear();
+  displayGroup.clearLayers();
+  drawnItems.clearLayers();
+
+  let builtInRow = null;
+  try {
+    builtInRow = await ensureBuiltInFocusLayer();
+  } catch (err) {
+    console.warn('Built-in heritage focus failed to load:', err);
+  }
+
+  const data = await api(API_BASE);
+  const rows = data.rows || [];
+  layersStore.clear();
+  rows.forEach(row => mountRow(row, false, 'db'));
+  renderList(qEl.value || qMobileEl.value || '');
+
+  const availableIds = getAllRows().map(r => r.id);
+  if (availableIds.length) {
+    const preferredId = (selectFirst && selectedId && availableIds.includes(selectedId))
+      ? selectedId
+      : (builtInRow?.id || rows[0]?.id || availableIds[0]);
+    if (preferredId) selectLayer(preferredId, false);
+    fitVisible();
+  } else {
+    areaNameEl.textContent = 'Belum ada area';
+    areaValueEl.textContent = '-';
+    areaSubEl.textContent = 'Tambahkan area dengan gambar atau import GeoJSON.';
+  }
+  legendNote.textContent = `${rows.length} layer database + ${builtInRow ? 1 : 0} built-in heritage layer.`;
+  setStatus(`${rows.length + (builtInRow ? 1 : 0)} layer dimuat.`);
+}
+
+function fitVisible(){
+
+      const visible = getAllEntries().filter(v => v.row.visible !== false && v.layer?.getBounds);
       if (!visible.length) return;
       const group = L.featureGroup(visible.map(v => v.layer));
       try { map.fitBounds(group.getBounds().pad(0.12)); } catch {}
@@ -1197,11 +1280,18 @@
     }
 
     async function toggleVisibility(id){
-      const item = layersStore.get(id); if (!item) return;
+      const item = getStoreEntry(id); if (!item) return;
       const nextVisible = item.row.visible === false;
+      if (isBuiltInRow(item.row)) {
+        const nextRow = { ...item.row, visible: nextVisible };
+        mountRow(nextRow, false, 'builtin');
+        renderList(qEl.value || qMobileEl.value || '');
+        if (selectedId === id) selectLayer(id, false);
+        return;
+      }
       try {
         const data = await api(`${API_BASE}/${id}`, { method:'PUT', body: JSON.stringify({ visible: nextVisible }) });
-        mountRow(data.row, false);
+        mountRow(data.row, false, 'db');
         renderList(qEl.value || qMobileEl.value || '');
         if (selectedId === id) selectLayer(id, false);
       } catch (err) {
@@ -1210,12 +1300,12 @@
     }
 
     async function renameLayer(id){
-      const item = layersStore.get(id); if (!item) return;
+      const item = getStoreEntry(id); if (!item || isBuiltInRow(item.row)) return;
       const name = prompt('Ubah nama layer:', item.row.name);
       if (!name || name.trim() === item.row.name) return;
       try {
         const data = await api(`${API_BASE}/${id}`, { method:'PUT', body: JSON.stringify({ name: name.trim() }) });
-        mountRow(data.row, false);
+        mountRow(data.row, false, 'db');
         renderList(qEl.value || qMobileEl.value || '');
         if (selectedId === id) selectLayer(id, false);
         setStatus('Nama layer berhasil diperbarui.');
@@ -1225,7 +1315,7 @@
     }
 
     function openStyleEditor(id){
-      const item = layersStore.get(id); if (!item) return;
+      const item = getStoreEntry(id); if (!item || isBuiltInRow(item.row)) return;
       activeStyleId = id;
       const style = normalizeStyle(item.row.style || {}, item.row.layer_group || 'custom', item.row.name || '');
       document.getElementById('styleColor').value = style.color || '#2563EB';
@@ -1235,13 +1325,13 @@
 
     async function saveStyleChanges(){
       if (!activeStyleId) return;
-      const item = layersStore.get(activeStyleId); if (!item) return;
+      const item = getStoreEntry(activeStyleId); if (!item || isBuiltInRow(item.row)) return;
       const color = document.getElementById('styleColor').value || '#2563EB';
       const lineStyle = document.getElementById('styleLineStyle').value || 'solid';
       try {
         const style = normalizeStyle({ ...(item.row.style || {}), color, fillColor: color, lineStyle, dashArray: dashArrayFromStyleName(lineStyle) }, item.row.layer_group || 'custom', item.row.name || '');
         const data = await api(`${API_BASE}/${activeStyleId}`, { method:'PUT', body: JSON.stringify({ style }) });
-        mountRow(data.row, false);
+        mountRow(data.row, false, 'db');
         renderList(qEl.value || qMobileEl.value || '');
         if (selectedId === activeStyleId) selectLayer(activeStyleId, false);
         closeModal(styleModal);
@@ -1262,7 +1352,7 @@
     }
 
     function startEdit(id){
-      const item = layersStore.get(id); if (!item) return;
+      const item = getStoreEntry(id); if (!item || isBuiltInRow(item.row)) return;
       const fc = normalizeGeoJSON(item.row.geometry);
       if ((fc.features || []).length !== 1) {
         alert('Edit geometry langsung di map saat ini hanya untuk layer dengan satu polygon. Untuk layer blok-blok multi feature, gunakan import ulang atau ubah stylenya saja.');
@@ -1282,7 +1372,7 @@
 
     async function saveEdit(){
       if (!activeEditId) return;
-      const item = layersStore.get(activeEditId); if (!item) return;
+      const item = getStoreEntry(activeEditId); if (!item || isBuiltInRow(item.row)) return;
       try {
         const editTarget = item.layer.__editTarget || item.layer;
         const geometry = layerToGeoJSON(editTarget);
@@ -1291,7 +1381,7 @@
         drawnItems.clearLayers();
         editBar.style.display = 'none';
         activeEditId = null;
-        mountRow(data.row, true);
+        mountRow(data.row, true, 'db');
         selectLayer(data.row.id, false);
         renderList(qEl.value || qMobileEl.value || '');
         setStatus('Geometry layer berhasil disimpan.');
@@ -1302,7 +1392,7 @@
 
     function cancelEdit(id=activeEditId){
       if (!id) return;
-      const item = layersStore.get(id);
+      const item = getStoreEntry(id);
       if (item) disableLayerEditing(item.layer.__editTarget || item.layer);
       drawnItems.clearLayers();
       editBar.style.display = 'none';
@@ -1311,7 +1401,7 @@
     }
 
     async function deleteLayer(id){
-      const item = layersStore.get(id); if (!item) return;
+      const item = getStoreEntry(id); if (!item || isBuiltInRow(item.row)) return;
       if (!confirm(`Hapus layer "${item.row.name}"?`)) return;
       try {
         await api(`${API_BASE}/${id}`, { method:'DELETE' });
@@ -1320,7 +1410,7 @@
         layersStore.delete(id);
         renderList(qEl.value || qMobileEl.value || '');
         if (selectedId === id) {
-          const first = [...layersStore.keys()][0];
+          const first = getAllRows().map(r => r.id)[0];
           if (first) selectLayer(first, false);
         }
         setStatus('Layer berhasil dihapus.');
@@ -1329,31 +1419,36 @@
       }
     }
 
-    async function setAllVisibility(show){
-      const ids = [...layersStore.keys()];
-      for (const id of ids) {
-        const item = layersStore.get(id);
-        if (!item) continue;
-        if ((item.row.visible !== false) === show) continue;
-        try {
-          const data = await api(`${API_BASE}/${id}`, { method:'PUT', body: JSON.stringify({ visible: show }) });
-          mountRow(data.row, false);
-        } catch (err) {
-          console.warn('Visibility update failed for', id, err);
-        }
-      }
-      renderList(qEl.value || qMobileEl.value || '');
-      setStatus(show ? 'Semua layer ditampilkan.' : 'Semua layer disembunyikan.');
+async function setAllVisibility(show){
+  const ids = getAllRows().map(r => r.id);
+  for (const id of ids) {
+    const item = getStoreEntry(id);
+    if (!item) continue;
+    if ((item.row.visible !== false) === show) continue;
+    if (isBuiltInRow(item.row)) {
+      mountRow({ ...item.row, visible: show }, false, 'builtin');
+      continue;
     }
+    try {
+      const data = await api(`${API_BASE}/${id}`, { method:'PUT', body: JSON.stringify({ visible: show }) });
+      mountRow(data.row, false, 'db');
+    } catch (err) {
+      console.warn('Visibility update failed for', id, err);
+    }
+  }
+  renderList(qEl.value || qMobileEl.value || '');
+  setStatus(show ? 'Semua layer ditampilkan.' : 'Semua layer disembunyikan.');
+}
 
-    document.getElementById('btnFitAll').addEventListener('click', fitVisible);
+document.getElementById('btnFitAll')
+.addEventListener('click', fitVisible);
     document.getElementById('btnZoomSelected').addEventListener('click', () => {
-      const item = layersStore.get(selectedId);
+      const item = getStoreEntry(selectedId);
       if (item?.layer?.getBounds) map.fitBounds(item.layer.getBounds().pad(0.18));
     });
     document.getElementById('btnDrawArea').addEventListener('click', () => setStatus('Gunakan toolbar draw di kanan atas untuk menggambar area.'));
     document.getElementById('btnImport').addEventListener('click', () => openModal(importModal));
-    document.getElementById('btnCalcArea').addEventListener('click', () => { const item = layersStore.get(selectedId); if (item) updateAreaPanel(item.row.name, item.row.geometry); });
+    document.getElementById('btnCalcArea').addEventListener('click', () => { const item = getStoreEntry(selectedId); if (item) updateAreaPanel(item.row.name, measureGeometryOf(item.row)); });
     document.getElementById('btnReload').addEventListener('click', () => loadLayers(false));
     document.getElementById('btnReloadMobile').addEventListener('click', () => loadLayers(false));
 
