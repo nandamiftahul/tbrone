@@ -718,7 +718,6 @@ def api_monthly_report_expert():
 
     return jsonify({"ok": True, "month": month, "metrics": metrics})
 
-
 @xweather_report_bp.route("/xweather/monthly-report.xlsx", methods=["GET"])
 def monthly_report_xlsx():
     init_db()

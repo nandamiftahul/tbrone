@@ -14,6 +14,9 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
 
   <style>
     :root{
@@ -323,7 +326,7 @@
       position:relative;
       min-height:0;
     }
-    #map{ position:absolute; inset:0; }
+    #map, #map3d{ position:absolute; inset:0; }
 
     .legend{
       position:absolute;
@@ -488,6 +491,7 @@
     <div class="top-actions">
       <button class="btn" id="btnFitAll">Fit All</button>
       <button class="btn" id="btnZoomSelected">Focus Selected</button>
+      <button class="btn" id="btnToggleMapMode">3D Map</button>
       <button class="btn" id="btnDrawArea">Gambar Area</button>
       <button class="btn" id="btnImport">Import GeoJSON</button>
       <button class="btn" id="btnCalcArea">Hitung Luasan</button>
@@ -513,6 +517,7 @@
 
     <section class="mapCard">
       <div id="map"></div>
+      <div id="map3d" style="display:none;"></div>
 
       <div class="statusPill" id="statusPill">Memuat layer...</div>
 
@@ -778,6 +783,250 @@
     const editBar = document.getElementById('editBar');
     const styleModal = document.getElementById('styleModal');
 
+    let currentMapMode = '2d';
+    let map3d = null;
+    let deckOverlay = null;
+    let kemayoranBuildingsBounds = null;
+
+    function hexToRgb(hex){
+      const clean = String(hex || '').replace('#','').trim();
+      const normalized = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+      const int = parseInt(normalized || '2563EB', 16);
+      return [ (int >> 16) & 255, (int >> 8) & 255, int & 255 ];
+    }
+
+    function colorWithAlpha(hex, alpha=180){
+      const [r,g,b] = hexToRgb(hex);
+      return [r,g,b,alpha];
+    }
+
+    function flattenFeatureCollectionForDeck(geojson, row){
+      const fc = normalizeGeoJSON(geojson);
+      return (fc.features || []).map((feature, idx) => ({
+        ...feature,
+        properties: {
+          ...(feature.properties || {}),
+          __rowId: row.id,
+          __rowName: row.name,
+          __rowGroup: row.layer_group || 'custom',
+          __featureIndex: idx,
+          __lineStyle: row.style?.lineStyle || styleNameFromDashArray(row.style?.dashArray || ''),
+          __source: row.source || 'db'
+        }
+      }));
+    }
+
+    function createDeckLayerFromRow(row){
+      if (row.visible === false) return null;
+      const style = normalizeStyle(row.style || {}, row.layer_group || 'custom', row.name || '');
+      const lineColor = colorWithAlpha(style.color || '#2563EB', 235);
+      const isDefault = (row.layer_group || 'custom') === 'default';
+      const isBuiltIn = isBuiltInRow(row);
+      const fillAlpha = isDefault ? (isBuiltIn ? 18 : 8) : Math.max(22, Math.round((style.fillOpacity ?? 0.14) * 140));
+      const fillColor = colorWithAlpha(style.fillColor || style.color || '#2563EB', fillAlpha);
+      const data = flattenFeatureCollectionForDeck(row.geometry, row);
+      if (!data.length) return null;
+      return new deck.GeoJsonLayer({
+        id: `row-${row.id}`,
+        data,
+        pickable: true,
+        stroked: true,
+        filled: true,
+        extruded: false,
+        wireframe: false,
+        getElevation: 1,
+        lineWidthUnits: 'pixels',
+        getLineWidth: Math.max(1.5, style.weight || 3),
+        getLineColor: lineColor,
+        getFillColor: fillColor,
+        onClick: info => {
+          if (!info?.object?.properties?.__rowId) return;
+          const id = info.object.properties.__rowId;
+          selectLayer(id, false);
+          if (map3d) {
+            const ctr = centerFromGeometry(measureGeometryOf(getStoreEntry(id)?.row || row));
+            try { map3d.flyTo({ center:[ctr[1], ctr[0]], zoom: Math.max(map3d.getZoom(), 14), duration: 700 }); } catch {}
+          }
+        },
+        updateTriggers: {
+          getLineColor: lineColor,
+          getFillColor: fillColor,
+          getLineWidth: style.weight || 3
+        }
+      });
+    }
+
+    function buildingElevation(feature){
+      const h = Number(feature?.properties?.height_m);
+      if (Number.isFinite(h) && h > 0) return h;
+      const alt = Number(feature?.properties?.height);
+      if (Number.isFinite(alt) && alt > 0) return alt;
+      const levels = Number(feature?.properties?.['building:levels']);
+      if (Number.isFinite(levels) && levels > 0) return levels * 3.5;
+      return 15;
+    }
+
+    function featureHasBuildingHeight(feature){
+      const p = feature?.properties || {};
+      return Number.isFinite(Number(p.height_m)) || Number.isFinite(Number(p.height)) || Number.isFinite(Number(p['building:levels']));
+    }
+
+    function isBuildingsRow(row){
+      const name = String(row?.name || '').toLowerCase();
+      if (name.includes('building')) return true;
+      try {
+        const fc = normalizeGeoJSON(row?.geometry);
+        return (fc.features || []).some(featureHasBuildingHeight);
+      } catch {
+        return false;
+      }
+    }
+
+    function getBuildingsFeatureCollection(){
+      const features = [];
+      getAllRows().forEach(row => {
+        if (row.visible === false || !isBuildingsRow(row)) return;
+        try {
+          const fc = normalizeGeoJSON(row.geometry);
+          (fc.features || []).forEach((feature, idx) => {
+            if (!featureHasBuildingHeight(feature)) return;
+            features.push({
+              ...feature,
+              properties: {
+                ...(feature.properties || {}),
+                __rowId: row.id,
+                __rowName: row.name,
+                __rowGroup: row.layer_group || 'custom',
+                __featureIndex: idx,
+                __source: row.source || 'db'
+              }
+            });
+          });
+        } catch {}
+      });
+      return { type:'FeatureCollection', features };
+    }
+
+    function createBuildingsDeckLayer(){
+      const fc = getBuildingsFeatureCollection();
+      if (!fc.features.length) {
+        kemayoranBuildingsBounds = null;
+        return null;
+      }
+      try {
+        kemayoranBuildingsBounds = turf.bbox(fc);
+      } catch {}
+      return new deck.GeoJsonLayer({
+        id: 'kemayoran-buildings-3d',
+        data: fc,
+        pickable: true,
+        stroked: true,
+        filled: true,
+        extruded: true,
+        wireframe: false,
+        opacity: 0.98,
+        material: { ambient: 0.38, diffuse: 0.6, shininess: 36, specularColor: [130, 145, 190] },
+        getElevation: feature => Math.max(3, buildingElevation(feature)),
+        getFillColor: feature => {
+          const h = buildingElevation(feature);
+          if (h >= 70) return [88, 121, 214, 225];
+          if (h >= 40) return [97, 131, 223, 220];
+          if (h >= 20) return [107, 141, 232, 214];
+          return [120, 152, 240, 205];
+        },
+        getLineColor: [83, 111, 188, 230],
+        lineWidthUnits: 'pixels',
+        getLineWidth: 0.55,
+        onClick: info => {
+          const id = info?.object?.properties?.__rowId;
+          if (!id) return;
+          selectLayer(id, false);
+        },
+        updateTriggers: {
+          getElevation: 'height_m-height-building-levels',
+          getFillColor: 'height-based-fill'
+        }
+      });
+    }
+
+    async function refresh3DOverlay(){
+      if (!map3d || !deckOverlay) return;
+      const contextLayers = getAllRows().filter(row => !isBuildingsRow(row)).map(createDeckLayerFromRow).filter(Boolean);
+      const buildingsLayer = createBuildingsDeckLayer();
+      const layers = [...contextLayers, ...(buildingsLayer ? [buildingsLayer] : [])];
+      deckOverlay.setProps({ layers });
+    }
+
+    function ensure3DMap(){
+      if (map3d) return;
+      map3d = new maplibregl.Map({
+        container: 'map3d',
+        style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+        center: [106.81, -6.13],
+        zoom: 15,
+        pitch: 58,
+        bearing: -18
+      });
+      map3d.addControl(new maplibregl.NavigationControl(), 'top-left');
+      map3d.on('load', async () => {
+        deckOverlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
+        map3d.addControl(deckOverlay);
+        try { await ensureBuildingsData(); } catch (err) { console.warn(err); }
+        await refresh3DOverlay();
+      });
+    }
+
+    function sync3DViewTo2D(){
+      if (!map3d) return;
+      const c = map.getCenter();
+      try {
+        map3d.jumpTo({ center:[c.lng, c.lat], zoom: map.getZoom(), bearing: map3d.getBearing(), pitch: map3d.getPitch() || 45 });
+      } catch {}
+    }
+
+    function sync2DViewTo3D(){
+      if (!map3d) return;
+      const c = map3d.getCenter();
+      try {
+        map.setView([c.lat, c.lng], Math.round(map3d.getZoom()));
+      } catch {}
+    }
+
+    function setMapMode(mode){
+      if (mode === currentMapMode) return;
+      const btn = document.getElementById('btnToggleMapMode');
+      if (mode === '3d') {
+        ensure3DMap();
+        sync3DViewTo2D();
+        document.getElementById('map').style.display = 'none';
+        document.getElementById('map3d').style.display = 'block';
+        setTimeout(async () => {
+          try { map3d.resize(); } catch {}
+          await refresh3DOverlay();
+          if (kemayoranBuildingsBounds && map3d) {
+            try {
+              map3d.fitBounds([[kemayoranBuildingsBounds[0], kemayoranBuildingsBounds[1]], [kemayoranBuildingsBounds[2], kemayoranBuildingsBounds[3]]], { padding: 40, duration: 900, pitch: 58, bearing: -18 });
+            } catch {}
+          }
+        }, 50);
+        currentMapMode = '3d';
+        if (btn) btn.textContent = '2D Map';
+        setStatus('Mode 3D aktif', false);
+      } else {
+        sync2DViewTo3D();
+        document.getElementById('map3d').style.display = 'none';
+        document.getElementById('map').style.display = 'block';
+        setTimeout(() => map.invalidateSize(), 50);
+        currentMapMode = '2d';
+        if (btn) btn.textContent = '3D Map';
+        setStatus('Mode 2D aktif.', false);
+      }
+    }
+
+    function toggleMapMode(){
+      setMapMode(currentMapMode === '2d' ? '3d' : '2d');
+    }
+
     const drawControl = new L.Control.Draw({
       position: 'topright',
       edit: { featureGroup: drawnItems, edit: false, remove: false },
@@ -1018,6 +1267,7 @@ function mountRow(row, fit=false, storeName=null){
   const layer = createLeafletLayer(row);
   if (row.visible !== false) displayGroup.addLayer(layer);
   targetStore.set(row.id, { row, layer });
+  refresh3DOverlay();
   if (fit && layer.getBounds) {
     try { map.fitBounds(layer.getBounds().pad(0.18)); } catch {}
   }
@@ -1030,9 +1280,16 @@ function selectLayer(id, zoom=true){
   updateAreaPanel(item.row.name, measureGeometryOf(item.row));
   renderList(qEl.value || qMobileEl.value || '');
   if (zoom && item.layer?.getBounds) {
-    try { map.fitBounds(item.layer.getBounds().pad(0.18)); } catch {}
+    try {
+      if (currentMapMode === '3d' && map3d) {
+        const ctr = centerFromGeometry(measureGeometryOf(item.row));
+        map3d.flyTo({ center:[ctr[1], ctr[0]], zoom: Math.max(map3d.getZoom(), 14), duration: 700 });
+      } else {
+        map.fitBounds(item.layer.getBounds().pad(0.18));
+      }
+    } catch {}
   }
-  if (item.row.visible !== false && item.layer?.__firstPopupLayer?.openPopup) item.layer.__firstPopupLayer.openPopup();
+  if (currentMapMode !== '3d' && item.row.visible !== false && item.layer?.__firstPopupLayer?.openPopup) item.layer.__firstPopupLayer.openPopup();
 }
 
 function renderList(query=''){
@@ -1147,6 +1404,7 @@ async function loadLayers(selectFirst=true){
     areaSubEl.textContent = 'Tambahkan area dengan gambar atau import GeoJSON.';
   }
   legendNote.textContent = `${rows.length} layer database + ${builtInRow ? 1 : 0} built-in heritage layer.`;
+  refresh3DOverlay();
   setStatus(`${rows.length + (builtInRow ? 1 : 0)} layer dimuat.`);
 }
 
@@ -1155,7 +1413,14 @@ function fitVisible(){
       const visible = getAllEntries().filter(v => v.row.visible !== false && v.layer?.getBounds);
       if (!visible.length) return;
       const group = L.featureGroup(visible.map(v => v.layer));
-      try { map.fitBounds(group.getBounds().pad(0.12)); } catch {}
+      try {
+        const bounds = group.getBounds().pad(0.12);
+        if (currentMapMode === '3d' && map3d) {
+          map3d.fitBounds([[bounds.getWest(), bounds.getSouth()], [bounds.getEast(), bounds.getNorth()]], { padding: 40, duration: 700 });
+        } else {
+          map.fitBounds(bounds);
+        }
+      } catch {}
     }
 
     function layerToGeoJSON(layer){
@@ -1408,6 +1673,7 @@ function fitVisible(){
         if (activeEditId === id) { activeEditId = null; editBar.style.display = 'none'; drawnItems.clearLayers(); }
         displayGroup.removeLayer(item.layer);
         layersStore.delete(id);
+        refresh3DOverlay();
         renderList(qEl.value || qMobileEl.value || '');
         if (selectedId === id) {
           const first = getAllRows().map(r => r.id)[0];
@@ -1442,11 +1708,18 @@ async function setAllVisibility(show){
 
 document.getElementById('btnFitAll')
 .addEventListener('click', fitVisible);
+    document.getElementById('btnToggleMapMode').addEventListener('click', toggleMapMode);
     document.getElementById('btnZoomSelected').addEventListener('click', () => {
       const item = getStoreEntry(selectedId);
-      if (item?.layer?.getBounds) map.fitBounds(item.layer.getBounds().pad(0.18));
+      if (!item?.layer?.getBounds) return;
+      if (currentMapMode === '3d' && map3d) {
+        const ctr = centerFromGeometry(measureGeometryOf(item.row));
+        map3d.flyTo({ center:[ctr[1], ctr[0]], zoom: Math.max(map3d.getZoom(), 14), duration: 700 });
+      } else {
+        map.fitBounds(item.layer.getBounds().pad(0.18));
+      }
     });
-    document.getElementById('btnDrawArea').addEventListener('click', () => setStatus('Gunakan toolbar draw di kanan atas untuk menggambar area.'));
+    document.getElementById('btnDrawArea').addEventListener('click', () => setStatus(currentMapMode === '3d' ? 'Mode gambar tetap menggunakan peta 2D. Pindah dulu ke 2D untuk menggambar area.' : 'Gunakan toolbar draw di kanan atas untuk menggambar area.'));
     document.getElementById('btnImport').addEventListener('click', () => openModal(importModal));
     document.getElementById('btnCalcArea').addEventListener('click', () => { const item = getStoreEntry(selectedId); if (item) updateAreaPanel(item.row.name, measureGeometryOf(item.row)); });
     document.getElementById('btnReload').addEventListener('click', () => loadLayers(false));
@@ -1511,6 +1784,13 @@ document.getElementById('btnFitAll')
       window.addEventListener('touchmove', onMove, {passive:true});
       window.addEventListener('touchend', onUp);
     })();
+
+    window.addEventListener('resize', () => {
+      map.invalidateSize();
+      if (map3d) {
+        try { map3d.resize(); } catch {}
+      }
+    });
 
     loadLayers(true).catch(err => setStatus(err.message || 'Gagal memuat layer.', true));
   </script>
