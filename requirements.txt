@@ -6,3 +6,7 @@ psycopg[binary]
 python-dotenv
 websocket-client
 psycopg2-binary
+matplotlib
+numpy
+scipy
+arm_pyart

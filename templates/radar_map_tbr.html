@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Radar Viewer · Terrindo Bumi Raya</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --xw-blue:#003A8F;
+      --xw-blue-2:#0A4BBF;
+      --tbr-orange:#F28C28;
+      --bg:#F4F7FB;
+      --card:#FFFFFF;
+      --text:#1F2937;
+      --muted:#6B7280;
+      --border:rgba(17,24,39,.10);
+      --shadow:0 10px 30px rgba(2,22,55,.08);
+      --radius:16px;
+      --radar:#2563EB;
+      --timeline:#DC2626;
+      --timeline-muted:#94A3B8;
+      --ok:#10B981;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      color:var(--text);
+      background:linear-gradient(180deg,#EAF1FF 0%,var(--bg) 40%,#F7FAFF 100%);
+      overflow:hidden;
+    }
+    .topbar{
+      position:sticky; top:0; z-index:50;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 18px; gap:12px;
+      background:rgba(0,58,143,.94);
+      backdrop-filter:blur(8px);
+      border-bottom:1px solid rgba(255,255,255,.15);
+    }
+    .brand{display:flex; align-items:center; gap:12px; min-width:240px}
+    .brand .logo{
+      width:38px; height:38px; border-radius:12px;
+      background:linear-gradient(135deg,#F28C28 0%,#FFD089 100%);
+      display:grid; place-items:center; color:#17335f; font-weight:900;
+      box-shadow:0 8px 18px rgba(0,0,0,.16)
+    }
+    .brand .title{display:flex; flex-direction:column; line-height:1.1; color:#fff; min-width:0}
+    .brand .title strong{font-size:14px; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .brand .title span{font-size:12px; opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .top-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end}
+    .btn{
+      appearance:none; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10); color:#fff;
+      padding:10px 12px; border-radius:12px; cursor:pointer; font-weight:600; font-size:13px;
+      display:inline-flex; align-items:center; gap:8px; transition:transform .12s ease, background .12s ease, border-color .12s ease;
+      text-decoration:none; user-select:none; white-space:nowrap;
+    }
+    .btn:hover{transform:translateY(-1px); background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.24)}
+    .btn.primary{background:linear-gradient(135deg,var(--tbr-orange) 0%,#FFB565 100%); border-color:rgba(255,255,255,.10); color:#1A1A1A}
+
+    .shell{
+      height:calc(100vh - 67px);
+      display:grid; grid-template-columns:360px 1fr; gap:12px; padding:12px;
+    }
+    .sidebar{
+      background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+      overflow:hidden; display:flex; flex-direction:column; min-height:0;
+    }
+    .sidebar .head{padding:14px 14px 10px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%)}
+    .sidebar .head .h{margin:0; font-weight:900; font-size:14px; color:var(--xw-blue); letter-spacing:.2px}
+    .sidebar .head .s{margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.4}
+    .toolbarRow{padding:10px 14px 0; display:flex; gap:8px; flex-wrap:wrap}
+    .miniBtn{
+      appearance:none; border:1px solid var(--border); background:#fff; color:var(--text);
+      padding:8px 10px; border-radius:10px; cursor:pointer; font-size:12px; font-weight:700;
+    }
+    .miniBtn:hover{border-color:rgba(0,58,143,.22); background:rgba(0,58,143,.05)}
+    .search{padding:10px 14px; border-bottom:1px solid var(--border); display:flex; gap:10px}
+    .search input,.field select,.field input{
+      width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--border);
+      background:rgba(17,24,39,.04); color:var(--text); outline:none; font:inherit;
+    }
+    .list{padding:10px; overflow:auto; min-height:0; display:flex; flex-direction:column; gap:8px}
+    .sectionLabel{font-size:11px; font-weight:900; letter-spacing:.4px; color:var(--xw-blue); padding:10px 4px 2px; text-transform:uppercase}
+    .item{border:1px solid var(--border); border-radius:14px; padding:12px; background:#fff; display:flex; flex-direction:column; gap:10px}
+    .item .headRow{display:flex; justify-content:space-between; align-items:flex-start; gap:10px}
+    .item .name{margin:0; font-weight:800; font-size:13px; line-height:1.35}
+    .item .coord{margin:4px 0 0; font-size:12px; color:var(--muted); line-height:1.45}
+    .tag{font-size:11px; font-weight:800; padding:7px 10px; border-radius:999px; border:1px solid var(--border); background:rgba(37,99,235,.12); border-color:rgba(37,99,235,.26); color:#1d4ed8; white-space:nowrap}
+    .tag.ok{background:rgba(16,185,129,.12); border-color:rgba(16,185,129,.26); color:#047857}
+    .field{display:grid; gap:6px}
+    .field label{font-size:12px; font-weight:800; color:var(--text)}
+    .field small{font-size:11px; color:var(--muted)}
+    .check{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text)}
+    .check input{width:auto; margin:0}
+    .row2{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+
+    .mapCard{
+      background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+      overflow:hidden; position:relative; min-height:0;
+    }
+    #map{position:absolute; inset:0}
+    .statusPill{
+      position:absolute; top:14px; right:14px; z-index:9999; background:rgba(255,255,255,.94);
+      border:1px solid var(--border); border-radius:999px; padding:8px 12px; font-size:12px; font-weight:700;
+      box-shadow:var(--shadow); max-width:min(52vw,520px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .warningBox{
+      position:absolute; top:62px; right:14px; z-index:9998; background:#fff7ed; color:#9a3412;
+      border:1px solid rgba(251,146,60,.35); border-radius:14px; padding:10px 12px; box-shadow:var(--shadow); max-width:340px;
+      font-size:12px; line-height:1.45; display:none;
+    }
+    .legend{
+      position:absolute; left:14px; bottom:14px; z-index:9999; background:rgba(255,255,255,.92);
+      border:1px solid var(--border); border-radius:14px; padding:10px 12px; box-shadow:var(--shadow);
+      font-size:12px; backdrop-filter:blur(8px); min-width:250px;
+    }
+    .legend .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0}
+    .dot{width:10px; height:10px; border-radius:99px; display:inline-block}
+    .dot.radar{background:var(--radar)}
+    .dot.timeline{background:var(--timeline)}
+    .dot.ok{background:var(--ok)}
+    .infoPanel{
+      position:absolute; right:14px; bottom:14px; z-index:9999; background:rgba(255,255,255,.94);
+      border:1px solid var(--border); border-radius:14px; padding:12px 14px; box-shadow:var(--shadow); min-width:250px; max-width:330px;
+      backdrop-filter:blur(8px);
+    }
+    .infoTitle{font-size:12px; font-weight:900; color:var(--xw-blue); margin-bottom:4px}
+    .infoName{font-size:13px; font-weight:800; margin-bottom:6px}
+    .infoValue{font-size:22px; font-weight:900; color:var(--tbr-orange); line-height:1.1}
+    .infoSub{margin-top:6px; font-size:11px; color:var(--muted); line-height:1.35}
+    .timelineCard{
+      position:absolute; left:50%; transform:translateX(-50%); bottom:14px; z-index:9999;
+      width:min(880px, calc(100% - 380px)); background:rgba(255,255,255,.95); border:1px solid var(--border);
+      border-radius:16px; box-shadow:var(--shadow); padding:12px 14px; backdrop-filter:blur(8px);
+    }
+    .timelineTop{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+    .timelineControls{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+    .timelineBar{position:relative; height:14px; background:#eef2f7; border-radius:999px; width:100%; margin:12px 0 8px; overflow:hidden; border:1px solid rgba(17,24,39,.06)}
+    #markers div{position:absolute; width:10px; height:10px; border-radius:50%; top:50%; transform:translate(-50%,-50%); cursor:pointer; box-shadow:0 0 0 2px #fff}
+    .timelineTimes{display:flex; justify-content:space-between; gap:12px; font-size:11px; color:var(--muted)}
+    #loaderOverlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:2000; justify-content:center; align-items:center; flex-direction:column; color:#fff; font-size:22px; font-weight:bold}
+    .spinner{border:6px solid #f3f3f3; border-top:6px solid #0077b6; border-radius:50%; width:50px; height:50px; animation:spin 1s linear infinite; margin-bottom:15px}
+    @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+    #customDaysInput{display:none}
+
+    .leaflet-control-layers{
+      border:1px solid var(--border)!important; border-radius:12px!important; box-shadow:var(--shadow)!important;
+    }
+    .leaflet-top.leaflet-left .leaflet-control{margin-top:14px; margin-left:14px}
+    .leaflet-control-zoom{border:none!important; box-shadow:var(--shadow)!important}
+    .leaflet-control-zoom a{border:1px solid var(--border)!important}
+
+    @media (max-width: 1100px){
+      .shell{grid-template-columns:1fr}
+      .sidebar{display:none}
+      .timelineCard{width:calc(100% - 28px)}
+      .legend{bottom:184px}
+      .infoPanel{bottom:184px}
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">RD</div>
+      <div class="title">
+        <strong>Terrindo Bumi Raya · Radar Viewer</strong>
+        <span>Radar overlay, playback, filtering, and product controls</span>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <form action="{{ url_for('radar_bp.radar_home') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+        <input type="file" id="radarfiles" name="radarfiles" multiple hidden>
+        <button type="button" class="btn" id="btnUpload">Upload Radar</button>
+      </form>
+      <button class="btn" id="btnFitRadar">Fit Radar</button>
+      <button class="btn" id="btnPrevTop">Prev</button>
+      <button class="btn" id="btnPlayTop">Play</button>
+      <button class="btn" id="btnNextTop">Next</button>
+      <button class="btn primary" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  <div id="loaderOverlay">
+    <div class="spinner"></div>
+    <div id="loaderText">Loading radar files…</div>
+    <div style="width:80%; background:#ccc; border-radius:6px; margin-top:15px;">
+      <div id="progressBar" style="height:20px; width:0%; background:#0077b6; border-radius:6px;"></div>
+    </div>
+    <div id="progressCount" style="margin-top:8px;">0/0 files</div>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="head">
+        <p class="h">Radar Controls</p>
+        <p class="s">Tampilan dan nuansa dibuat mengikuti halaman Kota Tua agar konsisten saat digabung ke TBRone.</p>
+      </div>
+      <div class="toolbarRow">
+        <button class="miniBtn" id="btnSidebarPlay">Play / Pause</button>
+        <button class="miniBtn" id="btnSidebarReset">Reset</button>
+      </div>
+      <div class="search">
+        <input id="quickInfo" value="{{ groups|length }} group radar tersedia" readonly />
+      </div>
+      <div class="list">
+        <div class="sectionLabel">Radar Source</div>
+        <div class="item">
+          <div class="headRow">
+            <div>
+              <p class="name">Dataset Radar</p>
+              <p class="coord">Upload banyak file raw radar, lalu pilih group scan untuk playback.</p>
+            </div>
+            <div class="tag {% if groups %}ok{% endif %}">{{ 'Loaded' if groups else 'No Data' }}</div>
+          </div>
+          <div class="field">
+            <label for="group">Group</label>
+            <select id="group" onchange="changeGroup()">
+              {% for g in groups %}
+              <option value="{{ g }}">{{ g }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="field">Product</label>
+            <select id="field" onchange="changeField()">
+              {% for f in fields %}
+              <option value="{{ f }}">{{ f }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="sectionLabel">Display</div>
+        <div class="item">
+          <div class="headRow">
+            <div>
+              <p class="name">Product Styling</p>
+              <p class="coord">Atur opacity, colormap, dan manual range untuk produk radar.</p>
+            </div>
+            <div class="tag">Display</div>
+          </div>
+          <div class="field">
+            <label for="opacitySlider">Opacity <small><span id="opacityValue">60%</span></small></label>
+            <input type="range" id="opacitySlider" min="0" max="100" value="60" oninput="updateOpacity(this.value)" />
+          </div>
+          <div class="field">
+            <label for="cmap">Colormap</label>
+            <select id="cmap" onchange="changeCmap()">
+              <option value="">Auto</option>
+              <option value="turbo">turbo</option>
+              <option value="seismic">seismic</option>
+              <option value="viridis">viridis</option>
+              <option value="plasma">plasma</option>
+              <option value="twilight_shifted">twilight_shifted</option>
+              <option value="gray">gray</option>
+            </select>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label for="vmin">vmin</label>
+              <input type="number" id="vmin" onblur="applyVminVmax()" />
+            </div>
+            <div class="field">
+              <label for="vmax">vmax</label>
+              <input type="number" id="vmax" onblur="applyVminVmax()" />
+            </div>
+          </div>
+          <div class="toolbarRow" style="padding:0;">
+            <button class="miniBtn" onclick="resetOverrides()">Reset Auto</button>
+          </div>
+        </div>
+
+        <div class="sectionLabel">Filters</div>
+        <div class="item">
+          <div class="headRow">
+            <div>
+              <p class="name">Quality Filters</p>
+              <p class="coord">Aktifkan filter hanya bila memang diperlukan karena beberapa filter bisa membuat rendering lebih lambat.</p>
+            </div>
+            <div class="tag">QC</div>
+          </div>
+          <label class="check"><input type="checkbox" id="useSQI" onchange="applyFilters()"> Enable SQI</label>
+          <div class="field"><label for="sqi">SQI min</label><input type="number" id="sqi" onblur="applyFilters()"></div>
+          <label class="check"><input type="checkbox" id="usePMI" onchange="applyFilters()"> Enable PMI</label>
+          <div class="field"><label for="pmi">PMI min</label><input type="number" id="pmi" onblur="applyFilters()"></div>
+          <label class="check"><input type="checkbox" id="useLOG" onchange="applyFilters()"> Enable LOG</label>
+          <div class="field"><label for="log">LOG min</label><input type="number" id="log" onblur="applyFilters()"></div>
+          <label class="check"><input type="checkbox" id="clipRange" onchange="applyFilters()"> Clip to vmin/vmax</label>
+          <label class="check"><input type="checkbox" id="maskInvalid" onchange="applyFilters()"> Mask NaN/Inf</label>
+          <label class="check"><input type="checkbox" id="speckle" onchange="applyFilters()"> Remove speckles</label>
+          <label class="check"><input type="checkbox" id="clutter" onchange="applyFilters()"> Remove clutter</label>
+          <label class="check"><input type="checkbox" id="dealias" onchange="applyFilters()"> Velocity dealiasing</label>
+          <div class="toolbarRow" style="padding:0;"><button class="miniBtn" onclick="resetFilters()">Reset Filters</button></div>
+        </div>
+
+        <div class="sectionLabel">Timeline</div>
+        <div class="item">
+          <div class="headRow">
+            <div>
+              <p class="name">Playback Window</p>
+              <p class="coord">Gunakan untuk mempersempit rentang waktu marker di timeline.</p>
+            </div>
+            <div class="tag">Time</div>
+          </div>
+          <div class="field">
+            <label for="timeWindow">Time Window</label>
+            <select id="timeWindow" onchange="timeWindowChanged()">
+              <option value="1800">30 min</option>
+              <option value="3600">60 min</option>
+              <option value="86400">1 day</option>
+              <option value="172800">2 days</option>
+              <option value="345600">4 days</option>
+              <option value="604800">1 week</option>
+              <option value="2592000">1 month</option>
+              <option value="31536000">1 year</option>
+              <option value="custom">Custom (days)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="customDaysInput">Custom days</label>
+            <input type="number" id="customDaysInput" value="0" min="1" onchange="renderTimeline()" />
+          </div>
+          <div class="toolbarRow" style="padding:0;"><button class="miniBtn" onclick="toggleTimeline()" id="toggleBtn">Hide Timeline</button></div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="mapCard">
+      <div id="map"></div>
+      <div class="statusPill" id="statusPill">Menunggu data radar...</div>
+      <div class="warningBox" id="warningBox"></div>
+
+      <div class="legend">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <strong>Legend</strong>
+          <small>Radar viewer</small>
+        </div>
+        <div class="row"><span><span class="dot radar"></span> Radar overlay</span><span>PNG transparent</span></div>
+        <div class="row"><span><span class="dot timeline"></span> Active frame</span><span>Timeline marker</span></div>
+        <div class="row"><span><span class="dot ok"></span> Loaded dataset</span><span>Group ready</span></div>
+        <small>Basemap dan overall layout mengikuti halaman Kota Tua.</small>
+      </div>
+
+      <div class="infoPanel">
+        <div class="infoTitle">Radar Playback Info</div>
+        <div class="infoName" id="infoName">Belum ada radar dipilih</div>
+        <div class="infoValue" id="frameText">1/1</div>
+        <div class="infoSub"><span id="timestamp">--:--</span><br><span id="infoExtent">Extent belum tersedia.</span></div>
+      </div>
+
+      <div class="timelineCard" id="timelineCard">
+        <div class="timelineTop">
+          <div style="font-size:12px; font-weight:800; color:var(--xw-blue);">Playback Timeline</div>
+          <div class="timelineControls">
+            <button class="miniBtn" onclick="prev()">⏮</button>
+            <button class="miniBtn" onclick="togglePlay()" id="playBtn">▶</button>
+            <button class="miniBtn" onclick="next()">⏭</button>
+          </div>
+        </div>
+        <div class="timelineBar" id="timelineBar"><div id="markers"></div></div>
+        <div class="timelineTimes"><span id="minTime">--</span><span id="maxTime">--</span></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const defaultConfigs = {{ default_configs | tojson }};
+    const radarOverlayUrl = "{{ url_for('radar_bp.radar_overlay') }}";
+    const hasGroups = {{ 'true' if groups else 'false' }};
+
+    function setStatus(text){ document.getElementById('statusPill').textContent = text; }
+    function showLoader() {
+      const input = document.getElementById('radarfiles');
+      const files = input.files;
+      if (!files || files.length === 0) return;
+      const overlay = document.getElementById('loaderOverlay');
+      const progressBar = document.getElementById('progressBar');
+      const progressCount = document.getElementById('progressCount');
+      overlay.style.display = 'flex';
+      progressBar.style.width = '0%';
+      progressCount.innerText = `0/${files.length} files`;
+      let uploaded = 0;
+      const interval = setInterval(() => {
+        uploaded++;
+        const pct = Math.min((uploaded / files.length) * 100, 100);
+        progressBar.style.width = pct + '%';
+        progressCount.innerText = `${uploaded}/${files.length} files`;
+        if (uploaded >= files.length) clearInterval(interval);
+      }, 200);
+    }
+
+    var map = L.map('map', {zoomControl:true}).setView([{{ extent[0][0] }}, {{ extent[0][1] }}], 7);
+    var baseLayers = {
+      "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }),
+      "Terrain": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri & contributors' }),
+      "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri & contributors' }),
+      "Carto Light": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+      }),
+      "Carto Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+      })
+    };
+    baseLayers['OpenStreetMap'].addTo(map);
+    L.control.layers(baseLayers, null, { position: 'bottomleft' }).addTo(map);
+
+    var radarLayer;
+    var currentBounds;
+    var frame = 0;
+    var total = 1;
+    var field = document.getElementById('field') ? document.getElementById('field').value : '';
+    var group = document.getElementById('group') ? document.getElementById('group').value : '';
+    var playing = false;
+    var timer;
+    var overlayOpacity = 0.6;
+    var cmap = '', vmin = '', vmax = '';
+    var filters = {useSQI:false,sqi:'',usePMI:false,pmi:'',useLOG:false,log:'',clipRange:false,maskInvalid:false,speckle:false,clutter:false,dealias:false};
+    var times = {{ times | tojson }};
+    var epochs = {{ epochs | tojson }};
+    var bounds = {{ bounds | tojson }};
+
+    function updateProductDefaults() {
+      const cfg = defaultConfigs[field] || {};
+      if (!document.getElementById('vmin').value && cfg.vmin !== undefined) document.getElementById('vmin').placeholder = cfg.vmin;
+      if (!document.getElementById('vmax').value && cfg.vmax !== undefined) document.getElementById('vmax').placeholder = cfg.vmax;
+      if (!document.getElementById('cmap').value && cfg.cmap) document.getElementById('cmap').value = '';
+    }
+
+    function loadRadar() {
+      if (!group || !field) {
+        setStatus('Upload file radar dulu untuk mulai viewer.');
+        return;
+      }
+      setStatus(`Memuat ${field} untuk ${group}...`);
+      fetch(radarOverlayUrl + '?group=' + encodeURIComponent(group) + '&frame=' + frame + '&field=' + field + '&cmap=' + cmap + '&vmin=' + vmin + '&vmax=' + vmax + '&filters=' + encodeURIComponent(JSON.stringify(filters)))
+        .then(res => {
+          if (!res.ok) throw new Error('Radar fetch failed');
+          var extent = res.headers.get('X-Extent').split(',').map(Number);
+          total = parseInt(res.headers.get('X-Frames'));
+          var ts = res.headers.get('X-Timestamp');
+          var warnings = res.headers.get('X-Warnings');
+          currentBounds = [[extent[0], extent[1]], [extent[2], extent[3]]];
+          const warningBox = document.getElementById('warningBox');
+          if (warnings) {
+            warningBox.style.display = 'block';
+            warningBox.innerHTML = '<strong>⚠ Issues detected</strong><br>' + warnings.split(';').map(w => w.trim()).join('<br>');
+          } else {
+            warningBox.style.display = 'none';
+            warningBox.innerHTML = '';
+          }
+          return res.blob().then(blob => ({ blob, ts, extent }));
+        })
+        .then(({ blob, ts, extent }) => {
+          var url = URL.createObjectURL(blob);
+          if (radarLayer) {
+            radarLayer.setUrl(url);
+            radarLayer.setBounds(currentBounds);
+            radarLayer.setOpacity(overlayOpacity);
+          } else {
+            radarLayer = L.imageOverlay(url, currentBounds, { opacity: overlayOpacity });
+            radarLayer.addTo(map);
+            map.fitBounds(currentBounds);
+          }
+          document.getElementById('frameText').innerText = (frame + 1) + '/' + total;
+          document.getElementById('timestamp').innerText = ts;
+          document.getElementById('infoName').innerText = group + ' · ' + field;
+          document.getElementById('infoExtent').innerText = `Extent: ${extent.map(v => v.toFixed(3)).join(', ')}`;
+          setStatus(`Loaded ${field} frame ${frame + 1}/${total}`);
+          renderTimeline();
+        })
+        .catch(err => {
+          console.error(err);
+          setStatus('Gagal memuat radar overlay.');
+        });
+    }
+
+    function fitRadar(){ if (currentBounds) map.fitBounds(currentBounds); }
+    function updateOpacity(val) { overlayOpacity = val / 100; if (radarLayer) radarLayer.setOpacity(overlayOpacity); document.getElementById('opacityValue').innerText = val + '%'; }
+    function changeCmap() { cmap = document.getElementById('cmap').value; frame = 0; loadRadar(); }
+    function applyVminVmax() { vmin = document.getElementById('vmin').value; vmax = document.getElementById('vmax').value; frame = 0; loadRadar(); }
+    function resetOverrides() { cmap = ''; vmin = ''; vmax = ''; document.getElementById('cmap').value = ''; document.getElementById('vmin').value = ''; document.getElementById('vmax').value = ''; frame = 0; loadRadar(); }
+    function applyFilters() {
+      filters.useSQI = document.getElementById('useSQI').checked;
+      filters.sqi = document.getElementById('sqi').value;
+      filters.usePMI = document.getElementById('usePMI').checked;
+      filters.pmi = document.getElementById('pmi').value;
+      filters.useLOG = document.getElementById('useLOG').checked;
+      filters.log = document.getElementById('log').value;
+      filters.clipRange = document.getElementById('clipRange').checked;
+      filters.maskInvalid = document.getElementById('maskInvalid').checked;
+      filters.speckle = document.getElementById('speckle').checked;
+      filters.clutter = document.getElementById('clutter').checked;
+      filters.dealias = document.getElementById('dealias').checked;
+      frame = 0; loadRadar();
+    }
+    function resetFilters() {
+      for (let k in filters) filters[k] = (typeof filters[k] === 'boolean' ? false : '');
+      document.querySelectorAll('.sidebar input').forEach(el => {
+        if (el.type === 'checkbox') el.checked = false;
+        if (el.type === 'number' && el.id !== 'customDaysInput') el.value = '';
+      });
+      frame = 0; loadRadar();
+    }
+    function timeWindowChanged() {
+      var sel = document.getElementById('timeWindow').value;
+      var customBox = document.getElementById('customDaysInput');
+      customBox.style.display = (sel === 'custom') ? 'block' : 'none';
+      renderTimeline();
+    }
+    function renderTimeline() {
+      var container = document.getElementById('markers');
+      container.innerHTML = '';
+      if (!epochs[group] || epochs[group].length === 0) return;
+      var minT = bounds[group]['min'];
+      var maxT = bounds[group]['max'];
+      var sel = document.getElementById('timeWindow').value;
+      if (sel === 'custom') {
+        var custom = parseInt(document.getElementById('customDaysInput').value);
+        if (!isNaN(custom) && custom > 0) {
+          var win = custom * 86400;
+          minT = Math.max(maxT - win, minT);
+        }
+      } else {
+        var win = parseInt(sel);
+        if (!isNaN(win)) minT = Math.max(maxT - win, minT);
+      }
+      var minDate = new Date(minT * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      var maxDate = new Date(maxT * 1000).toISOString().replace('T', ' ').substring(0, 19);
+      document.getElementById('minTime').innerText = minDate;
+      document.getElementById('maxTime').innerText = maxDate;
+      epochs[group].forEach((t, i) => {
+        if (!t || t < minT || t > maxT) return;
+        var pct = ((t - minT) / Math.max((maxT - minT), 1)) * 100;
+        var dot = document.createElement('div');
+        dot.style.left = pct + '%';
+        dot.style.background = (i === frame ? '#DC2626' : '#475569');
+        dot.title = times[group][i];
+        dot.onclick = () => { frame = i; loadRadar(); };
+        container.appendChild(dot);
+      });
+    }
+    function toggleTimeline() {
+      var card = document.getElementById('timelineCard');
+      var btn = document.getElementById('toggleBtn');
+      if (card.style.display === 'none') { card.style.display = 'block'; btn.innerText = 'Hide Timeline'; }
+      else { card.style.display = 'none'; btn.innerText = 'Show Timeline'; }
+    }
+    function prev(){ frame = Math.max(0, frame - 1); loadRadar(); }
+    function next(){ frame = frame + 1; if (frame >= total) frame = 0; loadRadar(); }
+    function changeField(){ field = document.getElementById('field').value; updateProductDefaults(); frame = 0; loadRadar(); }
+    function changeGroup(){ group = document.getElementById('group').value; frame = 0; loadRadar(); }
+    function togglePlay() {
+      playing = !playing;
+      document.getElementById('playBtn').innerText = playing ? '⏸' : '▶';
+      document.getElementById('btnPlayTop').innerText = playing ? 'Pause' : 'Play';
+      if (playing) timer = setInterval(() => { frame++; if (frame >= total) frame = 0; loadRadar(); }, 1000);
+      else clearInterval(timer);
+    }
+    function resetViewer() {
+      playing = false;
+      clearInterval(timer);
+      document.getElementById('playBtn').innerText = '▶';
+      document.getElementById('btnPlayTop').innerText = 'Play';
+      frame = 0;
+      resetOverrides();
+      resetFilters();
+      updateOpacity(60);
+      document.getElementById('opacitySlider').value = 60;
+      document.getElementById('timeWindow').value = '1800';
+      timeWindowChanged();
+      loadRadar();
+    }
+
+    document.getElementById('btnUpload').addEventListener('click', () => document.getElementById('radarfiles').click());
+    document.getElementById('radarfiles').addEventListener('change', function(){ showLoader(); document.getElementById('uploadForm').submit(); });
+    document.getElementById('btnFitRadar').addEventListener('click', fitRadar);
+    document.getElementById('btnPrevTop').addEventListener('click', prev);
+    document.getElementById('btnPlayTop').addEventListener('click', togglePlay);
+    document.getElementById('btnNextTop').addEventListener('click', next);
+    document.getElementById('btnSidebarPlay').addEventListener('click', togglePlay);
+    document.getElementById('btnSidebarReset').addEventListener('click', resetViewer);
+
+    updateProductDefaults();
+    if (hasGroups) loadRadar(); else setStatus('Belum ada file radar yang diupload.');
+  </script>
+</body>
+</html>
