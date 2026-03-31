@@ -175,14 +175,23 @@
     .item .rightSide{
       display:flex;
       align-items:center;
+      justify-content:flex-start;
       gap:6px;
-      margin-left:auto;
-      flex-wrap:wrap;
-      justify-content:flex-end;
+      margin-top:10px;
+      width:100%;
+      position:relative;
+    }
+    .actionRow{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:nowrap;
+      justify-content:flex-start;
     }
     .iconBtn{
-      width:34px;
-      height:34px;
+      width:32px;
+      min-width:32px;
+      height:32px;
       border-radius:10px;
       border:1px solid var(--border);
       background: rgba(17,24,39,.04);
@@ -192,7 +201,48 @@
       color: var(--muted);
       transition: transform .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
       flex: 0 0 auto;
+      padding:0;
     }
+    .moreWrap{ position:relative; }
+    .moreMenu{
+      position:absolute;
+      top:0;
+      left:calc(100% + 8px);
+      right:auto;
+      z-index:40;
+      min-width:170px;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:12px;
+      box-shadow: 0 14px 30px rgba(2, 22, 55, .14);
+      padding:6px;
+      display:none;
+    }
+    .moreWrap.open .moreMenu{ display:block; }
+    .menuBtn{
+      width:100%;
+      border:0;
+      background:transparent;
+      border-radius:10px;
+      padding:9px 10px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
+      color:var(--text);
+      font-size:12px;
+      font-weight:700;
+      text-align:left;
+    }
+    .menuBtn:hover{
+      background: rgba(0,58,143,.08);
+      color: var(--xw-blue);
+    }
+    .menuBtn.danger:hover{
+      background: rgba(239,68,68,.08);
+      color: #b91c1c;
+    }
+    .menuBtn svg{ width:16px; height:16px; flex:0 0 auto; }
     .iconBtn:hover{
       transform: translateY(-1px);
       background: rgba(0,58,143,.08);
@@ -265,13 +315,13 @@
     .item{
       border:1px solid var(--border);
       border-radius: 14px;
-      padding: 10px 12px;
+      padding: 12px;
       background:#fff;
       cursor:pointer;
       transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
       display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
+      flex-direction:column;
+      align-items:stretch;
       gap:10px;
     }
     .item:hover{
@@ -284,22 +334,29 @@
       box-shadow: 0 12px 26px rgba(242,140,40,.12);
       background: rgba(242,140,40,.05);
     }
-    .meta{min-width:0;}
+    .meta{
+      min-width:0;
+      width:100%;
+    }
     .meta .name{
       margin:0;
       font-weight:800;
       font-size:13px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
+      white-space:normal;
+      overflow:visible;
+      text-overflow:clip;
+      line-height:1.35;
+      word-break:break-word;
     }
     .meta .coord{
-      margin:4px 0 0;
+      margin:6px 0 0;
       font-size:12px;
       color:var(--muted);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
+      white-space:normal;
+      overflow:visible;
+      text-overflow:clip;
+      line-height:1.35;
+      word-break:break-word;
     }
     .tag{
       font-size:11px;
@@ -311,6 +368,14 @@
       color: var(--muted);
       white-space:nowrap;
       height: fit-content;
+      align-self:flex-start;
+    }
+    .itemTop{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      width:100%;
     }
     .tag.primary{ background: rgba(37,99,235,.12); border-color: rgba(37,99,235,.26); color: #1d4ed8;}
     .tag.focus{ background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.35); color: #92400e;}
@@ -464,6 +529,11 @@
       position:absolute; top:62px; left:50%; transform:translateX(-50%); z-index:9998;
       display:none; align-items:center; gap:8px; background: rgba(255,255,255,.96); border:1px solid var(--border);
       border-radius:14px; padding:10px 12px; box-shadow: var(--shadow); backdrop-filter: blur(8px);
+    }
+
+
+    .leaflet-top.leaflet-left .leaflet-draw{
+      margin-top: 56px;
     }
 
     @media (max-width: 980px){
@@ -762,9 +832,7 @@
     const displayGroup = new L.FeatureGroup().addTo(map);
     const drawnItems = new L.FeatureGroup().addTo(map);
     const layersStore = new Map();
-    const builtInLayersStore = new Map();
-    const BUILTIN_KOTATUA_FOCUS_ID = 'builtin-kotatua-heritage-focus';
-    let selectedId = BUILTIN_KOTATUA_FOCUS_ID;
+    let selectedId = null;
     let pendingCreateLayer = null;
     let activeEditId = null;
     let activeStyleId = null;
@@ -821,8 +889,7 @@
       const style = normalizeStyle(row.style || {}, row.layer_group || 'custom', row.name || '');
       const lineColor = colorWithAlpha(style.color || '#2563EB', 235);
       const isDefault = (row.layer_group || 'custom') === 'default';
-      const isBuiltIn = isBuiltInRow(row);
-      const fillAlpha = isDefault ? (isBuiltIn ? 18 : 8) : Math.max(22, Math.round((style.fillOpacity ?? 0.14) * 140));
+      const fillAlpha = isDefault ? 8 : Math.max(22, Math.round((style.fillOpacity ?? 0.14) * 140));
       const fillColor = colorWithAlpha(style.fillColor || style.color || '#2563EB', fillAlpha);
       const data = flattenFeatureCollectionForDeck(row.geometry, row);
       if (!data.length) return null;
@@ -1028,7 +1095,7 @@
     }
 
     const drawControl = new L.Control.Draw({
-      position: 'topright',
+      position: 'topleft',
       edit: { featureGroup: drawnItems, edit: false, remove: false },
       draw: {
         polyline: false,
@@ -1145,11 +1212,10 @@
       areaSubEl.textContent = areaSqKm ? `${note} (${areaSqKm.toFixed(4)} km²)` : 'Luasan belum tersedia untuk layer ini.';
     }
 
-function isBuiltInRow(row){ return row?.source === 'builtin'; }
-function getStoreEntry(id){ return builtInLayersStore.get(id) || layersStore.get(id) || null; }
-function getAllEntries(){ return [...builtInLayersStore.values(), ...layersStore.values()]; }
+function getStoreEntry(id){ return layersStore.get(id) || null; }
+function getAllEntries(){ return [...layersStore.values()]; }
 function getAllRows(){ return getAllEntries().map(v => v.row); }
-function measureGeometryOf(row){ return row?.measureGeometry || row?.geometry; }
+function measureGeometryOf(row){ return row?.geometry; }
 
 function groupLabel(group){ return group === 'default' ? 'Default Layer' : 'Custom Area'; }
     function tagClass(group, name=''){
@@ -1205,13 +1271,15 @@ function groupLabel(group){ return group === 'default' ? 'Default Layer' : 'Cust
     function getEditIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z"></path></svg>`; }
     function getRenameIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4Z"></path><path d="m13.5 6.5 4 4"></path></svg>`; }
     function getStyleIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 8-9 9H3v-8l9-9z"></path><path d="M7 8l9 9"></path></svg>`; }
+    function getDownloadIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 12l5 5 5-5"></path><path d="M5 21h14"></path></svg>`; }
+    function getMoreIcon(){ return `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`; }
     function getDeleteIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>`; }
 
 function buildPopup(row){
   const area = getAreaSqKm(measureGeometryOf(row));
   return popupHtml(row.name, [
     ['Grup', groupLabel(row.layer_group || 'custom')],
-    ['Sumber', isBuiltInRow(row) ? 'Built-in layer' : 'Database'],
+    ['Sumber', 'Database'],
     ['Visible', row.visible === false ? 'No' : 'Yes'],
     ['Garis', row.style?.lineStyle || styleNameFromDashArray(row.style?.dashArray || '')],
     ['Luas', formatAreaSqKm(area)],
@@ -1221,31 +1289,7 @@ function buildPopup(row){
 
 function createLeafletLayer(row){
   const style = normalizeStyle(row.style || {}, row.layer_group || 'custom', row.name || '');
-  const geo = L.geoJSON(row.geometry, {
-    style: feature => {
-      const role = feature?.properties?.__heritageRole;
-      if (row.id === BUILTIN_KOTATUA_FOCUS_ID || role === 'official' || role === 'plan') {
-        if (role === 'plan') {
-          return {
-            color: '#DC2626',
-            weight: 2.2,
-            dashArray: '8 6',
-            fillColor: '#DC2626',
-            fillOpacity: 0.10,
-            opacity: 1
-          };
-        }
-        return {
-          color: '#DC2626',
-          weight: 2.4,
-          fillColor: '#DC2626',
-          fillOpacity: 0.12,
-          opacity: 1
-        };
-      }
-      return style;
-    }
-  });
+  const geo = L.geoJSON(row.geometry, { style });
   const sublayers = [];
   geo.eachLayer(layer => {
     sublayers.push(layer);
@@ -1258,7 +1302,7 @@ function createLeafletLayer(row){
 }
 
 function mountRow(row, fit=false, storeName=null){
-  const targetStore = storeName === 'builtin' ? builtInLayersStore : (storeName === 'db' ? layersStore : (isBuiltInRow(row) ? builtInLayersStore : layersStore));
+  const targetStore = layersStore;
   const old = targetStore.get(row.id);
   if (old?.layer) {
     displayGroup.removeLayer(old.layer);
@@ -1292,6 +1336,26 @@ function selectLayer(id, zoom=true){
   if (currentMapMode !== '3d' && item.row.visible !== false && item.layer?.__firstPopupLayer?.openPopup) item.layer.__firstPopupLayer.openPopup();
 }
 
+function exportLayerGeoJSON(id){
+  const item = getStoreEntry(id); if (!item) return;
+  try {
+    const geojson = normalizeGeoJSON(item.row.geometry);
+    const safeName = String(item.row.name || 'layer').trim().replace(/[^a-z0-9-_]+/gi, '_').replace(/^_+|_+$/g, '') || 'layer';
+    const blob = new Blob([JSON.stringify(geojson, null, 2)], { type:'application/geo+json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeName}.geojson`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1200);
+    setStatus(`GeoJSON untuk "${item.row.name}" berhasil diunduh.`);
+  } catch (err) {
+    setStatus(err.message || 'Gagal export GeoJSON.', true);
+  }
+}
+
 function renderList(query=''){
   const q = query.trim().toLowerCase();
   const rows = getAllRows().filter(r => (`${r.name} ${r.layer_group}`).toLowerCase().includes(q));
@@ -1303,20 +1367,29 @@ function renderList(query=''){
     return `<div class="sectionLabel">${title}</div>` + items.map(row => {
       const center = centerFromGeometry(measureGeometryOf(row));
       const visible = row.visible !== false;
-      const readOnly = isBuiltInRow(row);
       return `
         <div class="item${row.id === selectedId ? ' active' : ''}${visible ? '' : ' hiddenItem'}" data-id="${escapeHtml(row.id)}">
-          <div class="meta">
-            <p class="name">${escapeHtml(row.name)}</p>
-            <p class="coord">${center[0].toFixed(6)}, ${center[1].toFixed(6)}</p>
+          <div class="itemTop">
+            <div class="meta">
+              <p class="name">${escapeHtml(row.name)}</p>
+              <p class="coord">${center[0].toFixed(6)}, ${center[1].toFixed(6)}</p>
+            </div>
+            <div class="tag ${tagClass(row.layer_group || 'custom', row.name || '')}">${escapeHtml(groupLabel(row.layer_group || 'custom'))}</div>
           </div>
           <div class="rightSide">
-            <div class="tag ${tagClass(row.layer_group || 'custom', row.name || '')}">${escapeHtml(groupLabel(row.layer_group || 'custom'))}</div>
-            <button class="iconBtn toggleBtn" data-id="${escapeHtml(row.id)}" title="${visible ? 'Hide' : 'View'}">${getEyeIcon(visible)}</button>
-            ${readOnly ? '' : `<button class="iconBtn renameBtn" data-id="${escapeHtml(row.id)}" title="Rename">${getRenameIcon()}</button>
-            <button class="iconBtn styleBtn" data-id="${escapeHtml(row.id)}" title="Ubah style">${getStyleIcon()}</button>
-            <button class="iconBtn editBtn" data-id="${escapeHtml(row.id)}" title="Edit geometry">${getEditIcon()}</button>
-            <button class="iconBtn danger deleteBtn" data-id="${escapeHtml(row.id)}" title="Delete">${getDeleteIcon()}</button>`}
+            <div class="actionRow">
+              <button class="iconBtn toggleBtn" data-id="${escapeHtml(row.id)}" title="${visible ? 'Hide' : 'View'}">${getEyeIcon(visible)}</button>
+              <button class="iconBtn exportBtn" data-id="${escapeHtml(row.id)}" title="Download GeoJSON">${getDownloadIcon()}</button>
+              <div class="moreWrap">
+                <button class="iconBtn moreBtn" data-id="${escapeHtml(row.id)}" title="Menu aksi">${getMoreIcon()}</button>
+                <div class="moreMenu">
+                  <button class="menuBtn renameBtn" data-id="${escapeHtml(row.id)}" title="Rename">${getRenameIcon()}<span>Rename</span></button>
+                  <button class="menuBtn styleBtn" data-id="${escapeHtml(row.id)}" title="Ubah style">${getStyleIcon()}<span>Ubah style</span></button>
+                  <button class="menuBtn editBtn" data-id="${escapeHtml(row.id)}" title="Edit geometry">${getEditIcon()}<span>Edit geometry</span></button>
+                  <button class="menuBtn danger deleteBtn" data-id="${escapeHtml(row.id)}" title="Delete">${getDeleteIcon()}<span>Delete</span></button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>`;
     }).join('');
@@ -1328,62 +1401,28 @@ function renderList(query=''){
 
   document.querySelectorAll('.item').forEach(el => {
     el.addEventListener('click', ev => {
-      if (ev.target.closest('.toggleBtn,.renameBtn,.styleBtn,.editBtn,.deleteBtn')) return;
+      if (ev.target.closest('.toggleBtn,.exportBtn,.renameBtn,.styleBtn,.editBtn,.deleteBtn')) return;
       selectLayer(el.getAttribute('data-id'), true);
     });
   });
   document.querySelectorAll('.toggleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); toggleVisibility(btn.dataset.id); }));
-  document.querySelectorAll('.renameBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); renameLayer(btn.dataset.id); }));
-  document.querySelectorAll('.styleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); openStyleEditor(btn.dataset.id); }));
-  document.querySelectorAll('.editBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); startEdit(btn.dataset.id); }));
-  document.querySelectorAll('.deleteBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); deleteLayer(btn.dataset.id); }));
-}
-
-async function ensureBuiltInFocusLayer(){
-  if (builtInLayersStore.has(BUILTIN_KOTATUA_FOCUS_ID)) return builtInLayersStore.get(BUILTIN_KOTATUA_FOCUS_ID).row;
-
-  const [officialArea, planArea] = await Promise.all([
-    fetchJSON('https://tataruang.jakarta.go.id/server/rest/services/UDGL/UDGL_Jakarta_Publik_Baru/MapServer/48/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson'),
-    fetchJSON('https://tataruang.jakarta.go.id/server/rest/services/UDGL/UDGL_Jakarta_Publik_Baru/MapServer/15/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson')
-  ]);
-
-  const officialFeatures = (normalizeGeoJSON(officialArea).features || []).map(f => ({
-    ...f,
-    properties: { ...(f.properties || {}), __heritageRole: 'official' }
+  document.querySelectorAll('.exportBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); exportLayerGeoJSON(btn.dataset.id); }));
+  document.querySelectorAll('.moreBtn').forEach(btn => btn.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const wrap = btn.closest('.moreWrap');
+    document.querySelectorAll('.moreWrap.open').forEach(el => { if (el !== wrap) el.classList.remove('open'); });
+    wrap?.classList.toggle('open');
   }));
-  const planFeatures = (normalizeGeoJSON(planArea).features || []).map(f => ({
-    ...f,
-    properties: { ...(f.properties || {}), __heritageRole: 'plan' }
-  }));
-
-  const row = {
-    id: BUILTIN_KOTATUA_FOCUS_ID,
-    name: 'Kota Tua Heritage Focus',
-    layer_group: 'default',
-    visible: true,
-    source: 'builtin',
-    read_only: true,
-    style: normalizeStyle({ color:'#DC2626', fillColor:'#DC2626', lineStyle:'solid' }, 'default', 'Kota Tua Heritage Focus'),
-    geometry: { type:'FeatureCollection', features:[...planFeatures, ...officialFeatures] },
-    measureGeometry: { type:'FeatureCollection', features: officialFeatures }
-  };
-
-  mountRow(row, false, 'builtin');
-  return row;
+  document.querySelectorAll('.renameBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); btn.closest('.moreWrap')?.classList.remove('open'); renameLayer(btn.dataset.id); }));
+  document.querySelectorAll('.styleBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); btn.closest('.moreWrap')?.classList.remove('open'); openStyleEditor(btn.dataset.id); }));
+  document.querySelectorAll('.editBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); btn.closest('.moreWrap')?.classList.remove('open'); startEdit(btn.dataset.id); }));
+  document.querySelectorAll('.deleteBtn').forEach(btn => btn.addEventListener('click', ev => { ev.stopPropagation(); btn.closest('.moreWrap')?.classList.remove('open'); deleteLayer(btn.dataset.id); }));
 }
 
 async function loadLayers(selectFirst=true){
   setStatus('Memuat layer dari database...');
-  builtInLayersStore.clear();
   displayGroup.clearLayers();
   drawnItems.clearLayers();
-
-  let builtInRow = null;
-  try {
-    builtInRow = await ensureBuiltInFocusLayer();
-  } catch (err) {
-    console.warn('Built-in heritage focus failed to load:', err);
-  }
 
   const data = await api(API_BASE);
   const rows = data.rows || [];
@@ -1395,7 +1434,7 @@ async function loadLayers(selectFirst=true){
   if (availableIds.length) {
     const preferredId = (selectFirst && selectedId && availableIds.includes(selectedId))
       ? selectedId
-      : (builtInRow?.id || rows[0]?.id || availableIds[0]);
+      : (rows[0]?.id || availableIds[0]);
     if (preferredId) selectLayer(preferredId, false);
     fitVisible();
   } else {
@@ -1403,9 +1442,9 @@ async function loadLayers(selectFirst=true){
     areaValueEl.textContent = '-';
     areaSubEl.textContent = 'Tambahkan area dengan gambar atau import GeoJSON.';
   }
-  legendNote.textContent = `${rows.length} layer database + ${builtInRow ? 1 : 0} built-in heritage layer.`;
+  legendNote.textContent = `${rows.length} layer database.`;
   refresh3DOverlay();
-  setStatus(`${rows.length + (builtInRow ? 1 : 0)} layer dimuat.`);
+  setStatus(`${rows.length} layer dimuat.`);
 }
 
 function fitVisible(){
@@ -1547,13 +1586,6 @@ function fitVisible(){
     async function toggleVisibility(id){
       const item = getStoreEntry(id); if (!item) return;
       const nextVisible = item.row.visible === false;
-      if (isBuiltInRow(item.row)) {
-        const nextRow = { ...item.row, visible: nextVisible };
-        mountRow(nextRow, false, 'builtin');
-        renderList(qEl.value || qMobileEl.value || '');
-        if (selectedId === id) selectLayer(id, false);
-        return;
-      }
       try {
         const data = await api(`${API_BASE}/${id}`, { method:'PUT', body: JSON.stringify({ visible: nextVisible }) });
         mountRow(data.row, false, 'db');
@@ -1565,7 +1597,7 @@ function fitVisible(){
     }
 
     async function renameLayer(id){
-      const item = getStoreEntry(id); if (!item || isBuiltInRow(item.row)) return;
+      const item = getStoreEntry(id); if (!item) return;
       const name = prompt('Ubah nama layer:', item.row.name);
       if (!name || name.trim() === item.row.name) return;
       try {
@@ -1580,7 +1612,7 @@ function fitVisible(){
     }
 
     function openStyleEditor(id){
-      const item = getStoreEntry(id); if (!item || isBuiltInRow(item.row)) return;
+      const item = getStoreEntry(id); if (!item) return;
       activeStyleId = id;
       const style = normalizeStyle(item.row.style || {}, item.row.layer_group || 'custom', item.row.name || '');
       document.getElementById('styleColor').value = style.color || '#2563EB';
@@ -1590,7 +1622,7 @@ function fitVisible(){
 
     async function saveStyleChanges(){
       if (!activeStyleId) return;
-      const item = getStoreEntry(activeStyleId); if (!item || isBuiltInRow(item.row)) return;
+      const item = getStoreEntry(activeStyleId); if (!item) return;
       const color = document.getElementById('styleColor').value || '#2563EB';
       const lineStyle = document.getElementById('styleLineStyle').value || 'solid';
       try {
@@ -1617,7 +1649,7 @@ function fitVisible(){
     }
 
     function startEdit(id){
-      const item = getStoreEntry(id); if (!item || isBuiltInRow(item.row)) return;
+      const item = getStoreEntry(id); if (!item) return;
       const fc = normalizeGeoJSON(item.row.geometry);
       if ((fc.features || []).length !== 1) {
         alert('Edit geometry langsung di map saat ini hanya untuk layer dengan satu polygon. Untuk layer blok-blok multi feature, gunakan import ulang atau ubah stylenya saja.');
@@ -1637,7 +1669,7 @@ function fitVisible(){
 
     async function saveEdit(){
       if (!activeEditId) return;
-      const item = getStoreEntry(activeEditId); if (!item || isBuiltInRow(item.row)) return;
+      const item = getStoreEntry(activeEditId); if (!item) return;
       try {
         const editTarget = item.layer.__editTarget || item.layer;
         const geometry = layerToGeoJSON(editTarget);
@@ -1666,7 +1698,7 @@ function fitVisible(){
     }
 
     async function deleteLayer(id){
-      const item = getStoreEntry(id); if (!item || isBuiltInRow(item.row)) return;
+      const item = getStoreEntry(id); if (!item) return;
       if (!confirm(`Hapus layer "${item.row.name}"?`)) return;
       try {
         await api(`${API_BASE}/${id}`, { method:'DELETE' });
@@ -1691,10 +1723,6 @@ async function setAllVisibility(show){
     const item = getStoreEntry(id);
     if (!item) continue;
     if ((item.row.visible !== false) === show) continue;
-    if (isBuiltInRow(item.row)) {
-      mountRow({ ...item.row, visible: show }, false, 'builtin');
-      continue;
-    }
     try {
       const data = await api(`${API_BASE}/${id}`, { method:'PUT', body: JSON.stringify({ visible: show }) });
       mountRow(data.row, false, 'db');
@@ -1784,6 +1812,13 @@ document.getElementById('btnFitAll')
       window.addEventListener('touchmove', onMove, {passive:true});
       window.addEventListener('touchend', onUp);
     })();
+
+
+    document.addEventListener('click', ev => {
+      if (!ev.target.closest('.moreWrap')) {
+        document.querySelectorAll('.moreWrap.open').forEach(el => el.classList.remove('open'));
+      }
+    });
 
     window.addEventListener('resize', () => {
       map.invalidateSize();
