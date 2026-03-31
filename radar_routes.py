@@ -364,36 +364,38 @@ def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, An
         snr_field = _field_by_substring(radar, 'SNR')
         phi_field = _field_by_substring(radar, 'PHIDP', 'PHI')
 
+        # Apply helper-moment filters to any displayed moment when the helper field exists.
+        # This makes the effect visible for products like ZDR, KDP, RHOHV, etc., not only Z/VEL/WIDTH.
         if active_log:
-            if category in ('Z', 'E') and log_field:
+            if log_field:
                 thr = _threshold_value('th_LOG', category, filters, defaults)
                 data[np.asarray(radar.fields[log_field]['data'], dtype=float) < thr] = np.nan
-            elif category in ('Z', 'E') and filters.get('warn_missing_helpers', True) and not log_field:
+            elif filters.get('warn_missing_helpers', True):
                 warnings.append('LOG field not available')
 
         if active_sqi:
-            if category in ('V', 'W') and sqi_field:
+            if sqi_field:
                 thr = _threshold_value('th_SQI', category, filters, defaults)
                 data[np.asarray(radar.fields[sqi_field]['data'], dtype=float) < thr] = np.nan
-            elif category in ('V', 'W') and filters.get('warn_missing_helpers', True) and not sqi_field:
+            elif filters.get('warn_missing_helpers', True):
                 warnings.append('SQI field not available')
 
         if active_pmi:
-            if category in ('V', 'W') and pmi_field:
+            if pmi_field:
                 thr = _threshold_value('th_PMI', category, filters, defaults)
                 data[np.asarray(radar.fields[pmi_field]['data'], dtype=float) < thr] = np.nan
-            elif category in ('V', 'W') and filters.get('warn_missing_helpers', True) and not pmi_field:
+            elif filters.get('warn_missing_helpers', True):
                 warnings.append('PMI field not available')
 
         if active_csr:
-            if category in ('Z', 'E', 'V', 'W') and csr_field:
+            if csr_field:
                 thr = _threshold_value('th_CSR', category, filters, defaults)
                 data[np.asarray(radar.fields[csr_field]['data'], dtype=float) > thr] = np.nan
-            elif category in ('Z', 'E', 'V', 'W') and filters.get('warn_missing_helpers', True) and not csr_field:
+            elif filters.get('warn_missing_helpers', True):
                 warnings.append('CSR/CSP field not available')
 
         if active_snr:
-            if category in ('Z', 'E', 'V', 'W') and snr_field:
+            if snr_field:
                 base_thr = _threshold_value('th_SNLG', category, filters, defaults)
                 snr_arr = np.asarray(radar.fields[snr_field]['data'], dtype=float)
                 try:
@@ -401,11 +403,11 @@ def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, An
                 except Exception:
                     conv_thr = base_thr
                 data[snr_arr < conv_thr] = np.nan
-            elif category in ('Z', 'E', 'V', 'W') and filters.get('warn_missing_helpers', True) and not snr_field:
+            elif filters.get('warn_missing_helpers', True):
                 warnings.append('SNR field not available')
 
         if active_phi:
-            if category in ('Z', 'E') and phi_field:
+            if phi_field:
                 phi_arr = np.asarray(radar.fields[phi_field]['data'], dtype=float)
                 phi_sd = sdev_filter(phi_arr, (3, 3))
                 if snr_field:
@@ -418,20 +420,20 @@ def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, An
                     th2 = float(filters.get('th_PHID2') or defaults['th_PHID2'])
                     mask = phi_sd > th2
                 data[mask] = np.nan
-            elif category in ('Z', 'E') and filters.get('warn_missing_helpers', True) and not phi_field:
+            elif filters.get('warn_missing_helpers', True):
                 warnings.append('PHIDP field not available')
 
-        if category in ('Z', 'E'):
-            temp = data.copy()
-            temp[np.isnan(temp)] = -327
-            if active_sdz:
-                th_sdz = float(filters.get('th_SDZ') or defaults['th_SDZ'])
-                sd = sdev_filter(temp, (3, 3))
-                data[np.logical_or(sd == 0, sd > th_sdz)] = np.nan
-            if active_mdz:
-                th_mdz = float(filters.get('th_MDZ') or defaults['th_MDZ'])
-                md = median_filter(temp, size=3)
-                data[md < th_mdz] = np.nan
+        # SDZ/MDZ are also allowed for any displayed moment so the user can immediately see the effect.
+        temp = data.copy()
+        temp[np.isnan(temp)] = -327
+        if active_sdz:
+            th_sdz = float(filters.get('th_SDZ') or defaults['th_SDZ'])
+            sd = sdev_filter(temp, (3, 3))
+            data[np.logical_or(sd == 0, sd > th_sdz)] = np.nan
+        if active_mdz:
+            th_mdz = float(filters.get('th_MDZ') or defaults['th_MDZ'])
+            md = median_filter(temp, size=3)
+            data[md < th_mdz] = np.nan
 
     if enable_speckle:
         kind = str(filters.get('speckle_type') or defaults['speckle_type']).strip().lower()
@@ -673,6 +675,15 @@ def radar_overlay():
     response.headers['X-Active-Sweep-Index'] = str(selected_sweep_idx)
     response.headers['X-Active-Elevation'] = '' if selected_elevation is None else str(selected_elevation)
     response.headers['X-Sweep-Options'] = json.dumps(sweep_options)
+    active_filters = []
+    if filters.get('enable_standard_filter'):
+        for key, label in [('active_LOG','LOG'),('active_SQI','SQI'),('active_PMI','PMI'),('active_CSR','CSR'),('active_SNR','SNR'),('active_PHI','PHI'),('active_SDZ','SDZ'),('active_MDZ','MDZ')]:
+            if filters.get(key):
+                active_filters.append(label)
+    if filters.get('enable_speckle_filter'):
+        active_filters.append(f"SPECKLE:{filters.get('speckle_type','mdfill')}")
+    if active_filters:
+        response.headers['X-Filter-Summary'] = ', '.join(active_filters)
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response
