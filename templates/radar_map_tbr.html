@@ -47,12 +47,6 @@
       border-bottom:1px solid rgba(255,255,255,.15);
     }
     .brand{display:flex; align-items:center; gap:12px; min-width:240px}
-    .brand img{
-      height:32px;
-      width:auto;
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
-      border-radius: 8px;
-    }
     .brand .logo{
       width:38px; height:38px; border-radius:12px;
       background:linear-gradient(135deg,#F28C28 0%,#FFD089 100%);
@@ -177,14 +171,16 @@
 <body>
   <div class="topbar">
     <div class="brand">
-      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
+      <div class="logo">RD</div>
       <div class="title">
         <strong>Terrindo Bumi Raya · Radar Viewer</strong>
         <span>Radar overlay, playback, filtering, and product controls</span>
       </div>
     </div>
+
     <div class="top-actions">
       <form action="{{ url_for('radar_bp.radar_home') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+        <input type="hidden" id="scanWindowHidden" name="scan_window_minutes" value="{{ scan_window_minutes }}">
         <input type="file" id="radarfiles" name="radarfiles" multiple hidden>
         <button type="button" class="btn" id="btnUpload">Upload Radar</button>
       </form>
@@ -215,7 +211,7 @@
         <button class="miniBtn" id="btnSidebarReset">Reset</button>
       </div>
       <div class="search">
-        <input id="quickInfo" value="{{ groups|length }} group radar tersedia" readonly />
+        <input id="quickInfo" value="{{ groups|length }} group radar tersedia · merge {{ scan_window_minutes }} menit" readonly />
       </div>
       <div class="list">
         <div class="sectionLabel">Radar Source</div>
@@ -228,11 +224,30 @@
             <div class="tag {% if groups %}ok{% endif %}">{{ 'Loaded' if groups else 'No Data' }}</div>
           </div>
           <div class="field">
+            <label for="scanWindow">Merge scan window</label>
+            <select id="scanWindow">
+              <option value="5" {% if scan_window_minutes == 5 %}selected{% endif %}>5 min / scan</option>
+              <option value="10" {% if scan_window_minutes == 10 %}selected{% endif %}>10 min / scan</option>
+              <option value="15" {% if scan_window_minutes == 15 %}selected{% endif %}>15 min / scan</option>
+              <option value="20" {% if scan_window_minutes == 20 %}selected{% endif %}>20 min / scan</option>
+            </select>
+          </div>
+          <div class="field">
             <label for="group">Group</label>
             <select id="group" onchange="changeGroup()">
               {% for g in groups %}
               <option value="{{ g }}">{{ g }}</option>
               {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="frameSelect">Datetime start scan</label>
+            <select id="frameSelect" onchange="changeFrameSelect()"></select>
+          </div>
+          <div class="field">
+            <label for="sweepSelect">Elevasi / Sweep yang diplot</label>
+            <select id="sweepSelect" onchange="changeSweepSelection()">
+              <option value="auto">Auto (sweep pertama)</option>
             </select>
           </div>
           <div class="field">
@@ -308,6 +323,29 @@
           <div class="toolbarRow" style="padding:0;"><button class="miniBtn" onclick="resetFilters()">Reset Filters</button></div>
         </div>
 
+        <div class="sectionLabel">Sweeps in Active Frame</div>
+        <div class="item">
+          <div class="headRow">
+            <div>
+              <p class="name">Merged Sweep List</p>
+              <p class="coord">Daftar sweep/elevasi yang berhasil digabung dalam frame aktif.</p>
+            </div>
+            <div class="tag">Sweep</div>
+          </div>
+          <div class="field">
+            <label>Frame sweeps</label>
+            <input id="sweepList" value="Belum ada data" readonly />
+          </div>
+          <div class="field">
+            <label>Elevations</label>
+            <input id="elevationList" value="Belum ada data" readonly />
+          </div>
+          <div class="field">
+            <label>Files merged</label>
+            <input id="fileCountText" value="0 file" readonly />
+          </div>
+        </div>
+
         <div class="sectionLabel">Timeline</div>
         <div class="item">
           <div class="headRow">
@@ -360,7 +398,7 @@
         <div class="infoTitle">Radar Playback Info</div>
         <div class="infoName" id="infoName">Belum ada radar dipilih</div>
         <div class="infoValue" id="frameText">1/1</div>
-        <div class="infoSub"><span id="timestamp">--:--</span><br><span id="infoExtent">Extent belum tersedia.</span></div>
+        <div class="infoSub"><span id="timestamp">--:--</span><br><span id="infoExtent">Extent belum tersedia.</span><br><span id="infoSweeps">Sweep belum tersedia.</span></div>
       </div>
 
       <div class="timelineCard" id="timelineCard">
@@ -382,6 +420,7 @@
     const defaultConfigs = {{ default_configs | tojson }};
     const radarOverlayUrl = "{{ url_for('radar_bp.radar_overlay') }}";
     const hasGroups = {{ 'true' if groups else 'false' }};
+    const currentScanWindow = {{ scan_window_minutes|int }};
 
     function setStatus(text){ document.getElementById('statusPill').textContent = text; }
     function showLoader() {
@@ -430,6 +469,7 @@
     var overlayOpacity = 0.6;
     var cmap = '', vmin = '', vmax = '';
     var filters = {useSQI:false,sqi:'',usePMI:false,pmi:'',useLOG:false,log:'',clipRange:false,maskInvalid:false,speckle:false,clutter:false,dealias:false};
+    var selectedSweep = 'auto';
     var times = {{ times | tojson }};
     var epochs = {{ epochs | tojson }};
     var bounds = {{ bounds | tojson }};
@@ -441,19 +481,60 @@
       if (!document.getElementById('cmap').value && cfg.cmap) document.getElementById('cmap').value = '';
     }
 
+    function populateFrameSelect() {
+      const select = document.getElementById('frameSelect');
+      if (!select) return;
+      const frames = times[group] || [];
+      const currentValue = String(frame);
+      select.innerHTML = '';
+      if (!frames.length) {
+        const opt = document.createElement('option');
+        opt.value = '0';
+        opt.textContent = 'Belum ada frame';
+        select.appendChild(opt);
+        select.disabled = true;
+        return;
+      }
+      select.disabled = false;
+      frames.forEach((ts, idx) => {
+        const opt = document.createElement('option');
+        opt.value = String(idx);
+        opt.textContent = ts || `Frame ${idx + 1}`;
+        if (String(idx) === currentValue) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function changeFrameSelect() {
+      const select = document.getElementById('frameSelect');
+      frame = parseInt(select.value || '0', 10) || 0;
+      loadRadar();
+    }
+
     function loadRadar() {
       if (!group || !field) {
         setStatus('Upload file radar dulu untuk mulai viewer.');
         return;
       }
       setStatus(`Memuat ${field} untuk ${group}...`);
-      fetch(radarOverlayUrl + '?group=' + encodeURIComponent(group) + '&frame=' + frame + '&field=' + field + '&cmap=' + cmap + '&vmin=' + vmin + '&vmax=' + vmax + '&filters=' + encodeURIComponent(JSON.stringify(filters)))
+      let overlayUrl = radarOverlayUrl + '?group=' + encodeURIComponent(group) + '&frame=' + frame + '&field=' + field + '&cmap=' + cmap + '&vmin=' + vmin + '&vmax=' + vmax + '&filters=' + encodeURIComponent(JSON.stringify(filters));
+      if (selectedSweep && selectedSweep !== 'auto') {
+        if (selectedSweep.startsWith('idx:')) overlayUrl += '&sweep=' + encodeURIComponent(selectedSweep.slice(4));
+        else if (selectedSweep.startsWith('elev:')) overlayUrl += '&elevation=' + encodeURIComponent(selectedSweep.slice(5));
+      }
+      fetch(overlayUrl)
         .then(res => {
           if (!res.ok) throw new Error('Radar fetch failed');
           var extent = res.headers.get('X-Extent').split(',').map(Number);
           total = parseInt(res.headers.get('X-Frames'));
           var ts = res.headers.get('X-Timestamp');
           var warnings = res.headers.get('X-Warnings');
+          var sweepHeader = res.headers.get('X-Sweeps') || '';
+          var elevHeader = res.headers.get('X-Elevations') || '';
+          var fileCount = res.headers.get('X-File-Count') || '1';
+          var activeSweepIndex = res.headers.get('X-Active-Sweep-Index') || '0';
+          var activeElevation = res.headers.get('X-Active-Elevation') || '';
+          var sweepOptionsHeader = res.headers.get('X-Sweep-Options') || '[]';
           currentBounds = [[extent[0], extent[1]], [extent[2], extent[3]]];
           const warningBox = document.getElementById('warningBox');
           if (warnings) {
@@ -463,9 +544,9 @@
             warningBox.style.display = 'none';
             warningBox.innerHTML = '';
           }
-          return res.blob().then(blob => ({ blob, ts, extent }));
+          return res.blob().then(blob => ({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader }));
         })
-        .then(({ blob, ts, extent }) => {
+        .then(({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader }) => {
           var url = URL.createObjectURL(blob);
           if (radarLayer) {
             radarLayer.setUrl(url);
@@ -478,15 +559,62 @@
           }
           document.getElementById('frameText').innerText = (frame + 1) + '/' + total;
           document.getElementById('timestamp').innerText = ts;
+          const frameSelect = document.getElementById('frameSelect');
+          if (frameSelect) frameSelect.value = String(frame);
           document.getElementById('infoName').innerText = group + ' · ' + field;
           document.getElementById('infoExtent').innerText = `Extent: ${extent.map(v => v.toFixed(3)).join(', ')}`;
-          setStatus(`Loaded ${field} frame ${frame + 1}/${total}`);
+          document.getElementById('infoSweeps').innerText = `Sweeps: ${sweepHeader || '-'} · Files: ${fileCount}`;
+          document.getElementById('sweepList').value = sweepHeader || 'Tidak ada sweep';
+          document.getElementById('elevationList').value = elevHeader || 'Tidak ada elevasi';
+          document.getElementById('fileCountText').value = `${fileCount} file`;
+          populateSweepOptions(sweepOptionsHeader, activeSweepIndex, activeElevation);
+          setStatus(`Loaded ${field} frame ${frame + 1}/${total} · ${fileCount} file merged`);
           renderTimeline();
         })
         .catch(err => {
           console.error(err);
           setStatus('Gagal memuat radar overlay.');
         });
+    }
+
+    function populateSweepOptions(optionsJson, activeSweepIndex, activeElevation) {
+      const select = document.getElementById('sweepSelect');
+      if (!select) return;
+      let options = [];
+      try { options = JSON.parse(optionsJson || '[]'); } catch (err) { options = []; }
+      const previous = selectedSweep;
+      select.innerHTML = '';
+      const autoOpt = document.createElement('option');
+      autoOpt.value = 'auto';
+      autoOpt.textContent = 'Auto (sweep pertama)';
+      select.appendChild(autoOpt);
+
+      options.forEach(opt => {
+        const el = document.createElement('option');
+        const elev = opt.elevation;
+        el.value = elev !== null && elev !== undefined ? `elev:${elev}` : `idx:${opt.index}`;
+        el.textContent = opt.label || `Sweep ${Number(opt.index) + 1}`;
+        select.appendChild(el);
+      });
+
+      let target = 'auto';
+      if (previous && previous !== 'auto' && [...select.options].some(o => o.value === previous)) {
+        target = previous;
+      } else if (activeElevation !== '' && activeElevation !== null && activeElevation !== undefined) {
+        const byElev = `elev:${activeElevation}`;
+        if ([...select.options].some(o => o.value === byElev)) target = byElev;
+      } else {
+        const byIdx = `idx:${activeSweepIndex}`;
+        if ([...select.options].some(o => o.value === byIdx)) target = byIdx;
+      }
+      select.value = target;
+      selectedSweep = target;
+    }
+
+    function changeSweepSelection() {
+      const select = document.getElementById('sweepSelect');
+      selectedSweep = select ? select.value : 'auto';
+      loadRadar();
     }
 
     function fitRadar(){ if (currentBounds) map.fitBounds(currentBounds); }
@@ -563,7 +691,12 @@
     function prev(){ frame = Math.max(0, frame - 1); loadRadar(); }
     function next(){ frame = frame + 1; if (frame >= total) frame = 0; loadRadar(); }
     function changeField(){ field = document.getElementById('field').value; updateProductDefaults(); frame = 0; loadRadar(); }
-    function changeGroup(){ group = document.getElementById('group').value; frame = 0; loadRadar(); }
+    function changeGroup(){
+      group = document.getElementById('group').value;
+      frame = 0;
+      populateFrameSelect();
+      loadRadar();
+    }
     function togglePlay() {
       playing = !playing;
       document.getElementById('playBtn').innerText = playing ? '⏸' : '▶';
@@ -577,17 +710,27 @@
       document.getElementById('playBtn').innerText = '▶';
       document.getElementById('btnPlayTop').innerText = 'Play';
       frame = 0;
+      populateFrameSelect();
       resetOverrides();
       resetFilters();
       updateOpacity(60);
       document.getElementById('opacitySlider').value = 60;
       document.getElementById('timeWindow').value = '1800';
+      const sweepSelect = document.getElementById('sweepSelect'); if (sweepSelect) sweepSelect.value = 'auto';
+      selectedSweep = 'auto';
       timeWindowChanged();
       loadRadar();
     }
 
+
+    document.getElementById('scanWindow').addEventListener('change', function(){
+      const url = new URL(window.location.href);
+      url.searchParams.set('scan_window', this.value);
+      window.location.href = url.toString();
+    });
+
     document.getElementById('btnUpload').addEventListener('click', () => document.getElementById('radarfiles').click());
-    document.getElementById('radarfiles').addEventListener('change', function(){ showLoader(); document.getElementById('uploadForm').submit(); });
+    document.getElementById('radarfiles').addEventListener('change', function(){ document.getElementById('scanWindowHidden').value = document.getElementById('scanWindow').value; showLoader(); document.getElementById('uploadForm').submit(); });
     document.getElementById('btnFitRadar').addEventListener('click', fitRadar);
     document.getElementById('btnPrevTop').addEventListener('click', prev);
     document.getElementById('btnPlayTop').addEventListener('click', togglePlay);
@@ -596,6 +739,7 @@
     document.getElementById('btnSidebarReset').addEventListener('click', resetViewer);
 
     updateProductDefaults();
+    populateFrameSelect();
     if (hasGroups) loadRadar(); else setStatus('Belum ada file radar yang diupload.');
   </script>
 </body>
