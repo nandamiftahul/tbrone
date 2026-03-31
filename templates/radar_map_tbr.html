@@ -47,6 +47,12 @@
       border-bottom:1px solid rgba(255,255,255,.15);
     }
     .brand{display:flex; align-items:center; gap:12px; min-width:240px}
+    .brand img{
+      height:32px;
+      width:auto;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
+      border-radius: 8px;
+    }
     .brand .logo{
       width:38px; height:38px; border-radius:12px;
       background:linear-gradient(135deg,#F28C28 0%,#FFD089 100%);
@@ -171,13 +177,12 @@
 <body>
   <div class="topbar">
     <div class="brand">
-      <div class="logo">RD</div>
+      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
       <div class="title">
         <strong>Terrindo Bumi Raya · Radar Viewer</strong>
         <span>Radar overlay, playback, filtering, and product controls</span>
       </div>
     </div>
-
     <div class="top-actions">
       <form action="{{ url_for('radar_bp.radar_home') }}" method="post" enctype="multipart/form-data" id="uploadForm">
         <input type="file" id="radarfiles" name="radarfiles" multiple hidden>
