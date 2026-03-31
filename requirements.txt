@@ -7,6 +7,16 @@ python-dotenv
 websocket-client
 psycopg2-binary
 matplotlib
-numpy
 scipy
 arm_pyart
+numpy==1.26.4
+h5py
+pandas
+opencv-python-headless
+scikit-image
+basemap
+sv-ttk
+cmweather
+cmasher
+cmocean
+
