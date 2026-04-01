@@ -280,6 +280,31 @@
               {% endfor %}
             </select>
           </div>
+          <div class="field">
+            <label for="derivedProduct">Produk Turunan</label>
+            <select id="derivedProduct">
+              <option value="PPI">PPI biasa</option>
+              <option value="MAX">MAX</option>
+              <option value="CAPPI">CAPPI</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cappiHeightKm">CAPPI height (km)</label>
+            <input type="number" id="cappiHeightKm" min="0.1" step="0.1" value="2.0">
+          </div>
+          <div class="toolbarRow" style="padding:0;">
+            <button class="miniBtn" type="button" onclick="applyDerivedProduct()">Generate Product</button>
+          </div>
+          <div class="field">
+            <label for="exportFormat">Convert / Export</label>
+            <select id="exportFormat">
+              <option value="nc">NetCDF (.nc)</option>
+              <option value="h5">HDF5 (.h5)</option>
+            </select>
+          </div>
+          <div class="toolbarRow" style="padding:0;">
+            <button class="miniBtn" type="button" onclick="exportCurrentProduct()">Download Converted Data</button>
+          </div>
         </div>
 
         <div class="sectionLabel">Display</div>
@@ -491,6 +516,7 @@
   <script>
     const defaultConfigs = {{ default_configs | tojson }};
     const radarOverlayUrl = "{{ url_for('radar_bp.radar_overlay') }}";
+    const radarExportUrl = "{{ url_for('radar_bp.radar_export') }}";
     const hasGroups = {{ 'true' if groups else 'false' }};
     const pyirisDefaults = {{ pyiris_defaults | tojson }};
 
@@ -506,6 +532,8 @@
     let cmap = '', vmin = '', vmax = '';
     let filters = {};
     let selectedSweep = 'auto';
+    let derivedProduct = 'PPI';
+    let cappiHeightKm = 2.0;
     const times = {{ times | tojson }};
     const epochs = {{ epochs | tojson }};
     const bounds = {{ bounds | tojson }};
@@ -694,6 +722,8 @@
         + '?group=' + encodeURIComponent(group)
         + '&frame=' + frame
         + '&field=' + encodeURIComponent(field)
+        + '&derived_product=' + encodeURIComponent(derivedProduct)
+        + '&cappi_height_km=' + encodeURIComponent(cappiHeightKm)
         + '&cmap=' + encodeURIComponent(cmap)
         + '&vmin=' + encodeURIComponent(vmin)
         + '&vmax=' + encodeURIComponent(vmax)
@@ -717,6 +747,7 @@
           const activeSweepIndex = res.headers.get('X-Active-Sweep-Index') || '0';
           const activeElevation = res.headers.get('X-Active-Elevation') || '';
           const sweepOptionsHeader = res.headers.get('X-Sweep-Options') || '[]';
+          const derivedUsed = res.headers.get('X-Derived-Product') || derivedProduct;
           currentBounds = [[extent[0], extent[1]], [extent[2], extent[3]]];
 
           const warningBox = document.getElementById('warningBox');
@@ -728,9 +759,9 @@
             warningBox.innerHTML = '';
           }
 
-          return res.blob().then(blob => ({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader }));
+          return res.blob().then(blob => ({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader, derivedUsed }));
         })
-        .then(({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader }) => {
+        .then(({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader, derivedUsed }) => {
           const url = URL.createObjectURL(blob);
           if (radarLayer) {
             radarLayer.setUrl(url);
@@ -744,14 +775,14 @@
           document.getElementById('frameText').innerText = (frame + 1) + '/' + total;
           document.getElementById('timestamp').innerText = ts;
           document.getElementById('frameSelect').value = String(frame);
-          document.getElementById('infoName').innerText = group + ' · ' + field;
+          document.getElementById('infoName').innerText = group + ' · ' + field + ' · ' + derivedUsed;
           document.getElementById('infoExtent').innerText = `Extent: ${extent.map(v => Number.isFinite(v) ? v.toFixed(3) : '-').join(', ')}`;
           document.getElementById('infoSweeps').innerText = `Sweeps: ${sweepHeader || '-'} · Files: ${fileCount}`;
           document.getElementById('sweepList').value = sweepHeader || 'Tidak ada sweep';
           document.getElementById('elevationList').value = elevHeader || 'Tidak ada elevasi';
           document.getElementById('fileCountText').value = `${fileCount} file`;
           populateSweepOptions(sweepOptionsHeader, activeSweepIndex, activeElevation);
-          setStatus(`Loaded ${field} frame ${frame + 1}/${total} · ${fileCount} file merged`);
+          setStatus(`Loaded ${field} ${derivedUsed} frame ${frame + 1}/${total} · ${fileCount} file merged`);
           renderTimeline();
           hideOverlay();
         })
@@ -765,6 +796,39 @@
     function changeSweepSelection() {
       selectedSweep = document.getElementById('sweepSelect').value || 'auto';
       loadRadar();
+    }
+
+    function applyDerivedProduct() {
+      derivedProduct = document.getElementById('derivedProduct').value || 'PPI';
+      cappiHeightKm = parseFloat(document.getElementById('cappiHeightKm').value || '2.0') || 2.0;
+
+      const frameSelect = document.getElementById('frameSelect');
+      if (frameSelect && frameSelect.value !== '') {
+        frame = parseInt(frameSelect.value, 10) || 0;
+      }
+
+      showOverlay('Generating product…', `Building ${derivedProduct} product`, 50);
+      loadRadar(true);
+    }
+
+    function exportCurrentProduct() {
+      derivedProduct = document.getElementById('derivedProduct').value || 'PPI';
+      cappiHeightKm = parseFloat(document.getElementById('cappiHeightKm').value || '2.0') || 2.0;
+      gatherFilterInputs();
+      const exportFormat = document.getElementById('exportFormat').value || 'nc';
+      let exportUrl = radarExportUrl
+        + '?group=' + encodeURIComponent(group)
+        + '&frame=' + frame
+        + '&field=' + encodeURIComponent(field)
+        + '&export_format=' + encodeURIComponent(exportFormat)
+        + '&derived_product=' + encodeURIComponent(derivedProduct)
+        + '&cappi_height_km=' + encodeURIComponent(cappiHeightKm)
+        + '&filters=' + encodeURIComponent(JSON.stringify(filters));
+      if (selectedSweep && selectedSweep !== 'auto') {
+        if (selectedSweep.startsWith('idx:')) exportUrl += '&sweep=' + encodeURIComponent(selectedSweep.slice(4));
+        else if (selectedSweep.startsWith('elev:')) exportUrl += '&elevation=' + encodeURIComponent(selectedSweep.slice(5));
+      }
+      window.location.href = exportUrl;
     }
 
     function fitRadar(){ if (currentBounds) map.fitBounds(currentBounds); }
@@ -831,7 +895,18 @@
     function prev(){ frame = Math.max(0, frame - 1); loadRadar(); }
     function next(){ frame = frame + 1; if (frame >= total) frame = 0; loadRadar(); }
     function changeField(){ field = document.getElementById('field').value; updateProductDefaults(); frame = 0; loadRadar(); }
-    function changeGroup(){ group = document.getElementById('group').value; frame = 0; populateFrameSelect(); loadRadar(); }
+    function changeGroup(){
+      group = document.getElementById('group').value;
+      frame = 0;
+      populateFrameSelect();
+
+      const frameSelect = document.getElementById('frameSelect');
+      if (frameSelect && frameSelect.value !== '') {
+        frame = parseInt(frameSelect.value, 10) || 0;
+      }
+
+      loadRadar();
+    }
 
     function togglePlay() {
       playing = !playing;
@@ -879,6 +954,8 @@
     document.getElementById('btnSidebarReset').addEventListener('click', resetViewer);
 
     setPyirisDefaults();
+    derivedProduct = document.getElementById('derivedProduct').value || 'PPI';
+    cappiHeightKm = parseFloat(document.getElementById('cappiHeightKm').value || '2.0') || 2.0;
     updateProductDefaults();
     populateFrameSelect();
     if (hasGroups) loadRadar(); else setStatus('Belum ada file radar yang diupload.');

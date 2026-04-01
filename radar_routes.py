@@ -18,7 +18,7 @@ import patch_pyart  # noqa: F401
 import pyart
 from flask import Blueprint, current_app, redirect, render_template, request, send_file, url_for
 
-from scipy.ndimage import generic_filter, median_filter
+from scipy.ndimage import generic_filter, median_filter, distance_transform_edt
 from scipy.ndimage.measurements import variance
 from scipy.ndimage.filters import uniform_filter
 import cv2
@@ -33,6 +33,7 @@ radar_bp = Blueprint(
 )
 
 radar_groups: dict[str, list[dict[str, Any]]] = {}
+uploaded_files_mem: list[dict[str, Any]] = []
 available_fields: list[str] = []
 radar_extent = [[-10, 100], [10, 120]]
 time_bounds: dict[str, dict[str, float]] = {}
@@ -221,6 +222,39 @@ def _finalize_frame_items(items: list[dict[str, Any]]) -> dict[str, Any]:
             seen_elev.add(elev); elevations.append(elev)
     return {'files': files, 'file_count': len(files), 'time': anchor_item.get('time', 'N/A'), 'epoch': anchor_item.get('epoch'), 'sweeps': sweeps, 'elevations_text': ' | '.join(elevations)}
 
+
+def _temp_path_from_bytes(filename: str, content: bytes) -> str:
+    suffix = os.path.splitext(filename)[1] or '.raw'
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp.write(content)
+    tmp.flush()
+    tmp.close()
+    return tmp.name
+
+def _read_radar_fileentry(fileentry: dict[str, Any]):
+    temp_path = _temp_path_from_bytes(fileentry.get('filename', 'radar.raw'), fileentry['content'])
+    try:
+        radar = _read_radar(temp_path)
+    finally:
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
+    return radar
+
+def _fill_nan_nearest_2d(arr):
+    arr = np.asarray(arr, dtype=float)
+    if arr.ndim != 2:
+        return arr
+    mask = ~np.isfinite(arr)
+    if not mask.any():
+        return arr
+    if mask.all():
+        return arr
+    _, indices = distance_transform_edt(mask, return_indices=True)
+    filled = arr[tuple(indices)]
+    return filled
+
 def _read_radar(filepath: str):
     return pyart.io.read_sigmet(filepath, file_field_names=True, full_xhdr=True, time_ordered='full')
 
@@ -237,21 +271,25 @@ def _get_radar_epoch_and_label(radar, filepath: str) -> tuple[str, float | None]
             return file_dt.strftime('%Y-%m-%d %H:%M:%S'), file_dt.timestamp()
         return 'N/A', None
 
-def _merge_radars(filepaths: list[str]):
+def _merge_radars(file_entries):
     warnings, radars = [], []
-    for path in filepaths:
+    for entry in file_entries:
         try:
-            radars.append(_read_radar(path))
+            if isinstance(entry, dict) and 'content' in entry:
+                radars.append(_read_radar_fileentry(entry))
+            else:
+                radars.append(_read_radar(entry))
         except Exception as exc:
-            warnings.append(f'{os.path.basename(path)} failed: {exc}')
+            name = entry.get('filename', 'radar.raw') if isinstance(entry, dict) else os.path.basename(str(entry))
+            warnings.append(f'{name} failed: {exc}')
     if not radars:
         raise RuntimeError('No valid radar files in merged frame')
     merged = radars[0]
-    for nxt in radars[1:]:
+    for i, nxt in enumerate(radars[1:], start=1):
         try:
             merged = pyart.util.join_radar(merged, nxt)
         except Exception as exc:
-            warnings.append(f'join failed for {os.path.basename(getattr(nxt, "filename", "radar"))}: {exc}')
+            warnings.append(f'join failed for radar #{i+1}: {exc}')
     return merged, warnings
 
 # ---------- pyIRIS-like filters ----------
@@ -364,38 +402,36 @@ def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, An
         snr_field = _field_by_substring(radar, 'SNR')
         phi_field = _field_by_substring(radar, 'PHIDP', 'PHI')
 
-        # Apply helper-moment filters to any displayed moment when the helper field exists.
-        # This makes the effect visible for products like ZDR, KDP, RHOHV, etc., not only Z/VEL/WIDTH.
         if active_log:
-            if log_field:
+            if category in ('Z', 'E') and log_field:
                 thr = _threshold_value('th_LOG', category, filters, defaults)
                 data[np.asarray(radar.fields[log_field]['data'], dtype=float) < thr] = np.nan
-            elif filters.get('warn_missing_helpers', True):
+            elif category in ('Z', 'E') and filters.get('warn_missing_helpers', True) and not log_field:
                 warnings.append('LOG field not available')
 
         if active_sqi:
-            if sqi_field:
+            if category in ('V', 'W') and sqi_field:
                 thr = _threshold_value('th_SQI', category, filters, defaults)
                 data[np.asarray(radar.fields[sqi_field]['data'], dtype=float) < thr] = np.nan
-            elif filters.get('warn_missing_helpers', True):
+            elif category in ('V', 'W') and filters.get('warn_missing_helpers', True) and not sqi_field:
                 warnings.append('SQI field not available')
 
         if active_pmi:
-            if pmi_field:
+            if category in ('V', 'W') and pmi_field:
                 thr = _threshold_value('th_PMI', category, filters, defaults)
                 data[np.asarray(radar.fields[pmi_field]['data'], dtype=float) < thr] = np.nan
-            elif filters.get('warn_missing_helpers', True):
+            elif category in ('V', 'W') and filters.get('warn_missing_helpers', True) and not pmi_field:
                 warnings.append('PMI field not available')
 
         if active_csr:
-            if csr_field:
+            if category in ('Z', 'E', 'V', 'W') and csr_field:
                 thr = _threshold_value('th_CSR', category, filters, defaults)
                 data[np.asarray(radar.fields[csr_field]['data'], dtype=float) > thr] = np.nan
-            elif filters.get('warn_missing_helpers', True):
+            elif category in ('Z', 'E', 'V', 'W') and filters.get('warn_missing_helpers', True) and not csr_field:
                 warnings.append('CSR/CSP field not available')
 
         if active_snr:
-            if snr_field:
+            if category in ('Z', 'E', 'V', 'W') and snr_field:
                 base_thr = _threshold_value('th_SNLG', category, filters, defaults)
                 snr_arr = np.asarray(radar.fields[snr_field]['data'], dtype=float)
                 try:
@@ -403,11 +439,11 @@ def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, An
                 except Exception:
                     conv_thr = base_thr
                 data[snr_arr < conv_thr] = np.nan
-            elif filters.get('warn_missing_helpers', True):
+            elif category in ('Z', 'E', 'V', 'W') and filters.get('warn_missing_helpers', True) and not snr_field:
                 warnings.append('SNR field not available')
 
         if active_phi:
-            if phi_field:
+            if category in ('Z', 'E') and phi_field:
                 phi_arr = np.asarray(radar.fields[phi_field]['data'], dtype=float)
                 phi_sd = sdev_filter(phi_arr, (3, 3))
                 if snr_field:
@@ -420,20 +456,20 @@ def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, An
                     th2 = float(filters.get('th_PHID2') or defaults['th_PHID2'])
                     mask = phi_sd > th2
                 data[mask] = np.nan
-            elif filters.get('warn_missing_helpers', True):
+            elif category in ('Z', 'E') and filters.get('warn_missing_helpers', True) and not phi_field:
                 warnings.append('PHIDP field not available')
 
-        # SDZ/MDZ are also allowed for any displayed moment so the user can immediately see the effect.
-        temp = data.copy()
-        temp[np.isnan(temp)] = -327
-        if active_sdz:
-            th_sdz = float(filters.get('th_SDZ') or defaults['th_SDZ'])
-            sd = sdev_filter(temp, (3, 3))
-            data[np.logical_or(sd == 0, sd > th_sdz)] = np.nan
-        if active_mdz:
-            th_mdz = float(filters.get('th_MDZ') or defaults['th_MDZ'])
-            md = median_filter(temp, size=3)
-            data[md < th_mdz] = np.nan
+        if category in ('Z', 'E'):
+            temp = data.copy()
+            temp[np.isnan(temp)] = -327
+            if active_sdz:
+                th_sdz = float(filters.get('th_SDZ') or defaults['th_SDZ'])
+                sd = sdev_filter(temp, (3, 3))
+                data[np.logical_or(sd == 0, sd > th_sdz)] = np.nan
+            if active_mdz:
+                th_mdz = float(filters.get('th_MDZ') or defaults['th_MDZ'])
+                md = median_filter(temp, size=3)
+                data[md < th_mdz] = np.nan
 
     if enable_speckle:
         kind = str(filters.get('speckle_type') or defaults['speckle_type']).strip().lower()
@@ -462,8 +498,14 @@ def _extract_active_sweep_options(radar) -> list[dict[str, Any]]:
     except Exception:
         fixed = []
     if fixed:
+        seen = set()
         for idx, elev in enumerate(fixed):
-            options.append({'index': idx, 'label': f'{elev:g}°', 'elevation': elev})
+            elev_round = round(float(elev), 2)
+            key = f'{elev_round:.2f}'
+            if key in seen:
+                continue
+            seen.add(key)
+            options.append({'index': idx, 'label': f'{elev_round:g}°', 'elevation': elev_round})
     else:
         count = int(getattr(radar, 'nsweeps', 1) or 1)
         for idx in range(max(1, count)):
@@ -494,11 +536,23 @@ def _resolve_sweep_index(radar, requested_sweep: str | None, requested_elevation
             pass
     return chosen_idx, options, chosen_elev
 
-def _render_radar_png_from_files(filepaths, field, cmap_override='', vmin_override=None, vmax_override=None, filters=None, requested_sweep=None, requested_elevation=None):
+def _render_radar_png_from_files(
+    filepaths,
+    field,
+    cmap_override='',
+    vmin_override=None,
+    vmax_override=None,
+    filters=None,
+    requested_sweep=None,
+    requested_elevation=None,
+    derived_product='PPI',
+    cappi_height_km=2.0,
+):
     filters = filters or {}
     radar, warnings = _merge_radars(filepaths)
     if field not in radar.fields:
         field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
+
     selected_sweep_idx, sweep_options, selected_elevation = _resolve_sweep_index(radar, requested_sweep, requested_elevation)
     raw_data = radar.fields[field]['data'].copy()
     filtered_data, filter_warnings = _apply_pyiris_filters(radar, field, raw_data, filters, load_pyiris_defaults())
@@ -506,35 +560,186 @@ def _render_radar_png_from_files(filepaths, field, cmap_override='', vmin_overri
     if filters.get('clipRange') and vmin_override is not None and vmax_override is not None:
         filtered_data = np.ma.array(np.clip(filtered_data.filled(np.nan), vmin_override, vmax_override))
     radar.fields[field]['data'] = np.ma.masked_invalid(filtered_data)
-    display = pyart.graph.RadarDisplay(radar)
+
+    product_used = (derived_product or 'PPI').upper()
+    cmap_obj = plt.get_cmap(cmap_override or default_configs.get(field, {}).get('cmap', 'turbo')).copy()
+    try:
+        cmap_obj.set_bad(alpha=0.0)
+    except Exception:
+        pass
+
+    try:
+        lat0 = float(radar.latitude['data'][0])
+        lon0 = float(radar.longitude['data'][0])
+    except Exception:
+        lat0, lon0 = 0.0, 0.0
+
+    try:
+        rng_km = float(radar.range['data'][-1]) / 1000.0
+    except Exception:
+        rng_km = 250.0
+
     fig, ax = plt.subplots(figsize=(6, 6))
-    display.plot(field, selected_sweep_idx, ax=ax, colorbar_flag=False, vmin=vmin_override, vmax=vmax_override, cmap=(cmap_override or default_configs.get(field, {}).get('cmap', 'turbo')), title_flag=False)
-    ax.axis('off')
+    extent = None
+
+    if product_used in ('MAX', 'CAPPI'):
+        try:
+            grid_limit_xy = rng_km * 1000.0
+            if product_used == 'MAX':
+                z_top = max(12000.0, float(getattr(radar, 'nsweeps', 1) or 1) * 1000.0)
+                grid = pyart.map.grid_from_radars(
+                    (radar,),
+                    grid_shape=(12, 400, 400),
+                    grid_limits=((0.0, z_top), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
+                    fields=[field],
+                    weighting_function='Barnes2',
+                )
+                arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
+                arr2 = np.nanmax(arr3, axis=0)
+                arr2 = np.ma.masked_invalid(arr2)
+            else:
+                cappi_h = float(cappi_height_km) * 1000.0
+                half = 250.0
+                grid = pyart.map.grid_from_radars(
+                    (radar,),
+                    grid_shape=(3, 400, 400),
+                    grid_limits=((max(0.0, cappi_h-half), cappi_h+half), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
+                    fields=[field],
+                    weighting_function='Barnes2',
+                )
+                arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
+                arr2 = np.nanmean(arr3, axis=0)
+                arr2 = _fill_nan_nearest_2d(arr2)
+                arr2 = np.ma.masked_invalid(arr2)
+
+            ax.imshow(
+                arr2,
+                origin='lower',
+                extent=[-rng_km, rng_km, -rng_km, rng_km],
+                cmap=cmap_obj,
+                vmin=vmin_override,
+                vmax=vmax_override,
+                interpolation='nearest',
+                aspect='equal'
+            )
+            ax.axis('off')
+            dlat = rng_km / 111.0
+            dlon = rng_km / max(0.1, 111.0 * np.cos(np.deg2rad(lat0)))
+            extent = [lat0 - dlat, lon0 - dlon, lat0 + dlat, lon0 + dlon]
+        except Exception as exc:
+            warnings.append(f'{product_used} generation failed, fallback to PPI: {exc}')
+            product_used = 'PPI'
+
+    if product_used == 'PPI':
+        display = pyart.graph.RadarDisplay(radar)
+        display.plot(
+            field,
+            selected_sweep_idx,
+            ax=ax,
+            colorbar_flag=False,
+            vmin=vmin_override,
+            vmax=vmax_override,
+            cmap=cmap_obj,
+            title_flag=False
+        )
+        ax.axis('off')
+        d = rng_km / 111.0
+        extent = [lat0 - d, lon0 - d, lat0 + d, lon0 + d]
+
     buf = BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, transparent=True)
     plt.close(fig)
     buf.seek(0)
+    return buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation, product_used
+
+
+
+def _build_export_dataset(
+    filepaths,
+    field,
+    export_format='nc',
+    filters=None,
+    requested_sweep=None,
+    requested_elevation=None,
+    derived_product='PPI',
+    cappi_height_km=2.0,
+):
+    filters = filters or {}
+    radar, warnings = _merge_radars(filepaths)
+    if field not in radar.fields:
+        field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
+
+    raw_data = radar.fields[field]['data'].copy()
+    filtered_data, filter_warnings = _apply_pyiris_filters(radar, field, raw_data, filters, load_pyiris_defaults())
+    warnings.extend(filter_warnings)
+    radar.fields[field]['data'] = np.ma.masked_invalid(filtered_data)
+
+    export_format = (export_format or 'nc').lower()
+    if export_format not in ('nc', 'h5'):
+        export_format = 'nc'
+
+    product_used = (derived_product or 'PPI').upper()
+
     try:
-        lat = radar.latitude['data'][0]
-        lon = radar.longitude['data'][0]
-        rng = radar.range['data'][-1] / 1000.0
-        d = rng / 111.0
-        extent = [lat - d, lon - d, lat + d, lon + d]
+        rng_km = float(radar.range['data'][-1]) / 1000.0
     except Exception:
-        warnings.append('Extent calculation failed, using fallback box')
-        extent = [-10, 100, 10, 120]
-    return buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation
+        rng_km = 250.0
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.nc' if export_format == 'nc' else '.h5')
+    tmp.close()
+
+    if product_used == 'PPI':
+        if export_format == 'nc':
+            pyart.io.write_cfradial(tmp.name, radar)
+        else:
+            grid = pyart.map.grid_from_radars(
+                (radar,),
+                grid_shape=(1, 400, 400),
+                grid_limits=((0.0, 0.0), (-rng_km * 1000.0, rng_km * 1000.0), (-rng_km * 1000.0, rng_km * 1000.0)),
+                fields=[field],
+                weighting_function='Barnes2',
+            )
+            pyart.io.write_grid(tmp.name, grid)
+        return tmp.name, product_used, warnings
+
+    grid_limit_xy = rng_km * 1000.0
+    if product_used == 'MAX':
+        z_top = max(12000.0, float(getattr(radar, 'nsweeps', 1) or 1) * 1000.0)
+        grid = pyart.map.grid_from_radars(
+            (radar,),
+            grid_shape=(12, 400, 400),
+            grid_limits=((0.0, z_top), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
+            fields=[field],
+            weighting_function='Barnes2',
+        )
+        arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
+        grid.fields[field]['data'] = np.ma.masked_invalid(np.nanmax(arr3, axis=0, keepdims=True))
+    else:
+        cappi_h = float(cappi_height_km) * 1000.0
+        half = 250.0
+        grid = pyart.map.grid_from_radars(
+            (radar,),
+            grid_shape=(3, 400, 400),
+            grid_limits=((max(0.0, cappi_h-half), cappi_h+half), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
+            fields=[field],
+            weighting_function='Barnes2',
+        )
+        arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
+        arr2 = np.nanmean(arr3, axis=0)
+        arr2 = _fill_nan_nearest_2d(arr2)
+        grid.fields[field]['data'] = np.ma.masked_invalid(arr2[np.newaxis, :, :])
+
+    pyart.io.write_grid(tmp.name, grid)
+    return tmp.name, product_used, warnings
 
 def _build_scan_groups(scan_window_minutes: int):
     global radar_groups, available_fields, radar_extent, time_bounds
     window_sec = max(1, int(scan_window_minutes)) * 60
     collected = []
-    for uploaded_name in os.listdir(_uploads_dir()):
-        filepath = os.path.join(_uploads_dir(), uploaded_name)
-        if not os.path.isfile(filepath):
-            continue
+    for uploaded in uploaded_files_mem:
+        uploaded_name = uploaded['filename']
         try:
-            radar = _read_radar(filepath)
+            radar = _read_radar_fileentry(uploaded)
         except Exception as exc:
             current_app.logger.warning('Skipping %s: %s', uploaded_name, exc)
             continue
@@ -544,7 +749,7 @@ def _build_scan_groups(scan_window_minutes: int):
         site = _safe_text(radar.metadata.get('instrument_name')) or 'UNKNOWN'
         raw_task = _safe_text(radar.metadata.get('task_name') or radar.metadata.get('sigmet_task_name') or '')
         base_task = _normalize_task_name(raw_task)
-        ts_label, epoch = _get_radar_epoch_and_label(radar, filepath)
+        ts_label, epoch = _get_radar_epoch_and_label(radar, uploaded_name)
         elev_text = 'N/A'
         try:
             elev_arr = np.asarray(radar.fixed_angle['data']).astype(float)
@@ -553,7 +758,19 @@ def _build_scan_groups(scan_window_minutes: int):
             pass
         sweep_code = _extract_sweep_code(uploaded_name, raw_task)
         subscan_letter = _extract_subscan_letter(raw_task, sweep_code, uploaded_name)
-        collected.append({'filepath': filepath, 'filename': uploaded_name, 'site': site, 'raw_task': raw_task or base_task, 'base_task': base_task, 'sweep_code': sweep_code, 'subscan_letter': subscan_letter, 'subscan_rank': _subscan_rank(subscan_letter), 'time': ts_label, 'epoch': epoch, 'elevations_text': elev_text})
+        collected.append({
+            'fileentry': uploaded,
+            'filename': uploaded_name,
+            'site': site,
+            'raw_task': raw_task or base_task,
+            'base_task': base_task,
+            'sweep_code': sweep_code,
+            'subscan_letter': subscan_letter,
+            'subscan_rank': _subscan_rank(subscan_letter),
+            'time': ts_label,
+            'epoch': epoch,
+            'elevations_text': elev_text,
+        })
     collected.sort(key=lambda x: (x['site'], x['base_task'], x['epoch'] if x['epoch'] is not None else float('inf'), x['filename']))
     grouped, current_by_group = {}, {}
     for item in collected:
@@ -576,19 +793,34 @@ def _build_scan_groups(scan_window_minutes: int):
     for pair, frame in current_by_group.items():
         key = f"{pair[0]} - {pair[1]}"
         grouped.setdefault(key, []).append(frame['items'])
+
     radar_groups, time_bounds = {}, {}
     for key, frames in grouped.items():
-        clean_frames = [_finalize_frame_items(frame_items) for frame_items in frames]
+        clean_frames = []
+        for frame_items in frames:
+            preferred = sorted(frame_items, key=lambda x: (_subscan_rank(x.get('subscan_letter', '')), x.get('epoch') if x.get('epoch') is not None else float('inf'), x.get('filename', '')))
+            anchor_item = preferred[0]
+            sweeps, seen_sweeps, elevations, seen_elev, files = [], set(), [], set(), []
+            for item in preferred:
+                files.append(item['fileentry'])
+                code = str(item.get('sweep_code') or '').strip()
+                if code and code not in seen_sweeps:
+                    seen_sweeps.add(code); sweeps.append(code)
+                elev = str(item.get('elevations_text') or '').strip()
+                if elev and elev not in seen_elev:
+                    seen_elev.add(elev); elevations.append(elev)
+            clean_frames.append({'files': files, 'file_count': len(files), 'time': anchor_item.get('time', 'N/A'), 'epoch': anchor_item.get('epoch'), 'sweeps': sweeps, 'elevations_text': ' | '.join(elevations)})
         clean_frames.sort(key=lambda x: x['epoch'] if x['epoch'] is not None else float('inf'))
         radar_groups[key] = clean_frames
         epochs_list = [f['epoch'] for f in clean_frames if f['epoch'] is not None]
         if epochs_list:
             time_bounds[key] = {'min': min(epochs_list), 'max': max(epochs_list)}
+
     available_fields = []
     if radar_groups:
-        first_file = next(iter(radar_groups.values()))[0]['files'][0]
+        first_entry = next(iter(radar_groups.values()))[0]['files'][0]
         try:
-            radar = _read_radar(first_file)
+            radar = _read_radar_fileentry(first_entry)
             available_fields[:] = list(radar.fields.keys())
             lat = radar.latitude['data'][0]; lon = radar.longitude['data'][0]
             rng = radar.range['data'][-1] / 1000.0; d = rng / 111.0
@@ -596,6 +828,68 @@ def _build_scan_groups(scan_window_minutes: int):
         except Exception as exc:
             current_app.logger.warning('Could not read first file fields: %s', exc)
             available_fields[:] = []
+
+
+@radar_bp.route('/export')
+def radar_export():
+    group = request.args.get('group')
+    idx = int(request.args.get('frame', 0))
+    field = request.args.get('field')
+    export_format = (request.args.get('export_format') or 'nc').lower()
+    requested_sweep = request.args.get('sweep')
+    requested_elevation = request.args.get('elevation')
+    derived_product = (request.args.get('derived_product') or 'PPI').upper()
+    try:
+        cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
+    except Exception:
+        cappi_height_km = 2.0
+    filters_arg = request.args.get('filters')
+    try:
+        filters = json.loads(filters_arg) if filters_arg else {}
+    except Exception:
+        filters = {}
+
+    if not radar_groups or group not in radar_groups:
+        return 'No radar files loaded', 404
+
+    if not field or field not in available_fields:
+        if 'DBZ2' in available_fields:
+            field = 'DBZ2'
+        elif available_fields:
+            field = available_fields[0]
+        else:
+            return 'No radar fields available', 404
+
+    frames = radar_groups[group]
+    idx = idx % len(frames)
+    frame_data = frames[idx]
+
+    export_path, product_used, warnings = _build_export_dataset(
+        frame_data['files'],
+        field,
+        export_format=export_format,
+        filters=filters,
+        requested_sweep=requested_sweep,
+        requested_elevation=requested_elevation,
+        derived_product=derived_product,
+        cappi_height_km=cappi_height_km,
+    )
+
+    safe_group = group.replace(' ', '_').replace('/', '-')
+    safe_time = frame_data['time'].replace(':', '-').replace(' ', '_')
+    filename = f"{safe_group}_{safe_time}_{field}_{product_used}.{export_format}"
+    response = send_file(export_path, as_attachment=True, download_name=filename)
+
+    @response.call_on_close
+    def _cleanup_tmp():
+        try:
+            os.remove(export_path)
+        except Exception:
+            pass
+
+    if warnings:
+        response.headers['X-Warnings'] = '; '.join(warnings)
+    return response
 
 @radar_bp.route('/', methods=['GET', 'POST'])
 def radar_home():
@@ -606,11 +900,14 @@ def radar_home():
             merge_window_minutes = int(request.form.get('scan_window_minutes') or request.args.get('scan_window') or merge_window_minutes or 5)
         except Exception:
             merge_window_minutes = 5
+        uploaded_files_mem.clear()
         for uploaded in request.files.getlist('radarfiles'):
             if not uploaded or not uploaded.filename:
                 continue
-            filepath = os.path.join(_uploads_dir(), uploaded.filename)
-            uploaded.save(filepath)
+            uploaded_files_mem.append({
+                'filename': uploaded.filename,
+                'content': uploaded.read(),
+            })
         _build_scan_groups(merge_window_minutes)
         return redirect(url_for('radar_bp.radar_home', scan_window=merge_window_minutes))
     try:
@@ -652,6 +949,11 @@ def radar_overlay():
     vmax_override = None if np.isnan(vmax_override) else vmax_override
     requested_sweep = request.args.get('sweep')
     requested_elevation = request.args.get('elevation')
+    derived_product = (request.args.get('derived_product') or 'PPI').upper()
+    try:
+        cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
+    except Exception:
+        cappi_height_km = 2.0
     filters_arg = request.args.get('filters')
     try:
         filters = json.loads(filters_arg) if filters_arg else {}
@@ -662,8 +964,17 @@ def radar_overlay():
     frames = radar_groups[group]
     idx = idx % len(frames)
     frame_data = frames[idx]
-    png_buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation = _render_radar_png_from_files(
-        frame_data['files'], field, cmap_override, vmin_override, vmax_override, filters, requested_sweep=requested_sweep, requested_elevation=requested_elevation
+    png_buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation, product_used = _render_radar_png_from_files(
+        frame_data['files'],
+        field,
+        cmap_override,
+        vmin_override,
+        vmax_override,
+        filters,
+        requested_sweep=requested_sweep,
+        requested_elevation=requested_elevation,
+        derived_product=derived_product,
+        cappi_height_km=cappi_height_km,
     )
     response = send_file(png_buf, mimetype='image/png')
     response.headers['X-Extent'] = f'{extent[0]},{extent[1]},{extent[2]},{extent[3]}'
@@ -675,15 +986,7 @@ def radar_overlay():
     response.headers['X-Active-Sweep-Index'] = str(selected_sweep_idx)
     response.headers['X-Active-Elevation'] = '' if selected_elevation is None else str(selected_elevation)
     response.headers['X-Sweep-Options'] = json.dumps(sweep_options)
-    active_filters = []
-    if filters.get('enable_standard_filter'):
-        for key, label in [('active_LOG','LOG'),('active_SQI','SQI'),('active_PMI','PMI'),('active_CSR','CSR'),('active_SNR','SNR'),('active_PHI','PHI'),('active_SDZ','SDZ'),('active_MDZ','MDZ')]:
-            if filters.get(key):
-                active_filters.append(label)
-    if filters.get('enable_speckle_filter'):
-        active_filters.append(f"SPECKLE:{filters.get('speckle_type','mdfill')}")
-    if active_filters:
-        response.headers['X-Filter-Summary'] = ', '.join(active_filters)
+    response.headers['X-Derived-Product'] = product_used
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response
