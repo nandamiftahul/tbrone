@@ -772,7 +772,8 @@
       xMin: null, xMax: null, yMin: null, yMax: null,
       defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
       distanceKm: null,
-      interpolate: false
+      interpolate: false,
+      gapFill: false
     };
 
 
@@ -1090,7 +1091,8 @@
         xMin: null, xMax: null, yMin: null, yMax: null,
         defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
         distanceKm: null,
-        interpolate: false
+        interpolate: false,
+        gapFill: false
       };
     }
 
@@ -1152,6 +1154,13 @@
       const xRangeLabel = root.querySelector('#csXRangeLabel');
       const yRangeLabel = root.querySelector('#csYRangeLabel');
       const interpolateChk = root.querySelector('#csInterpolateChk');
+      const gapFillChk = root.querySelector('#csGapFillChk');
+      const xMinInput = root.querySelector('#csXMinInput');
+      const xMaxInput = root.querySelector('#csXMaxInput');
+      const yMinInput = root.querySelector('#csYMinInput');
+      const yMaxInput = root.querySelector('#csYMaxInput');
+      const applyAxesBtn = root.querySelector('#csApplyAxesBtn');
+      const setAutoAxesBtn = root.querySelector('#csSetAutoAxesBtn');
 
       if (!viewport || !img) return;
 
@@ -1166,6 +1175,33 @@
         if (yRangeLabel && crossSectionState.yMin !== null && crossSectionState.yMax !== null) {
           yRangeLabel.textContent = `${fmt(crossSectionState.yMin)}–${fmt(crossSectionState.yMax)} km`;
         }
+        if (xMinInput) xMinInput.value = fmt(crossSectionState.xMin);
+        if (xMaxInput) xMaxInput.value = fmt(crossSectionState.xMax);
+        if (yMinInput) yMinInput.value = fmt(crossSectionState.yMin);
+        if (yMaxInput) yMaxInput.value = fmt(crossSectionState.yMax);
+      }
+
+      function applyManualAxes() {
+        const nextXMin = parseFloat(xMinInput?.value);
+        const nextXMax = parseFloat(xMaxInput?.value);
+        const nextYMin = parseFloat(yMinInput?.value);
+        const nextYMax = parseFloat(yMaxInput?.value);
+
+        if (![nextXMin, nextXMax, nextYMin, nextYMax].every(Number.isFinite)) {
+          alert('X min/max dan Y min/max harus berupa angka.');
+          return;
+        }
+        if (nextXMax <= nextXMin || nextYMax <= nextYMin) {
+          alert('Nilai max harus lebih besar dari min.');
+          return;
+        }
+
+        crossSectionState.xMin = nextXMin;
+        crossSectionState.xMax = nextXMax;
+        crossSectionState.yMin = nextYMin;
+        crossSectionState.yMax = nextYMax;
+        updateLabels();
+        requestCrossSection();
       }
 
       function zoomAxis(axis, factor) {
@@ -1227,7 +1263,33 @@
 
       interpolateChk?.addEventListener('change', () => {
         crossSectionState.interpolate = !!interpolateChk.checked;
+        if (!crossSectionState.interpolate) crossSectionState.gapFill = false;
         requestCrossSection();
+      });
+
+      gapFillChk?.addEventListener('change', () => {
+        crossSectionState.gapFill = !!gapFillChk.checked;
+        if (crossSectionState.gapFill) crossSectionState.interpolate = true;
+        requestCrossSection();
+      });
+
+      applyAxesBtn?.addEventListener('click', applyManualAxes);
+      setAutoAxesBtn?.addEventListener('click', () => {
+        crossSectionState.xMin = crossSectionState.defaultXMin;
+        crossSectionState.xMax = crossSectionState.defaultXMax;
+        crossSectionState.yMin = crossSectionState.defaultYMin;
+        crossSectionState.yMax = crossSectionState.defaultYMax;
+        updateLabels();
+        requestCrossSection();
+      });
+
+      [xMinInput, xMaxInput, yMinInput, yMaxInput].forEach((input) => {
+        input?.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            applyManualAxes();
+          }
+        });
       });
 
       updateLabels();
@@ -1263,6 +1325,7 @@
       if (crossSectionState.yMin !== null) params.set('y_min', String(crossSectionState.yMin));
       if (crossSectionState.yMax !== null) params.set('y_max', String(crossSectionState.yMax));
       if (crossSectionState.interpolate) params.set('interpolate', '1');
+      if (crossSectionState.gapFill) params.set('gap_fill', '1');
       if (selectedSweep && selectedSweep !== 'auto') {
         if (selectedSweep.startsWith('idx:')) params.set('sweep', selectedSweep.slice(4));
         else if (selectedSweep.startsWith('elev:')) params.set('elevation', selectedSweep.slice(5));
@@ -1289,9 +1352,11 @@
         const defaultYMin = parseFloat(res.headers.get('X-Cross-Default-Y-Min') || 'nan');
         const defaultYMax = parseFloat(res.headers.get('X-Cross-Default-Y-Max') || 'nan');
         const interpolateHeader = res.headers.get('X-Cross-Interpolate') || '0';
+        const gapFillHeader = res.headers.get('X-Cross-Gap-Fill') || '0';
 
         crossSectionState.distanceKm = Number.isFinite(distance) ? distance : null;
         crossSectionState.interpolate = ['1', 'true', 'yes', 'on'].includes(String(interpolateHeader).toLowerCase());
+        crossSectionState.gapFill = ['1', 'true', 'yes', 'on'].includes(String(gapFillHeader).toLowerCase());
         crossSectionState.xMin = Number.isFinite(xMin) ? xMin : crossSectionState.xMin;
         crossSectionState.xMax = Number.isFinite(xMax) ? xMax : crossSectionState.xMax;
         crossSectionState.yMin = Number.isFinite(yMin) ? yMin : crossSectionState.yMin;
@@ -1324,6 +1389,30 @@
                 <input id="csInterpolateChk" type="checkbox" ${crossSectionState.interpolate ? 'checked' : ''}>
                 Interpolate
               </label>
+              <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#374151;font-weight:700">
+                <input id="csGapFillChk" type="checkbox" ${crossSectionState.gapFill ? 'checked' : ''}>
+                Active gap filling
+              </label>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(82px,1fr)) auto auto;gap:8px;align-items:end;margin-bottom:8px">
+              <label style="display:grid;gap:4px;font-size:11px;color:#6B7280;font-weight:700">
+                X min
+                <input id="csXMinInput" type="number" step="0.1" value="${fmt(crossSectionState.xMin)}" style="width:100%;padding:7px 8px;border:1px solid rgba(17,24,39,.12);border-radius:8px;font-size:12px">
+              </label>
+              <label style="display:grid;gap:4px;font-size:11px;color:#6B7280;font-weight:700">
+                X max
+                <input id="csXMaxInput" type="number" step="0.1" value="${fmt(crossSectionState.xMax)}" style="width:100%;padding:7px 8px;border:1px solid rgba(17,24,39,.12);border-radius:8px;font-size:12px">
+              </label>
+              <label style="display:grid;gap:4px;font-size:11px;color:#6B7280;font-weight:700">
+                Y min
+                <input id="csYMinInput" type="number" step="0.1" value="${fmt(crossSectionState.yMin)}" style="width:100%;padding:7px 8px;border:1px solid rgba(17,24,39,.12);border-radius:8px;font-size:12px">
+              </label>
+              <label style="display:grid;gap:4px;font-size:11px;color:#6B7280;font-weight:700">
+                Y max
+                <input id="csYMaxInput" type="number" step="0.1" value="${fmt(crossSectionState.yMax)}" style="width:100%;padding:7px 8px;border:1px solid rgba(17,24,39,.12);border-radius:8px;font-size:12px">
+              </label>
+              <button id="csApplyAxesBtn" type="button" class="miniBtn" style="padding:8px 10px">Apply</button>
+              <button id="csSetAutoAxesBtn" type="button" class="miniBtn" style="padding:8px 10px">Auto</button>
             </div>
             <div id="csPlotViewport" style="width:100%;max-width:100%;max-height:520px;overflow:auto;border:1px solid rgba(17,24,39,.10);border-radius:10px;background:#fff">
               <div style="width:100%;padding:10px;display:flex;justify-content:flex-start;align-items:flex-start">
