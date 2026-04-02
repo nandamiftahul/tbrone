@@ -771,7 +771,8 @@
     let crossSectionState = {
       xMin: null, xMax: null, yMin: null, yMax: null,
       defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
-      distanceKm: null
+      distanceKm: null,
+      interpolate: false
     };
 
 
@@ -1088,7 +1089,8 @@
       crossSectionState = {
         xMin: null, xMax: null, yMin: null, yMax: null,
         defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
-        distanceKm: null
+        distanceKm: null,
+        interpolate: false
       };
     }
 
@@ -1149,6 +1151,7 @@
       const resetBtn = root.querySelector('#csZoomResetBtn');
       const xRangeLabel = root.querySelector('#csXRangeLabel');
       const yRangeLabel = root.querySelector('#csYRangeLabel');
+      const interpolateChk = root.querySelector('#csInterpolateChk');
 
       if (!viewport || !img) return;
 
@@ -1222,6 +1225,11 @@
         else zoomAxis('x', factor);
       }, { passive: false });
 
+      interpolateChk?.addEventListener('change', () => {
+        crossSectionState.interpolate = !!interpolateChk.checked;
+        requestCrossSection();
+      });
+
       updateLabels();
     }
 
@@ -1254,6 +1262,7 @@
       if (crossSectionState.xMax !== null) params.set('x_max', String(crossSectionState.xMax));
       if (crossSectionState.yMin !== null) params.set('y_min', String(crossSectionState.yMin));
       if (crossSectionState.yMax !== null) params.set('y_max', String(crossSectionState.yMax));
+      if (crossSectionState.interpolate) params.set('interpolate', '1');
       if (selectedSweep && selectedSweep !== 'auto') {
         if (selectedSweep.startsWith('idx:')) params.set('sweep', selectedSweep.slice(4));
         else if (selectedSweep.startsWith('elev:')) params.set('elevation', selectedSweep.slice(5));
@@ -1279,8 +1288,10 @@
         const defaultXMax = parseFloat(res.headers.get('X-Cross-Default-X-Max') || 'nan');
         const defaultYMin = parseFloat(res.headers.get('X-Cross-Default-Y-Min') || 'nan');
         const defaultYMax = parseFloat(res.headers.get('X-Cross-Default-Y-Max') || 'nan');
+        const interpolateHeader = res.headers.get('X-Cross-Interpolate') || '0';
 
         crossSectionState.distanceKm = Number.isFinite(distance) ? distance : null;
+        crossSectionState.interpolate = ['1', 'true', 'yes', 'on'].includes(String(interpolateHeader).toLowerCase());
         crossSectionState.xMin = Number.isFinite(xMin) ? xMin : crossSectionState.xMin;
         crossSectionState.xMax = Number.isFinite(xMax) ? xMax : crossSectionState.xMax;
         crossSectionState.yMin = Number.isFinite(yMin) ? yMin : crossSectionState.yMin;
@@ -1306,9 +1317,13 @@
                 <button id="csZoomResetBtn" type="button" class="miniBtn" style="padding:6px 10px">Reset</button>
               </div>
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
               <div style="font-size:11px;color:#6B7280">X range: <strong id="csXRangeLabel" style="color:#003A8F">${fmt(crossSectionState.xMin)}–${fmt(crossSectionState.xMax)} km</strong></div>
               <div style="font-size:11px;color:#6B7280">Y range: <strong id="csYRangeLabel" style="color:#003A8F">${fmt(crossSectionState.yMin)}–${fmt(crossSectionState.yMax)} km</strong></div>
+              <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#374151;font-weight:700">
+                <input id="csInterpolateChk" type="checkbox" ${crossSectionState.interpolate ? 'checked' : ''}>
+                Interpolate
+              </label>
             </div>
             <div id="csPlotViewport" style="width:100%;max-width:100%;max-height:520px;overflow:auto;border:1px solid rgba(17,24,39,.10);border-radius:10px;background:#fff">
               <div style="width:100%;padding:10px;display:flex;justify-content:flex-start;align-items:flex-start">

@@ -24,6 +24,7 @@ from flask import Blueprint, current_app, redirect, render_template, request, se
 from scipy.ndimage import generic_filter, median_filter, distance_transform_edt
 from scipy.ndimage.measurements import variance
 from scipy.ndimage.filters import uniform_filter
+from scipy.interpolate import griddata
 import cv2
 from skimage import exposure
 
@@ -164,14 +165,14 @@ def _resolve_cmap(field: str, cmap_override: str = '', custom_cmap: Any = None):
 
 PYIRIS_DEFAULTS = {
     'enable_standard_filter': False,
-    'active_LOG': False,
-    'active_SQI': False,
-    'active_PMI': False,
-    'active_CSR': False,
-    'active_SNR': False,
-    'active_PHI': False,
-    'active_SDZ': False,
-    'active_MDZ': False,
+    'active_LOG': True,
+    'active_SQI': True,
+    'active_PMI': True,
+    'active_CSR': True,
+    'active_SNR': True,
+    'active_PHI': True,
+    'active_SDZ': True,
+    'active_MDZ': True,
     'enable_speckle_filter': False,
     'speckle_type': 'mdfill',
     'window_size': 3,
@@ -273,14 +274,14 @@ def load_pyiris_defaults() -> dict[str, Any]:
         mode = cfg['FILTERMODE'] if 'FILTERMODE' in cfg else {}
         ftype = cfg['FILTERTYPE'] if 'FILTERTYPE' in cfg else {}
         defaults['enable_standard_filter'] = str(mode.get('standard_filter', 'disable')).lower() == 'enable'
-        defaults['active_LOG'] = False
-        defaults['active_SQI'] = False
-        defaults['active_PMI'] = False
-        defaults['active_CSR'] = False
-        defaults['active_SNR'] = False
-        defaults['active_PHI'] = False
-        defaults['active_SDZ'] = False
-        defaults['active_MDZ'] = False
+        defaults['active_LOG'] = True
+        defaults['active_SQI'] = True
+        defaults['active_PMI'] = True
+        defaults['active_CSR'] = True
+        defaults['active_SNR'] = True
+        defaults['active_PHI'] = True
+        defaults['active_SDZ'] = True
+        defaults['active_MDZ'] = True
         defaults['enable_speckle_filter'] = str(mode.get('speckle_filter', 'disable')).lower() == 'enable'
         defaults['speckle_type'] = str(ftype.get('speckle', defaults['speckle_type'])).split(',')[0].strip() or defaults['speckle_type']
         defaults['window_size'] = int(filt.get('me_windowSize', defaults['window_size']))
@@ -889,6 +890,7 @@ def _render_cross_section_png_from_files(
     x_max=None,
     y_min=None,
     y_max=None,
+    interpolate=False,
 ):
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
@@ -961,7 +963,6 @@ def _render_cross_section_png_from_files(
     fig_w = max(7.0, quality_cfg['figsize'])
     fig_h = max(4.2, quality_cfg['figsize'] * 0.58)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    sc = ax.scatter(x, z, c=v, s=10, marker='s', cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, linewidths=0)
     ax.set_xlabel('Distance along section (km)')
     ax.set_ylabel('Approx. height (km)')
     ax.set_title(f'Cross Section {field}')
@@ -1000,6 +1001,28 @@ def _render_cross_section_png_from_files(
 
     ax.set_xlim(x_lo, x_hi)
     ax.set_ylim(bottom=y_lo, top=y_hi)
+
+    if interpolate:
+        valid_interp = np.isfinite(x) & np.isfinite(z) & np.isfinite(v)
+        interp_points = np.column_stack((x[valid_interp], z[valid_interp]))
+        interp_values = v[valid_interp]
+        grid_nx = max(180, min(520, int(quality_cfg['ppi_grid'] * 0.40)))
+        grid_nz = max(120, min(320, int(grid_nx * 0.55)))
+        grid_x = np.linspace(x_lo, x_hi, grid_nx)
+        grid_z = np.linspace(y_lo, y_hi, grid_nz)
+        gx, gz = np.meshgrid(grid_x, grid_z)
+        try:
+            grid_v = griddata(interp_points, interp_values, (gx, gz), method='linear')
+            if np.all(~np.isfinite(grid_v)):
+                raise ValueError('linear interpolation returned all-NaN')
+            nearest_v = griddata(interp_points, interp_values, (gx, gz), method='nearest')
+            grid_v = np.where(np.isfinite(grid_v), grid_v, nearest_v)
+        except Exception:
+            grid_v = griddata(interp_points, interp_values, (gx, gz), method='nearest')
+        sc = ax.pcolormesh(gx, gz, np.ma.masked_invalid(grid_v), cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, shading='auto')
+    else:
+        sc = ax.scatter(x, z, c=v, s=10, marker='s', cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, linewidths=0)
+
     ax.grid(True, alpha=0.2)
     cbar = fig.colorbar(sc, ax=ax, pad=0.02)
     cbar.ax.tick_params(labelsize=8)
@@ -1018,6 +1041,7 @@ def _render_cross_section_png_from_files(
         'default_x_max': float(default_xmax),
         'default_y_min': float(default_ymin),
         'default_y_max': float(default_ymax),
+        'interpolate': bool(interpolate),
     }
     return buf, warnings, meta
 
@@ -1381,6 +1405,7 @@ def radar_cross_section():
     x_max = _opt_float(request.args.get('x_max'))
     y_min = _opt_float(request.args.get('y_min'))
     y_max = _opt_float(request.args.get('y_max'))
+    interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
 
     filters_arg = request.args.get('filters')
     try:
@@ -1416,6 +1441,7 @@ def radar_cross_section():
         x_max=x_max,
         y_min=y_min,
         y_max=y_max,
+        interpolate=interpolate,
     )
     response = send_file(buf, mimetype='image/png')
     response.headers['X-Cross-Distance-Km'] = f"{meta['line_length_km']:.3f}"
@@ -1427,6 +1453,7 @@ def radar_cross_section():
     response.headers['X-Cross-Default-X-Max'] = f"{meta['default_x_max']:.6f}"
     response.headers['X-Cross-Default-Y-Min'] = f"{meta['default_y_min']:.6f}"
     response.headers['X-Cross-Default-Y-Max'] = f"{meta['default_y_max']:.6f}"
+    response.headers['X-Cross-Interpolate'] = '1' if meta.get('interpolate') else '0'
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response
