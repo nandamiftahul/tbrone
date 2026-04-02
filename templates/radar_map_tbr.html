@@ -255,6 +255,34 @@
     }
     .map-crosshair, .map-crosshair .leaflet-container{cursor:crosshair!important;}
 
+    .customCmapActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .customCmapMeta{margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(0,58,143,.05);border:1px solid rgba(0,58,143,.10);font-size:11px;color:var(--muted);line-height:1.4}
+    .customCmapPreview{height:12px;border-radius:999px;border:1px solid var(--border);margin-top:8px;background:linear-gradient(90deg,#00ffff 0%,#0000ff 12%,#028086 20%,#00ff00 30%,#ffff03 50%,#fa3a07 68%,#c400ff 100%)}
+    .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:5000;padding:18px}
+    .modalCard{width:min(760px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;border:1px solid var(--border);box-shadow:0 20px 60px rgba(2,22,55,.22);padding:18px}
+    .modalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+    .modalTitle{font-size:18px;font-weight:900;color:var(--xw-blue);margin:0}
+    .modalSub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
+    .modalClose{appearance:none;border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 10px;font-weight:800;cursor:pointer}
+    .cmapEditorTop{display:grid;grid-template-columns:1fr 180px;gap:12px;align-items:end;margin-bottom:12px}
+    .cmapPreviewLarge{height:18px;border-radius:999px;border:1px solid var(--border);background:#eef2f7;margin:10px 0 14px}
+    .cmapStops{display:flex;flex-direction:column;gap:8px}
+    .cmapStopRow{display:grid;grid-template-columns:120px 120px 1fr auto;gap:8px;align-items:center}
+    .cmapStopRow input,.cmapStopRow select{width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:#fff;font:inherit}
+    .cmapStopRow input[type="color"]{padding:2px;height:40px}
+    .dangerBtn{appearance:none;border:1px solid rgba(220,38,38,.18);background:#fff5f5;color:#b91c1c;border-radius:10px;padding:9px 12px;font-weight:800;cursor:pointer}
+    .modalFooter{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .modalFooterLeft,.modalFooterRight{display:flex;gap:8px;flex-wrap:wrap}
+    #customCmapModal {
+      position: fixed;
+      z-index: 99999 !important;
+    }
+    
+    /* backdrop */
+    #customCmapModalBackdrop {
+      position: fixed;
+      z-index: 99998 !important;
+    }
     @media (max-width: 1500px){
       .shell{grid-template-columns:clamp(280px, 25vw, 340px) minmax(0,1fr)}
       .timelineCard{width:clamp(300px, 34vw, 560px)}
@@ -491,6 +519,12 @@
           <div class="toolbarRow" style="padding:0;">
             <button class="miniBtn" type="button" onclick="resetOverrides()">Reset Auto</button>
           </div>
+          <div class="customCmapActions">
+            <button class="miniBtn" type="button" onclick="openCustomCmapModal()">Custom Colormap</button>
+            <button class="miniBtn" type="button" onclick="toggleCustomCmap()" id="toggleCustomCmapBtn">Enable Custom</button>
+          </div>
+          <div class="customCmapMeta" id="customCmapMeta">Custom colormap belum aktif.</div>
+          <div class="customCmapPreview" id="customCmapPreview"></div>
         </div>
 
         <div class="sectionLabel">Filters · pyIRIS Style</div>
@@ -659,6 +693,46 @@
     </section>
   </div>
 
+
+  <div class="modalOverlay" id="customCmapModal">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div>
+          <h3 class="modalTitle">Custom Colormap Editor</h3>
+          <div class="modalSub">Tambahkan pasangan nilai dan warna. Bisa dipakai untuk overlay radar dan cross section. Mode <b>Gradients</b> membuat transisi halus, mode <b>Ranges</b> membuat blok warna diskrit.</div>
+        </div>
+        <button class="modalClose" type="button" onclick="closeCustomCmapModal()">✕</button>
+      </div>
+      <div class="cmapEditorTop">
+        <div class="field">
+          <label for="customCmapName">Name</label>
+          <input id="customCmapName" type="text" value="Custom CMAP">
+        </div>
+        <div class="field">
+          <label for="customCmapMode">Mode</label>
+          <select id="customCmapMode" onchange="renderCustomCmapEditor()">
+            <option value="gradients">Gradients</option>
+            <option value="ranges">Ranges</option>
+          </select>
+        </div>
+      </div>
+      <div class="cmapPreviewLarge" id="customCmapPreviewLarge"></div>
+      <div class="cmapStops" id="customCmapStops"></div>
+      <div class="modalFooter">
+        <div class="modalFooterLeft">
+          <button class="miniBtn" type="button" onclick="addCustomCmapStop()">Add row</button>
+          <button class="miniBtn" type="button" onclick="loadPresetBmkgCmap()">Load BMKG Preset</button>
+          <button class="miniBtn" type="button" onclick="resetCustomCmapEditorDefaults()">Reset Editor</button>
+        </div>
+        <div class="modalFooterRight">
+          <button class="dangerBtn" type="button" onclick="disableCustomCmap(true)">Disable</button>
+          <button class="btn" type="button" style="color:#1F2937;border-color:var(--border);background:#fff" onclick="closeCustomCmapModal()">Cancel</button>
+          <button class="btn primary" type="button" onclick="saveCustomCmapFromEditor()">Save & Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const defaultConfigs = {{ default_configs | tojson }};
     const radarOverlayUrl = "{{ url_for('radar_bp.radar_overlay') }}";
@@ -677,6 +751,8 @@
     let overlayOpacity = 0.6;
     let imageQuality = localStorage.getItem('radarImageQuality') || 'high';
     let cmap = '', vmin = '', vmax = '';
+    const customCmapStorageKey = 'radarCustomCmapSpec';
+    let customCmapSpec = null;
     let filters = {};
     let selectedSweep = 'auto';
     let derivedProduct = 'PPI';
@@ -697,6 +773,221 @@
       defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
       distanceKm: null
     };
+
+
+    function getDefaultBmkgPreset() {
+      return {
+        enabled: true,
+        name: 'BMKG_CMAP',
+        mode: 'ranges',
+        stops: [
+          { value: 10, color: '#00FFFF' },
+          { value: 15, color: '#0000FF' },
+          { value: 20, color: '#028086' },
+          { value: 25, color: '#00FF00' },
+          { value: 30, color: '#00B200' },
+          { value: 35, color: '#81CC00' },
+          { value: 40, color: '#FFFF03' },
+          { value: 45, color: '#F9A205' },
+          { value: 50, color: '#FA3A07' },
+          { value: 55, color: '#DE0000' },
+          { value: 60, color: '#B00101' },
+          { value: 65, color: '#CD008D' },
+          { value: 70, color: '#C400FF' }
+        ]
+      };
+    }
+
+    function normalizeCustomCmapSpec(spec) {
+      if (!spec || typeof spec !== 'object') return null;
+      const stops = Array.isArray(spec.stops) ? spec.stops.map(stop => ({
+        value: Number(stop.value),
+        color: String(stop.color || '').trim().toUpperCase().startsWith('#') ? String(stop.color || '').trim().toUpperCase() : '#' + String(stop.color || '').trim().toUpperCase()
+      })).filter(stop => Number.isFinite(stop.value) && /^#[0-9A-F]{6}$/i.test(stop.color)) : [];
+      if (stops.length < 2) return null;
+      stops.sort((a, b) => a.value - b.value);
+      return {
+        enabled: !!spec.enabled,
+        name: String(spec.name || 'Custom CMAP').trim() || 'Custom CMAP',
+        mode: String(spec.mode || 'gradients').toLowerCase() === 'ranges' ? 'ranges' : 'gradients',
+        stops
+      };
+    }
+
+    function loadCustomCmapSpec() {
+      try {
+        const raw = localStorage.getItem(customCmapStorageKey);
+        if (!raw) return null;
+        return normalizeCustomCmapSpec(JSON.parse(raw));
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function saveCustomCmapSpec(spec) {
+      customCmapSpec = normalizeCustomCmapSpec(spec);
+      if (customCmapSpec) localStorage.setItem(customCmapStorageKey, JSON.stringify(customCmapSpec));
+      updateCustomCmapUI();
+    }
+
+    function getActiveCustomCmap() {
+      return (customCmapSpec && customCmapSpec.enabled) ? customCmapSpec : null;
+    }
+
+    function buildGradientCss(spec) {
+      const normalized = normalizeCustomCmapSpec(spec);
+      if (!normalized) return 'linear-gradient(90deg,#e5e7eb,#cbd5e1)';
+      const stops = normalized.stops;
+      const min = stops[0].value;
+      const max = stops[stops.length - 1].value;
+      if (normalized.mode === 'ranges') {
+        const pieces = stops.map((stop, idx) => {
+          const start = idx === 0 ? 0 : ((stops[idx - 1].value - min) / Math.max(max - min, 1)) * 100;
+          const end = ((stop.value - min) / Math.max(max - min, 1)) * 100;
+          return `${stop.color} ${Math.max(0, start)}%, ${stop.color} ${Math.min(100, end)}%`;
+        });
+        return `linear-gradient(90deg, ${pieces.join(', ')})`;
+      }
+      const pieces = stops.map(stop => `${stop.color} ${((stop.value - min) / Math.max(max - min, 1)) * 100}%`);
+      return `linear-gradient(90deg, ${pieces.join(', ')})`;
+    }
+
+    function updateCustomCmapUI() {
+      const meta = document.getElementById('customCmapMeta');
+      const preview = document.getElementById('customCmapPreview');
+      const toggleBtn = document.getElementById('toggleCustomCmapBtn');
+      const active = getActiveCustomCmap();
+      const spec = customCmapSpec;
+      if (!spec) {
+        meta.textContent = 'Custom colormap belum aktif.';
+        preview.style.background = 'linear-gradient(90deg,#e5e7eb,#cbd5e1)';
+        toggleBtn.textContent = 'Enable Custom';
+        return;
+      }
+      preview.style.background = buildGradientCss(spec);
+      meta.textContent = `${spec.name} · ${spec.mode === 'ranges' ? 'Ranges' : 'Gradients'} · ${spec.stops.length} warna${active ? ' · aktif' : ' · tersimpan'}`;
+      toggleBtn.textContent = active ? 'Disable Custom' : 'Enable Custom';
+    }
+
+    function toggleCustomCmap() {
+      if (!customCmapSpec) {
+        openCustomCmapModal();
+        return;
+      }
+      customCmapSpec.enabled = !customCmapSpec.enabled;
+      saveCustomCmapSpec(customCmapSpec);
+      frame = 0;
+      loadRadar();
+    }
+
+    function disableCustomCmap(closeModal=false) {
+      if (customCmapSpec) {
+        customCmapSpec.enabled = false;
+        saveCustomCmapSpec(customCmapSpec);
+      }
+      if (closeModal) closeCustomCmapModal();
+      frame = 0;
+      loadRadar();
+    }
+
+    function openCustomCmapModal() {
+      const modal = document.getElementById('customCmapModal');
+      if (!customCmapSpec) customCmapSpec = getDefaultBmkgPreset();
+      document.getElementById('customCmapName').value = customCmapSpec.name || 'Custom CMAP';
+      document.getElementById('customCmapMode').value = customCmapSpec.mode || 'gradients';
+      renderCustomCmapEditor();
+      modal.style.display = 'flex';
+    }
+
+    function closeCustomCmapModal() {
+      document.getElementById('customCmapModal').style.display = 'none';
+    }
+
+    function getEditorSpec() {
+      const rows = [...document.querySelectorAll('.cmapStopRow')];
+      const stops = rows.map(row => ({
+        value: Number(row.querySelector('.cmapValueInput').value),
+        color: row.querySelector('.cmapColorInput').value.toUpperCase()
+      })).filter(stop => Number.isFinite(stop.value) && stop.color);
+      return normalizeCustomCmapSpec({
+        enabled: true,
+        name: document.getElementById('customCmapName').value || 'Custom CMAP',
+        mode: document.getElementById('customCmapMode').value || 'gradients',
+        stops
+      });
+    }
+
+    function renderCustomCmapEditor() {
+      const wrap = document.getElementById('customCmapStops');
+      const spec = normalizeCustomCmapSpec(customCmapSpec) || getDefaultBmkgPreset();
+      customCmapSpec = spec;
+      wrap.innerHTML = '';
+      spec.stops.forEach((stop, idx) => {
+        const row = document.createElement('div');
+        row.className = 'cmapStopRow';
+        row.innerHTML = `
+          <input class="cmapValueInput" type="number" step="0.1" value="${stop.value}">
+          <input class="cmapColorInput" type="color" value="${stop.color}">
+          <input class="cmapHexInput" type="text" value="${stop.color}" maxlength="7">
+          <button type="button" class="dangerBtn" ${spec.stops.length <= 2 ? 'disabled' : ''}>Delete</button>`;
+        const colorInput = row.querySelector('.cmapColorInput');
+        const hexInput = row.querySelector('.cmapHexInput');
+        const deleteBtn = row.querySelector('.dangerBtn');
+        colorInput.addEventListener('input', () => { hexInput.value = colorInput.value.toUpperCase(); updateEditorPreview(); });
+        hexInput.addEventListener('input', () => {
+          const val = hexInput.value.trim();
+          if (/^#[0-9A-Fa-f]{6}$/.test(val)) colorInput.value = val;
+          updateEditorPreview();
+        });
+        row.querySelector('.cmapValueInput').addEventListener('input', updateEditorPreview);
+        deleteBtn.addEventListener('click', () => {
+          if (document.querySelectorAll('.cmapStopRow').length <= 2) return;
+          row.remove();
+          updateEditorPreview();
+        });
+        wrap.appendChild(row);
+      });
+      updateEditorPreview();
+    }
+
+    function updateEditorPreview() {
+      const spec = getEditorSpec() || getDefaultBmkgPreset();
+      document.getElementById('customCmapPreviewLarge').style.background = buildGradientCss(spec);
+    }
+
+    function addCustomCmapStop() {
+      const spec = getEditorSpec() || getDefaultBmkgPreset();
+      const last = spec.stops[spec.stops.length - 1];
+      const nextValue = Number(last.value) + 5;
+      spec.stops.push({ value: nextValue, color: last.color });
+      customCmapSpec = spec;
+      renderCustomCmapEditor();
+    }
+
+    function loadPresetBmkgCmap() {
+      customCmapSpec = getDefaultBmkgPreset();
+      document.getElementById('customCmapName').value = customCmapSpec.name;
+      document.getElementById('customCmapMode').value = customCmapSpec.mode;
+      renderCustomCmapEditor();
+    }
+
+    function resetCustomCmapEditorDefaults() {
+      customCmapSpec = getDefaultBmkgPreset();
+      renderCustomCmapEditor();
+    }
+
+    function saveCustomCmapFromEditor() {
+      const spec = getEditorSpec();
+      if (!spec) {
+        alert('Minimal harus ada 2 baris nilai-warna yang valid.');
+        return;
+      }
+      spec.enabled = true;
+      saveCustomCmapSpec(spec);
+      closeCustomCmapModal();
+      frame = 0;
+      loadRadar();
+    }
 
     function setStatus(text){ document.getElementById('statusPill').textContent = text; }
 
@@ -953,6 +1244,7 @@
         vmax: String(finalVmax),
         filters: JSON.stringify(filters),
         quality: imageQuality,
+        custom_cmap: JSON.stringify(getActiveCustomCmap() || {}),
         start_lat: String(p1.lat),
         start_lon: String(p1.lng),
         end_lat: String(p2.lat),
@@ -1055,6 +1347,16 @@
 
     function setPyirisDefaults() {
       filters = JSON.parse(JSON.stringify(pyirisDefaults || {}));
+      filters.enable_standard_filter = false;
+      filters.enable_speckle_filter = false;
+      filters.active_LOG = false;
+      filters.active_SQI = false;
+      filters.active_PMI = false;
+      filters.active_CSR = false;
+      filters.active_SNR = false;
+      filters.active_PHI = false;
+      filters.active_SDZ = false;
+      filters.active_MDZ = false;
       syncPyirisUIFromFilters();
     }
 
@@ -1092,6 +1394,8 @@
 
     function resetPyirisDefaults() {
       applyImageQuality(imageQuality, false);
+    customCmapSpec = loadCustomCmapSpec();
+    updateCustomCmapUI();
     setPyirisDefaults();
       frame = 0;
       showOverlay('Resetting filter…', 'Loading pyIRIS defaults', 45);
@@ -1188,7 +1492,8 @@
         + '&vmin=' + encodeURIComponent(vmin)
         + '&vmax=' + encodeURIComponent(vmax)
         + '&filters=' + encodeURIComponent(JSON.stringify(filters))
-        + '&quality=' + encodeURIComponent(imageQuality);
+        + '&quality=' + encodeURIComponent(imageQuality)
+        + '&custom_cmap=' + encodeURIComponent(JSON.stringify(getActiveCustomCmap() || {}));
 
       if (selectedSweep && selectedSweep !== 'auto') {
         if (selectedSweep.startsWith('idx:')) overlayUrl += '&sweep=' + encodeURIComponent(selectedSweep.slice(4));
@@ -1275,7 +1580,8 @@
         filters: filters,
         derived_product: derivedProduct,
         cappi_height_km: cappiHeightKm,
-        quality: imageQuality
+        quality: imageQuality,
+        custom_cmap: getActiveCustomCmap() || {}
       };
 
       if (selectedSweep && selectedSweep !== 'auto') {
@@ -1437,7 +1743,8 @@
     cappiHeightKm = parseFloat(document.getElementById('cappiHeightKm').value || '2.0') || 2.0;
     updateProductDefaults();
     populateFrameSelect();
-
+    document.getElementById('timelineCard').style.display = 'none';
+    document.getElementById('toggleBtn').innerText = 'Show Timeline';
     function invalidateMapSize() {
       setTimeout(() => map.invalidateSize(), 50);
     }
@@ -1460,6 +1767,7 @@
       }
     });
 
+    document.getElementById('customCmapModal').addEventListener('click', (e) => { if (e.target.id === 'customCmapModal') closeCustomCmapModal(); });
     if (hasGroups) loadRadar(); else setStatus('Belum ada file radar yang diupload.');
   </script>
 </body>

@@ -15,6 +15,7 @@ from typing import Any
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import numpy as np
 import patch_pyart  # noqa: F401
 import pyart
@@ -104,16 +105,73 @@ def _normalize_render_quality(value: Any) -> str:
 def _quality_settings(value: Any) -> dict[str, Any]:
     return QUALITY_PRESETS[_normalize_render_quality(value)]
 
+def _safe_float(value: Any) -> float | None:
+    try:
+        if value in (None, '', 'null', 'None'):
+            return None
+        return float(value)
+    except Exception:
+        return None
+
+
+def _build_custom_cmap(spec: Any, fallback_name: str = 'turbo'):
+    if not spec:
+        return plt.get_cmap(fallback_name).copy()
+    try:
+        if isinstance(spec, str):
+            spec = json.loads(spec)
+        mode = str((spec or {}).get('mode') or 'gradients').strip().lower()
+        stops = (spec or {}).get('stops') or []
+        parsed = []
+        for stop in stops:
+            if not isinstance(stop, dict):
+                continue
+            value = _safe_float(stop.get('value'))
+            color = str(stop.get('color') or '').strip()
+            if value is None or not color:
+                continue
+            if not color.startswith('#'):
+                color = f'#{color}'
+            parsed.append((float(value), color))
+        if len(parsed) < 2:
+            return plt.get_cmap(fallback_name).copy()
+        parsed.sort(key=lambda item: item[0])
+        values = [item[0] for item in parsed]
+        colors = [item[1] for item in parsed]
+        vmin = min(values)
+        vmax = max(values)
+        if vmax <= vmin:
+            return plt.get_cmap(fallback_name).copy()
+        if mode == 'ranges':
+            cmap = ListedColormap(colors, name='custom_ranges')
+        else:
+            norm_positions = [0.0 if vmax == vmin else (v - vmin) / (vmax - vmin) for v in values]
+            cmap = LinearSegmentedColormap.from_list('custom_gradients', list(zip(norm_positions, colors)))
+        return cmap.copy() if hasattr(cmap, 'copy') else cmap
+    except Exception:
+        return plt.get_cmap(fallback_name).copy()
+
+
+def _resolve_cmap(field: str, cmap_override: str = '', custom_cmap: Any = None):
+    cfg = default_configs.get(field, {})
+    fallback_name = cmap_override or cfg.get('cmap', 'turbo')
+    cmap_obj = _build_custom_cmap(custom_cmap, fallback_name=fallback_name) if custom_cmap else plt.get_cmap(fallback_name).copy()
+    try:
+        cmap_obj.set_bad(alpha=0.0)
+    except Exception:
+        pass
+    return cmap_obj
+
 PYIRIS_DEFAULTS = {
     'enable_standard_filter': False,
-    'active_LOG': True,
-    'active_SQI': True,
-    'active_PMI': True,
-    'active_CSR': True,
-    'active_SNR': True,
-    'active_PHI': True,
-    'active_SDZ': True,
-    'active_MDZ': True,
+    'active_LOG': False,
+    'active_SQI': False,
+    'active_PMI': False,
+    'active_CSR': False,
+    'active_SNR': False,
+    'active_PHI': False,
+    'active_SDZ': False,
+    'active_MDZ': False,
     'enable_speckle_filter': False,
     'speckle_type': 'mdfill',
     'window_size': 3,
@@ -175,6 +233,7 @@ def _make_render_cache_key(
     derived_product: str,
     cappi_height_km: Any,
     render_quality: str = 'high',
+    custom_cmap: Any = None,
 ):
     raw = json.dumps({
         'group': group,
@@ -189,6 +248,7 @@ def _make_render_cache_key(
         'derived_product': derived_product or 'PPI',
         'cappi_height_km': cappi_height_km,
         'render_quality': _normalize_render_quality(render_quality),
+        'custom_cmap': custom_cmap or {},
     }, sort_keys=True, default=str)
     return md5(raw.encode('utf-8')).hexdigest()
 
@@ -213,14 +273,14 @@ def load_pyiris_defaults() -> dict[str, Any]:
         mode = cfg['FILTERMODE'] if 'FILTERMODE' in cfg else {}
         ftype = cfg['FILTERTYPE'] if 'FILTERTYPE' in cfg else {}
         defaults['enable_standard_filter'] = str(mode.get('standard_filter', 'disable')).lower() == 'enable'
-        defaults['active_LOG'] = True
-        defaults['active_SQI'] = True
-        defaults['active_PMI'] = True
-        defaults['active_CSR'] = True
-        defaults['active_SNR'] = True
-        defaults['active_PHI'] = True
-        defaults['active_SDZ'] = True
-        defaults['active_MDZ'] = True
+        defaults['active_LOG'] = False
+        defaults['active_SQI'] = False
+        defaults['active_PMI'] = False
+        defaults['active_CSR'] = False
+        defaults['active_SNR'] = False
+        defaults['active_PHI'] = False
+        defaults['active_SDZ'] = False
+        defaults['active_MDZ'] = False
         defaults['enable_speckle_filter'] = str(mode.get('speckle_filter', 'disable')).lower() == 'enable'
         defaults['speckle_type'] = str(ftype.get('speckle', defaults['speckle_type'])).split(',')[0].strip() or defaults['speckle_type']
         defaults['window_size'] = int(filt.get('me_windowSize', defaults['window_size']))
@@ -654,6 +714,7 @@ def _render_radar_png_from_files(
     derived_product='PPI',
     cappi_height_km=2.0,
     render_quality='high',
+    custom_cmap=None,
 ):
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
@@ -677,11 +738,7 @@ def _render_radar_png_from_files(
     if vmax_override is None:
         vmax_override = cfg.get('vmax')
 
-    cmap_obj = plt.get_cmap(cmap_override or cfg.get('cmap', 'turbo')).copy()
-    try:
-        cmap_obj.set_bad(alpha=0.0)
-    except Exception:
-        pass
+    cmap_obj = _resolve_cmap(field, cmap_override, custom_cmap)
 
     try:
         lat0 = float(radar.latitude['data'][0])
@@ -827,6 +884,7 @@ def _render_cross_section_png_from_files(
     vmax_override=None,
     filters=None,
     render_quality='high',
+    custom_cmap=None,
     x_min=None,
     x_max=None,
     y_min=None,
@@ -850,11 +908,7 @@ def _render_cross_section_png_from_files(
     if vmax_override is None:
         vmax_override = cfg.get('vmax')
 
-    cmap_obj = plt.get_cmap(cmap_override or cfg.get('cmap', 'turbo')).copy()
-    try:
-        cmap_obj.set_bad(alpha=0.0)
-    except Exception:
-        pass
+    cmap_obj = _resolve_cmap(field, cmap_override, custom_cmap)
 
     lat0 = float(radar.latitude['data'][0])
     lon0 = float(radar.longitude['data'][0])
@@ -1160,6 +1214,7 @@ def radar_precompute():
     derived_product = (payload.get('derived_product') or 'PPI').upper()
     cappi_height_km = payload.get('cappi_height_km', 2.0)
     render_quality = _normalize_render_quality(payload.get('quality'))
+    custom_cmap = payload.get('custom_cmap') or {}
 
     if group not in radar_groups:
         return {'ok': False, 'error': 'Group not found'}, 404
@@ -1184,7 +1239,7 @@ def radar_precompute():
         try:
             cache_key = _make_render_cache_key(
                 group, idx, field, cmap_override, vmin_override, vmax_override,
-                filters, requested_sweep, requested_elevation, derived_product, cappi_height_km, render_quality
+                filters, requested_sweep, requested_elevation, derived_product, cappi_height_km, render_quality, custom_cmap
             )
             if _cache_get(render_cache, cache_key) is not None:
                 continue
@@ -1201,6 +1256,7 @@ def radar_precompute():
                 derived_product=derived_product,
                 cappi_height_km=cappi_height_km,
                 render_quality=render_quality,
+                custom_cmap=custom_cmap,
             )
             cached = {
                 'png_bytes': png_buf.getvalue(),
@@ -1234,7 +1290,11 @@ def radar_export():
     requested_elevation = request.args.get('elevation')
     derived_product = (request.args.get('derived_product') or 'PPI').upper()
     render_quality = _normalize_render_quality(request.args.get('quality'))
-    render_quality = _normalize_render_quality(request.args.get('quality'))
+    custom_cmap_arg = request.args.get('custom_cmap')
+    try:
+        custom_cmap = json.loads(custom_cmap_arg) if custom_cmap_arg else {}
+    except Exception:
+        custom_cmap = {}
     try:
         cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
     except Exception:
@@ -1298,6 +1358,11 @@ def radar_cross_section():
     vmin_override = None if np.isnan(vmin_override) else vmin_override
     vmax_override = None if np.isnan(vmax_override) else vmax_override
     render_quality = _normalize_render_quality(request.args.get('quality'))
+    custom_cmap_arg = request.args.get('custom_cmap')
+    try:
+        custom_cmap = json.loads(custom_cmap_arg) if custom_cmap_arg else {}
+    except Exception:
+        custom_cmap = {}
     try:
         start_lat = float(request.args.get('start_lat'))
         start_lon = float(request.args.get('start_lon'))
@@ -1346,6 +1411,7 @@ def radar_cross_section():
         vmax_override=vmax_override,
         filters=filters,
         render_quality=render_quality,
+        custom_cmap=custom_cmap,
         x_min=x_min,
         x_max=x_max,
         y_min=y_min,
@@ -1428,6 +1494,11 @@ def radar_overlay():
     requested_elevation = request.args.get('elevation')
     derived_product = (request.args.get('derived_product') or 'PPI').upper()
     render_quality = _normalize_render_quality(request.args.get('quality'))
+    custom_cmap_arg = request.args.get('custom_cmap')
+    try:
+        custom_cmap = json.loads(custom_cmap_arg) if custom_cmap_arg else {}
+    except Exception:
+        custom_cmap = {}
     try:
         cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
     except Exception:
@@ -1444,7 +1515,7 @@ def radar_overlay():
     frame_data = frames[idx]
     cache_key = _make_render_cache_key(
         group, idx, field, cmap_override, vmin_override, vmax_override,
-        filters, requested_sweep, requested_elevation, derived_product, cappi_height_km, render_quality
+        filters, requested_sweep, requested_elevation, derived_product, cappi_height_km, render_quality, custom_cmap
     )
     cached = _cache_get(render_cache, cache_key)
     if cached is None:
@@ -1460,6 +1531,7 @@ def radar_overlay():
             derived_product=derived_product,
             cappi_height_km=cappi_height_km,
             render_quality=render_quality,
+            custom_cmap=custom_cmap,
         )
         cached = {
             'png_bytes': png_buf.getvalue(),
