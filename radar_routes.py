@@ -64,6 +64,46 @@ default_configs = {
     'CSP16': dict(vmin=0, vmax=1, cmap='turbo'),
 }
 
+QUALITY_PRESETS = {
+    'low': {
+        'figsize': 5.0,
+        'dpi': 110,
+        'ppi_grid': 500,
+        'max_cappi_grid': 450,
+        'vertical_levels': 10,
+    },
+    'medium': {
+        'figsize': 6.0,
+        'dpi': 140,
+        'ppi_grid': 700,
+        'max_cappi_grid': 650,
+        'vertical_levels': 12,
+    },
+    'high': {
+        'figsize': 7.0,
+        'dpi': 180,
+        'ppi_grid': 900,
+        'max_cappi_grid': 800,
+        'vertical_levels': 14,
+    },
+    'ultra': {
+        'figsize': 8.5,
+        'dpi': 220,
+        'ppi_grid': 1200,
+        'max_cappi_grid': 1000,
+        'vertical_levels': 16,
+    },
+}
+
+
+def _normalize_render_quality(value: Any) -> str:
+    quality = str(value or 'high').strip().lower()
+    return quality if quality in QUALITY_PRESETS else 'high'
+
+
+def _quality_settings(value: Any) -> dict[str, Any]:
+    return QUALITY_PRESETS[_normalize_render_quality(value)]
+
 PYIRIS_DEFAULTS = {
     'enable_standard_filter': False,
     'active_LOG': True,
@@ -134,6 +174,7 @@ def _make_render_cache_key(
     requested_elevation: Any,
     derived_product: str,
     cappi_height_km: Any,
+    render_quality: str = 'high',
 ):
     raw = json.dumps({
         'group': group,
@@ -147,6 +188,7 @@ def _make_render_cache_key(
         'elevation': requested_elevation,
         'derived_product': derived_product or 'PPI',
         'cappi_height_km': cappi_height_km,
+        'render_quality': _normalize_render_quality(render_quality),
     }, sort_keys=True, default=str)
     return md5(raw.encode('utf-8')).hexdigest()
 
@@ -611,8 +653,11 @@ def _render_radar_png_from_files(
     requested_elevation=None,
     derived_product='PPI',
     cappi_height_km=2.0,
+    render_quality='high',
 ):
     filters = filters or {}
+    render_quality = _normalize_render_quality(render_quality)
+    quality_cfg = _quality_settings(render_quality)
     radar, warnings = _merge_radars(filepaths)
     if field not in radar.fields:
         field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
@@ -643,7 +688,7 @@ def _render_radar_png_from_files(
     except Exception:
         rng_km = 250.0
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(quality_cfg['figsize'], quality_cfg['figsize']))
     extent = None
 
     if product_used in ('MAX', 'CAPPI'):
@@ -653,7 +698,7 @@ def _render_radar_png_from_files(
                 z_top = max(12000.0, float(getattr(radar, 'nsweeps', 1) or 1) * 1000.0)
                 grid = pyart.map.grid_from_radars(
                     (radar,),
-                    grid_shape=(12, 400, 400),
+                    grid_shape=(quality_cfg['vertical_levels'], quality_cfg['max_cappi_grid'], quality_cfg['max_cappi_grid']),
                     grid_limits=((0.0, z_top), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
                     fields=[field],
                     weighting_function='Barnes2',
@@ -668,7 +713,7 @@ def _render_radar_png_from_files(
                 z_top = max(12000.0, float(getattr(radar, 'nsweeps', 1) or 1) * 1000.0)
                 grid = pyart.map.grid_from_radars(
                     (radar,),
-                    grid_shape=(12, 400, 400),
+                    grid_shape=(quality_cfg['vertical_levels'], quality_cfg['max_cappi_grid'], quality_cfg['max_cappi_grid']),
                     grid_limits=((0.0, z_top), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
                     fields=[field],
                     weighting_function='Barnes2',
@@ -745,7 +790,7 @@ def _render_radar_png_from_files(
         extent = [lat0 - d, lon0 - d, lat0 + d, lon0 + d]
 
     buf = BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, transparent=True)
+    plt.savefig(buf, format='png', dpi=quality_cfg['dpi'], bbox_inches='tight', pad_inches=0, transparent=True)
     plt.close(fig)
     buf.seek(0)
     return buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation, product_used
@@ -942,6 +987,7 @@ def radar_precompute():
     requested_elevation = payload.get('elevation')
     derived_product = (payload.get('derived_product') or 'PPI').upper()
     cappi_height_km = payload.get('cappi_height_km', 2.0)
+    render_quality = _normalize_render_quality(payload.get('quality'))
 
     if group not in radar_groups:
         return {'ok': False, 'error': 'Group not found'}, 404
@@ -966,7 +1012,7 @@ def radar_precompute():
         try:
             cache_key = _make_render_cache_key(
                 group, idx, field, cmap_override, vmin_override, vmax_override,
-                filters, requested_sweep, requested_elevation, derived_product, cappi_height_km
+                filters, requested_sweep, requested_elevation, derived_product, cappi_height_km, render_quality
             )
             if _cache_get(render_cache, cache_key) is not None:
                 continue
@@ -982,6 +1028,7 @@ def radar_precompute():
                 requested_elevation=requested_elevation,
                 derived_product=derived_product,
                 cappi_height_km=cappi_height_km,
+                render_quality=render_quality,
             )
             cached = {
                 'png_bytes': png_buf.getvalue(),
@@ -996,6 +1043,7 @@ def radar_precompute():
                 'warnings': '; '.join(warnings) if warnings else '',
                 'product_used': product_used,
                 'frames_total': len(frames),
+                'render_quality': render_quality,
             }
             _cache_store(render_cache, cache_key, cached, CACHE_MAX_ITEMS)
             built += 1
@@ -1013,6 +1061,8 @@ def radar_export():
     requested_sweep = request.args.get('sweep')
     requested_elevation = request.args.get('elevation')
     derived_product = (request.args.get('derived_product') or 'PPI').upper()
+    render_quality = _normalize_render_quality(request.args.get('quality'))
+    render_quality = _normalize_render_quality(request.args.get('quality'))
     try:
         cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
     except Exception:
@@ -1126,6 +1176,7 @@ def radar_overlay():
     requested_sweep = request.args.get('sweep')
     requested_elevation = request.args.get('elevation')
     derived_product = (request.args.get('derived_product') or 'PPI').upper()
+    render_quality = _normalize_render_quality(request.args.get('quality'))
     try:
         cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
     except Exception:
@@ -1142,7 +1193,7 @@ def radar_overlay():
     frame_data = frames[idx]
     cache_key = _make_render_cache_key(
         group, idx, field, cmap_override, vmin_override, vmax_override,
-        filters, requested_sweep, requested_elevation, derived_product, cappi_height_km
+        filters, requested_sweep, requested_elevation, derived_product, cappi_height_km, render_quality
     )
     cached = _cache_get(render_cache, cache_key)
     if cached is None:
@@ -1157,6 +1208,7 @@ def radar_overlay():
             requested_elevation=requested_elevation,
             derived_product=derived_product,
             cappi_height_km=cappi_height_km,
+            render_quality=render_quality,
         )
         cached = {
             'png_bytes': png_buf.getvalue(),
@@ -1171,6 +1223,7 @@ def radar_overlay():
             'warnings': '; '.join(warnings) if warnings else '',
             'product_used': product_used,
             'frames_total': len(frames),
+            'render_quality': render_quality,
         }
         _cache_store(render_cache, cache_key, cached, CACHE_MAX_ITEMS)
 
@@ -1186,6 +1239,7 @@ def radar_overlay():
     response.headers['X-Active-Elevation'] = '' if cached['selected_elevation'] is None else str(cached['selected_elevation'])
     response.headers['X-Sweep-Options'] = cached['sweep_options']
     response.headers['X-Derived-Product'] = cached['product_used']
+    response.headers['X-Render-Quality'] = cached.get('render_quality', 'high')
     if cached['warnings']:
         response.headers['X-Warnings'] = cached['warnings']
     return response

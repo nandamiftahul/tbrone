@@ -45,6 +45,12 @@
       border-bottom:1px solid rgba(255,255,255,.15);
     }
     .brand{display:flex; align-items:center; gap:12px; min-width:240px}
+    .brand img{
+      height:32px;
+      width:auto;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
+      border-radius: 8px;
+    }
     .brand .logo{
       width:38px; height:38px; border-radius:12px;
       background:linear-gradient(135deg,#F28C28 0%,#FFD089 100%);
@@ -179,6 +185,38 @@
     .leaflet-control-zoom{border:none!important; box-shadow:var(--shadow)!important}
     .leaflet-control-zoom a{border:1px solid var(--border)!important}
 
+
+    .imageQualityControl{
+      background:rgba(255,255,255,.94);
+      border:1px solid var(--border);
+      border-radius:12px;
+      box-shadow:var(--shadow);
+      padding:8px 10px;
+      min-width:170px;
+      backdrop-filter:blur(8px);
+    }
+    .imageQualityControl .qLabel{
+      display:block;
+      font-size:11px;
+      font-weight:900;
+      color:var(--xw-blue);
+      margin-bottom:6px;
+      letter-spacing:.3px;
+      text-transform:uppercase;
+    }
+    .imageQualityControl select{
+      width:100%;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      font:inherit;
+      font-size:12px;
+      font-weight:700;
+      outline:none;
+    }
+
     @media (max-width: 1100px){
       body{overflow:auto}
       .shell{grid-template-columns:1fr; height:auto}
@@ -193,7 +231,7 @@
 <body>
   <div class="topbar">
     <div class="brand">
-      <div class="logo">RD</div>
+      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
       <div class="title">
         <strong>Terrindo Bumi Raya · Radar Viewer</strong>
         <span>Radar overlay, playback, filtering, and product controls</span>
@@ -519,6 +557,7 @@
     let playing = false;
     let timer;
     let overlayOpacity = 0.6;
+    let imageQuality = localStorage.getItem('radarImageQuality') || 'high';
     let cmap = '', vmin = '', vmax = '';
     let filters = {};
     let selectedSweep = 'auto';
@@ -569,6 +608,48 @@
     };
     baseLayers['OpenStreetMap'].addTo(map);
     L.control.layers(baseLayers, null, { position: 'bottomleft' }).addTo(map);
+    addImageQualityControl();
+
+
+    function applyImageQuality(quality, rerender=true) {
+      imageQuality = quality || 'high';
+      localStorage.setItem('radarImageQuality', imageQuality);
+      const select = document.getElementById('imageQualitySelect');
+      if (select && select.value !== imageQuality) select.value = imageQuality;
+      if (rerender && hasGroups) {
+        frame = 0;
+        showOverlay('Updating image quality…', `Rendering ${imageQuality.toUpperCase()} quality`, 45);
+        precomputeCurrentView(false).then(() => loadRadar(true));
+      }
+    }
+
+    function addImageQualityControl() {
+      const QualityControl = L.Control.extend({
+        options: { position: 'bottomleft' },
+        onAdd: function() {
+          const div = L.DomUtil.create('div', 'leaflet-control imageQualityControl');
+          div.innerHTML = `
+            <label class="qLabel" for="imageQualitySelect">Image Quality</label>
+            <select id="imageQualitySelect" title="Radar image quality">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="ultra">Ultra</option>
+            </select>`;
+          L.DomEvent.disableClickPropagation(div);
+          L.DomEvent.disableScrollPropagation(div);
+          setTimeout(() => {
+            const sel = div.querySelector('#imageQualitySelect');
+            if (sel) {
+              sel.value = imageQuality;
+              sel.addEventListener('change', (e) => applyImageQuality(e.target.value, true));
+            }
+          }, 0);
+          return div;
+        }
+      });
+      map.addControl(new QualityControl());
+    }
 
     function updateProductDefaults() {
       const cfg = defaultConfigs[field] || {};
@@ -627,7 +708,8 @@
     }
 
     function resetPyirisDefaults() {
-      setPyirisDefaults();
+      applyImageQuality(imageQuality, false);
+    setPyirisDefaults();
       frame = 0;
       showOverlay('Resetting filter…', 'Loading pyIRIS defaults', 45);
       loadRadar(true);
@@ -722,7 +804,8 @@
         + '&cmap=' + encodeURIComponent(cmap)
         + '&vmin=' + encodeURIComponent(vmin)
         + '&vmax=' + encodeURIComponent(vmax)
-        + '&filters=' + encodeURIComponent(JSON.stringify(filters));
+        + '&filters=' + encodeURIComponent(JSON.stringify(filters))
+        + '&quality=' + encodeURIComponent(imageQuality);
 
       if (selectedSweep && selectedSweep !== 'auto') {
         if (selectedSweep.startsWith('idx:')) overlayUrl += '&sweep=' + encodeURIComponent(selectedSweep.slice(4));
@@ -770,14 +853,14 @@
           document.getElementById('frameText').innerText = (frame + 1) + '/' + total;
           document.getElementById('timestamp').innerText = ts;
           document.getElementById('frameSelect').value = String(frame);
-          document.getElementById('infoName').innerText = group + ' · ' + field + ' · ' + derivedUsed;
+          document.getElementById('infoName').innerText = group + ' · ' + field + ' · ' + derivedUsed + ' · ' + imageQuality.toUpperCase();
           document.getElementById('infoExtent').innerText = `Extent: ${extent.map(v => Number.isFinite(v) ? v.toFixed(3) : '-').join(', ')}`;
           document.getElementById('infoSweeps').innerText = `Sweeps: ${sweepHeader || '-'} · Files: ${fileCount}`;
           document.getElementById('sweepList').value = sweepHeader || 'Tidak ada sweep';
           document.getElementById('elevationList').value = elevHeader || 'Tidak ada elevasi';
           document.getElementById('fileCountText').value = `${fileCount} file`;
           populateSweepOptions(sweepOptionsHeader, activeSweepIndex, activeElevation);
-          setStatus(`Loaded ${field} ${derivedUsed} frame ${frame + 1}/${total} · ${fileCount} file merged`);
+          setStatus(`Loaded ${field} ${derivedUsed} frame ${frame + 1}/${total} · ${fileCount} file merged · ${imageQuality.toUpperCase()}`);
           renderTimeline();
           hideOverlay();
         })
@@ -808,7 +891,8 @@
         vmax: vmax,
         filters: filters,
         derived_product: derivedProduct,
-        cappi_height_km: cappiHeightKm
+        cappi_height_km: cappiHeightKm,
+        quality: imageQuality
       };
 
       if (selectedSweep && selectedSweep !== 'auto') {
