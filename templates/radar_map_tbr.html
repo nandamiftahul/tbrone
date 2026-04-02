@@ -774,7 +774,8 @@
       distanceKm: null,
       interpolate: false,
       gapFill: false,
-      smooth: 1.0
+      smoothInterp: 1.0,
+      smoothGap: 1.0
     };
 
 
@@ -1093,7 +1094,9 @@
         defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
         distanceKm: null,
         interpolate: false,
-        gapFill: false
+        gapFill: false,
+        smoothInterp: 1.0,
+        smoothGap: 1.0
       };
     }
 
@@ -1140,6 +1143,39 @@
       map.addControl(new CrossSectionControl());
     }
 
+
+    function getBearingDegrees(lat1, lon1, lat2, lon2) {
+      const toRad = deg => deg * Math.PI / 180;
+      const toDeg = rad => rad * 180 / Math.PI;
+      const phi1 = toRad(lat1);
+      const phi2 = toRad(lat2);
+      const dLon = toRad(lon2 - lon1);
+      const y = Math.sin(dLon) * Math.cos(phi2);
+      const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon);
+      let brng = toDeg(Math.atan2(y, x));
+      brng = (brng + 360) % 360;
+      return brng;
+    }
+
+    function bearingToCompass16(bearing) {
+      const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+      const idx = Math.round((((bearing % 360) + 360) % 360) / 22.5) % 16;
+      return dirs[idx];
+    }
+
+    function oppositeCompass16(label) {
+      const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+      const idx = dirs.indexOf(label);
+      return idx >= 0 ? dirs[(idx + 8) % 16] : label;
+    }
+
+    function directionPairText(lat1, lon1, lat2, lon2) {
+      const bearing = getBearingDegrees(lat1, lon1, lat2, lon2);
+      const toDir = bearingToCompass16(bearing);
+      const fromDir = oppositeCompass16(toDir);
+      return { bearing, fromDir, toDir, text: `${fromDir} → ${toDir}` };
+    }
+
     function bindCrossSectionPopupZoom() {
       if (!crossSectionPopup) return;
       const root = document.getElementById('crossSectionPopupRoot');
@@ -1156,8 +1192,10 @@
       const yRangeLabel = root.querySelector('#csYRangeLabel');
       const interpolateChk = root.querySelector('#csInterpolateChk');
       const gapFillChk = root.querySelector('#csGapFillChk');
-      const smoothSlider = root.querySelector('#csSmoothSlider');
-      const smoothValue = root.querySelector('#csSmoothValue');
+      const smoothInterpSlider = root.querySelector('#csSmoothInterpSlider');
+      const smoothInterpValue = root.querySelector('#csSmoothInterpValue');
+      const smoothGapSlider = root.querySelector('#csSmoothGapSlider');
+      const smoothGapValue = root.querySelector('#csSmoothGapValue');
       const xMinInput = root.querySelector('#csXMinInput');
       const xMaxInput = root.querySelector('#csXMaxInput');
       const yMinInput = root.querySelector('#csYMinInput');
@@ -1172,9 +1210,12 @@
       }
 
       function updateSmoothUI() {
-        if (smoothSlider) smoothSlider.value = Number.isFinite(crossSectionState.smooth) ? crossSectionState.smooth : 1.0;
-        if (smoothValue) smoothValue.textContent = Number.isFinite(crossSectionState.smooth) ? Number(crossSectionState.smooth).toFixed(1) : '1.0';
-        if (smoothSlider) smoothSlider.disabled = !crossSectionState.interpolate;
+        if (smoothInterpSlider) smoothInterpSlider.value = Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0;
+        if (smoothInterpValue) smoothInterpValue.textContent = Number.isFinite(crossSectionState.smoothInterp) ? Number(crossSectionState.smoothInterp).toFixed(1) : '1.0';
+        if (smoothGapSlider) smoothGapSlider.value = Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : 1.0;
+        if (smoothGapValue) smoothGapValue.textContent = Number.isFinite(crossSectionState.smoothGap) ? Number(crossSectionState.smoothGap).toFixed(1) : '1.0';
+        if (smoothInterpSlider) smoothInterpSlider.disabled = !crossSectionState.interpolate;
+        if (smoothGapSlider) smoothGapSlider.disabled = !crossSectionState.interpolate || !crossSectionState.gapFill;
       }
 
       function updateLabels() {
@@ -1284,13 +1325,24 @@
         requestCrossSection();
       });
 
-      smoothSlider?.addEventListener('input', () => {
-        crossSectionState.smooth = parseFloat(smoothSlider.value || '1.0');
+      smoothInterpSlider?.addEventListener('input', () => {
+        crossSectionState.smoothInterp = parseFloat(smoothInterpSlider.value || '1.0');
         updateSmoothUI();
       });
 
-      smoothSlider?.addEventListener('change', () => {
-        crossSectionState.smooth = parseFloat(smoothSlider.value || '1.0');
+      smoothInterpSlider?.addEventListener('change', () => {
+        crossSectionState.smoothInterp = parseFloat(smoothInterpSlider.value || '1.0');
+        updateSmoothUI();
+        requestCrossSection();
+      });
+
+      smoothGapSlider?.addEventListener('input', () => {
+        crossSectionState.smoothGap = parseFloat(smoothGapSlider.value || '1.0');
+        updateSmoothUI();
+      });
+
+      smoothGapSlider?.addEventListener('change', () => {
+        crossSectionState.smoothGap = parseFloat(smoothGapSlider.value || '1.0');
         updateSmoothUI();
         requestCrossSection();
       });
@@ -1320,6 +1372,7 @@
     async function requestCrossSection() {
       if (crossSectionPoints.length < 2 || !group || !field) return;
       const [p1, p2] = crossSectionPoints;
+      const directionInfo = directionPairText(p1.lat, p1.lng, p2.lat, p2.lng);
       const cfg = defaultConfigs[field] || {};
       const finalCmap = cmap || cfg.cmap || '';
       const finalVmin = (vmin !== '' && vmin !== null && vmin !== undefined) ? vmin : (cfg.vmin ?? '');
@@ -1348,7 +1401,8 @@
       if (crossSectionState.yMax !== null) params.set('y_max', String(crossSectionState.yMax));
       if (crossSectionState.interpolate) params.set('interpolate', '1');
       if (crossSectionState.gapFill) params.set('gap_fill', '1');
-      params.set('smooth', String(Number.isFinite(crossSectionState.smooth) ? crossSectionState.smooth : 1.0));
+      params.set('smooth_interp', String(Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0));
+      params.set('smooth_gap', String(Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : (Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0)));
       if (selectedSweep && selectedSweep !== 'auto') {
         if (selectedSweep.startsWith('idx:')) params.set('sweep', selectedSweep.slice(4));
         else if (selectedSweep.startsWith('elev:')) params.set('elevation', selectedSweep.slice(5));
@@ -1376,12 +1430,14 @@
         const defaultYMax = parseFloat(res.headers.get('X-Cross-Default-Y-Max') || 'nan');
         const interpolateHeader = res.headers.get('X-Cross-Interpolate') || '0';
         const gapFillHeader = res.headers.get('X-Cross-Gap-Fill') || '0';
-        const smoothHeader = parseFloat(res.headers.get('X-Cross-Smooth') || 'nan');
+        const smoothInterpHeader = parseFloat(res.headers.get('X-Cross-Smooth-Interp') || res.headers.get('X-Cross-Smooth') || 'nan');
+        const smoothGapHeader = parseFloat(res.headers.get('X-Cross-Smooth-Gap') || 'nan');
 
         crossSectionState.distanceKm = Number.isFinite(distance) ? distance : null;
         crossSectionState.interpolate = ['1', 'true', 'yes', 'on'].includes(String(interpolateHeader).toLowerCase());
         crossSectionState.gapFill = ['1', 'true', 'yes', 'on'].includes(String(gapFillHeader).toLowerCase());
-        crossSectionState.smooth = Number.isFinite(smoothHeader) ? smoothHeader : (Number.isFinite(crossSectionState.smooth) ? crossSectionState.smooth : 1.0);
+        crossSectionState.smoothInterp = Number.isFinite(smoothInterpHeader) ? smoothInterpHeader : (Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0);
+        crossSectionState.smoothGap = Number.isFinite(smoothGapHeader) ? smoothGapHeader : (Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : crossSectionState.smoothInterp);
         crossSectionState.xMin = Number.isFinite(xMin) ? xMin : crossSectionState.xMin;
         crossSectionState.xMax = Number.isFinite(xMax) ? xMax : crossSectionState.xMax;
         crossSectionState.yMin = Number.isFinite(yMin) ? yMin : crossSectionState.yMin;
@@ -1398,6 +1454,7 @@
               <div>
                 <div style="font-weight:800;color:#003A8F;margin-bottom:4px">Cross Section · ${field}</div>
                 <div style="font-size:11px;color:#6B7280">Distance: ${Number.isFinite(distance) ? Number(distance).toFixed(1) : '-'} km</div>
+                <div style="font-size:11px;color:#6B7280">Direction: <b style="color:#003A8F">${directionInfo.text}</b> · ${Number.isFinite(directionInfo.bearing) ? directionInfo.bearing.toFixed(1) : '-'}°</div>
               </div>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                 <button id="csZoomOutXBtn" type="button" class="miniBtn" style="padding:6px 10px">X−</button>
@@ -1418,10 +1475,15 @@
                 <input id="csGapFillChk" type="checkbox" ${crossSectionState.gapFill ? 'checked' : ''}>
                 Active gap filling
               </label>
-              <label style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#374151;font-weight:700;min-width:180px">
-                Smooth
-                <input id="csSmoothSlider" type="range" min="0" max="3" step="0.1" value="${Number.isFinite(crossSectionState.smooth) ? crossSectionState.smooth : 1.0}" style="width:110px">
-                <span id="csSmoothValue" style="min-width:28px;text-align:right;color:#003A8F">${Number.isFinite(crossSectionState.smooth) ? Number(crossSectionState.smooth).toFixed(1) : '1.0'}</span>
+              <label style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#374151;font-weight:700;min-width:210px">
+                Smooth interp
+                <input id="csSmoothInterpSlider" type="range" min="0" max="3" step="0.1" value="${Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0}" style="width:90px">
+                <span id="csSmoothInterpValue" style="min-width:28px;text-align:right;color:#003A8F">${Number.isFinite(crossSectionState.smoothInterp) ? Number(crossSectionState.smoothInterp).toFixed(1) : '1.0'}</span>
+              </label>
+              <label style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#374151;font-weight:700;min-width:200px">
+                Smooth gap
+                <input id="csSmoothGapSlider" type="range" min="0" max="3" step="0.1" value="${Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : 1.0}" style="width:90px">
+                <span id="csSmoothGapValue" style="min-width:28px;text-align:right;color:#003A8F">${Number.isFinite(crossSectionState.smoothGap) ? Number(crossSectionState.smoothGap).toFixed(1) : '1.0'}</span>
               </label>
             </div>
             <div style="display:grid;grid-template-columns:repeat(4,minmax(82px,1fr)) auto auto;gap:8px;align-items:end;margin-bottom:8px">
@@ -1449,7 +1511,7 @@
                 <img id="crossSectionPlotImg" src="${imgUrl}" alt="Cross section" style="display:block;width:100%;height:auto" />
               </div>
             </div>
-            <div style="margin-top:8px;font-size:11px;color:#6B7280">X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y. Smooth 0.0 paling raw, makin besar makin halus.</div>
+            <div style="margin-top:8px;font-size:11px;color:#6B7280">Arah penampang mengikuti garis <b>START → END</b>, jadi sumbu X dibaca dari titik START ke titik END. X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y. Smooth interp mengatur kehalusan interpolasi dasar, smooth gap mengatur pelembutan area gap fill. Nilai 0.0 paling raw.</div>
             ${warnings ? `<div style="margin-top:8px;font-size:11px;color:#9a3412;line-height:1.35">${warnings}</div>` : ''}
           </div>`;
         crossSectionPopup.setContent(content);
@@ -1896,6 +1958,43 @@
       crossSectionMarkers.push(marker);
       if (crossSectionPoints.length === 2) {
         crossSectionLine = L.polyline(crossSectionPoints, {color: '#DC2626', weight: 3, dashArray: '8,6'}).addTo(map);
+
+        const [p1, p2] = crossSectionPoints;
+        const directionInfo = directionPairText(p1.lat, p1.lng, p2.lat, p2.lng);
+
+        const startLabel = L.marker(p1, {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'cs-dir-label',
+            html: '<div style="padding:2px 6px;border-radius:999px;background:#ffffff;border:1px solid rgba(29,78,216,.25);box-shadow:0 4px 12px rgba(2,22,55,.10);font-size:10px;font-weight:800;color:#1d4ed8;white-space:nowrap;">START</div>',
+            iconSize: [56, 20],
+            iconAnchor: [-8, 10]
+          })
+        }).addTo(map);
+
+        const endLabel = L.marker(p2, {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'cs-dir-label',
+            html: '<div style="padding:2px 6px;border-radius:999px;background:#ffffff;border:1px solid rgba(220,38,38,.25);box-shadow:0 4px 12px rgba(2,22,55,.10);font-size:10px;font-weight:800;color:#DC2626;white-space:nowrap;">END</div>',
+            iconSize: [48, 20],
+            iconAnchor: [-8, 10]
+          })
+        }).addTo(map);
+
+        const mid = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
+        const arrowLabel = L.marker(mid, {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'cs-dir-label',
+            html: `<div style="padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.96);border:1px solid rgba(17,24,39,.10);box-shadow:0 4px 12px rgba(2,22,55,.10);font-size:10px;font-weight:800;color:#374151;white-space:nowrap;">${directionInfo.text}</div>`,
+            iconSize: [92, 20],
+            iconAnchor: [46, -8]
+          })
+        }).addTo(map);
+
+        crossSectionMarkers.push(startLabel, endLabel, arrowLabel);
+
         setCrossSectionMode(false);
         requestCrossSection();
       }
