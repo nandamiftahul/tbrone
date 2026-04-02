@@ -721,6 +721,11 @@ def _render_radar_png_from_files(
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
     quality_cfg = _quality_settings(render_quality)
+    try:
+        smooth = float(smooth)
+    except Exception:
+        smooth = 1.0
+    smooth = float(np.clip(smooth, 0.0, 3.0))
     radar, warnings = _merge_radars(filepaths)
     if field not in radar.fields:
         field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
@@ -893,6 +898,7 @@ def _render_cross_section_png_from_files(
     y_max=None,
     interpolate=False,
     gap_fill=False,
+    smooth=1.0,
 ):
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
@@ -1013,8 +1019,8 @@ def _render_cross_section_png_from_files(
             warnings.append('Interpolate fallback to scatter: valid samples too sparse')
             sc = ax.scatter(x, z, c=v, s=10, marker='s', cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, linewidths=0)
         else:
-            grid_nx = max(180, min(520, int(quality_cfg['ppi_grid'] * 0.40)))
-            grid_nz = max(120, min(320, int(grid_nx * 0.55)))
+            grid_nx = max(260, min(900, int(quality_cfg['ppi_grid'] * 0.70)))
+            grid_nz = max(180, min(520, int(grid_nx * 0.62)))
             grid_x = np.linspace(x_lo, x_hi, grid_nx)
             grid_z = np.linspace(y_lo, y_hi, grid_nz)
             gx, gz = np.meshgrid(grid_x, grid_z)
@@ -1032,34 +1038,55 @@ def _render_cross_section_png_from_files(
 
                 dx = (x_hi - x_lo) / max(grid_nx - 1, 1)
                 dz = (y_hi - y_lo) / max(grid_nz - 1, 1)
-                support_radius = max(dx * 2.5, dz * 2.5, 0.10)
+                support_radius = max(dx * 3.0, dz * 3.0, 0.12)
                 support_mask = nearest_dist <= support_radius
+                gap_fill_mask = nearest_dist <= (support_radius * 1.65)
                 grid_v = np.where(support_mask, grid_v, np.nan)
             except Exception as exc:
                 support_mask = np.isfinite(grid_v)
+                gap_fill_mask = support_mask.copy()
                 warnings.append(f'Cross-section support mask skipped: {exc}')
 
-            valid_mask = np.isfinite(grid_v)
-            if np.any(valid_mask):
-                try:
-                    tmp = np.where(valid_mask, grid_v, 0.0)
-                    w = valid_mask.astype(float)
-                    tmp_s = gaussian_filter(tmp, sigma=0.6)
-                    w_s = gaussian_filter(w, sigma=0.6)
-                    with np.errstate(invalid='ignore', divide='ignore'):
-                        smooth_v = tmp_s / w_s
-                    grid_v = np.where(w_s > 0.05, smooth_v, np.nan)
-                except Exception as exc:
-                    warnings.append(f'Cross-section smoothing skipped: {exc}')
+            def _weighted_smooth(arr, sigma):
+                valid_mask_local = np.isfinite(arr)
+                if not np.any(valid_mask_local) or sigma <= 0.01:
+                    return arr
+                tmp = np.where(valid_mask_local, arr, 0.0)
+                w = valid_mask_local.astype(float)
+                tmp_s = gaussian_filter(tmp, sigma=sigma)
+                w_s = gaussian_filter(w, sigma=sigma)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    arr_s = tmp_s / w_s
+                return np.where(w_s > 0.03, arr_s, np.nan)
+
+            try:
+                sigma_pre = 0.12 + (smooth * (0.60 if not gap_fill else 0.72))
+                grid_v = _weighted_smooth(grid_v, sigma_pre)
+                grid_v = np.where(support_mask, grid_v, np.nan)
+            except Exception as exc:
+                warnings.append(f'Cross-section smoothing skipped: {exc}')
 
             if gap_fill:
                 try:
                     nearest_v = griddata(interp_points, interp_values, (gx, gz), method='nearest')
+                    nearest_v = np.where(gap_fill_mask, nearest_v, np.nan)
                     grid_v = np.where(np.isfinite(grid_v), grid_v, nearest_v)
+                    sigma_post = 0.18 + (smooth * 0.82)
+                    grid_v = _weighted_smooth(grid_v, sigma_post)
                 except Exception as exc:
                     warnings.append(f'Cross-section gap fill skipped: {exc}')
 
-            sc = ax.pcolormesh(gx, gz, np.ma.masked_invalid(grid_v), cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, shading='auto')
+            masked_grid = np.ma.masked_invalid(grid_v)
+            sc = ax.imshow(
+                masked_grid,
+                origin='lower',
+                extent=[x_lo, x_hi, y_lo, y_hi],
+                cmap=cmap_obj,
+                vmin=vmin_override,
+                vmax=vmax_override,
+                interpolation='bilinear',
+                aspect='auto'
+            )
     else:
         sc = ax.scatter(x, z, c=v, s=10, marker='s', cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, linewidths=0)
 
@@ -1083,6 +1110,7 @@ def _render_cross_section_png_from_files(
         'default_y_max': float(default_ymax),
         'interpolate': bool(interpolate),
         'gap_fill': bool(gap_fill),
+        'smooth': float(smooth),
     }
     return buf, warnings, meta
 
@@ -1448,6 +1476,9 @@ def radar_cross_section():
     y_max = _opt_float(request.args.get('y_max'))
     interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
     gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    smooth = _opt_float(request.args.get('smooth'))
+    if smooth is None:
+        smooth = 1.0
 
     filters_arg = request.args.get('filters')
     try:
@@ -1485,6 +1516,7 @@ def radar_cross_section():
         y_max=y_max,
         interpolate=interpolate,
         gap_fill=gap_fill,
+        smooth=smooth,
     )
     response = send_file(buf, mimetype='image/png')
     response.headers['X-Cross-Distance-Km'] = f"{meta['line_length_km']:.3f}"
@@ -1498,6 +1530,7 @@ def radar_cross_section():
     response.headers['X-Cross-Default-Y-Max'] = f"{meta['default_y_max']:.6f}"
     response.headers['X-Cross-Interpolate'] = '1' if meta.get('interpolate') else '0'
     response.headers['X-Cross-Gap-Fill'] = '1' if meta.get('gap_fill') else '0'
+    response.headers['X-Cross-Smooth'] = f"{meta.get('smooth', 1.0):.3f}" 
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response

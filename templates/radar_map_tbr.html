@@ -773,7 +773,8 @@
       defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
       distanceKm: null,
       interpolate: false,
-      gapFill: false
+      gapFill: false,
+      smooth: 1.0
     };
 
 
@@ -1155,6 +1156,8 @@
       const yRangeLabel = root.querySelector('#csYRangeLabel');
       const interpolateChk = root.querySelector('#csInterpolateChk');
       const gapFillChk = root.querySelector('#csGapFillChk');
+      const smoothSlider = root.querySelector('#csSmoothSlider');
+      const smoothValue = root.querySelector('#csSmoothValue');
       const xMinInput = root.querySelector('#csXMinInput');
       const xMaxInput = root.querySelector('#csXMaxInput');
       const yMinInput = root.querySelector('#csYMinInput');
@@ -1168,6 +1171,12 @@
         return Number.isFinite(val) ? Number(val).toFixed(1) : '-';
       }
 
+      function updateSmoothUI() {
+        if (smoothSlider) smoothSlider.value = Number.isFinite(crossSectionState.smooth) ? crossSectionState.smooth : 1.0;
+        if (smoothValue) smoothValue.textContent = Number.isFinite(crossSectionState.smooth) ? Number(crossSectionState.smooth).toFixed(1) : '1.0';
+        if (smoothSlider) smoothSlider.disabled = !crossSectionState.interpolate;
+      }
+
       function updateLabels() {
         if (xRangeLabel && crossSectionState.xMin !== null && crossSectionState.xMax !== null) {
           xRangeLabel.textContent = `${fmt(crossSectionState.xMin)}–${fmt(crossSectionState.xMax)} km`;
@@ -1179,6 +1188,7 @@
         if (xMaxInput) xMaxInput.value = fmt(crossSectionState.xMax);
         if (yMinInput) yMinInput.value = fmt(crossSectionState.yMin);
         if (yMaxInput) yMaxInput.value = fmt(crossSectionState.yMax);
+        updateSmoothUI();
       }
 
       function applyManualAxes() {
@@ -1270,6 +1280,18 @@
       gapFillChk?.addEventListener('change', () => {
         crossSectionState.gapFill = !!gapFillChk.checked;
         if (crossSectionState.gapFill) crossSectionState.interpolate = true;
+        updateSmoothUI();
+        requestCrossSection();
+      });
+
+      smoothSlider?.addEventListener('input', () => {
+        crossSectionState.smooth = parseFloat(smoothSlider.value || '1.0');
+        updateSmoothUI();
+      });
+
+      smoothSlider?.addEventListener('change', () => {
+        crossSectionState.smooth = parseFloat(smoothSlider.value || '1.0');
+        updateSmoothUI();
         requestCrossSection();
       });
 
@@ -1326,6 +1348,7 @@
       if (crossSectionState.yMax !== null) params.set('y_max', String(crossSectionState.yMax));
       if (crossSectionState.interpolate) params.set('interpolate', '1');
       if (crossSectionState.gapFill) params.set('gap_fill', '1');
+      params.set('smooth', String(Number.isFinite(crossSectionState.smooth) ? crossSectionState.smooth : 1.0));
       if (selectedSweep && selectedSweep !== 'auto') {
         if (selectedSweep.startsWith('idx:')) params.set('sweep', selectedSweep.slice(4));
         else if (selectedSweep.startsWith('elev:')) params.set('elevation', selectedSweep.slice(5));
@@ -1353,10 +1376,12 @@
         const defaultYMax = parseFloat(res.headers.get('X-Cross-Default-Y-Max') || 'nan');
         const interpolateHeader = res.headers.get('X-Cross-Interpolate') || '0';
         const gapFillHeader = res.headers.get('X-Cross-Gap-Fill') || '0';
+        const smoothHeader = parseFloat(res.headers.get('X-Cross-Smooth') || 'nan');
 
         crossSectionState.distanceKm = Number.isFinite(distance) ? distance : null;
         crossSectionState.interpolate = ['1', 'true', 'yes', 'on'].includes(String(interpolateHeader).toLowerCase());
         crossSectionState.gapFill = ['1', 'true', 'yes', 'on'].includes(String(gapFillHeader).toLowerCase());
+        crossSectionState.smooth = Number.isFinite(smoothHeader) ? smoothHeader : (Number.isFinite(crossSectionState.smooth) ? crossSectionState.smooth : 1.0);
         crossSectionState.xMin = Number.isFinite(xMin) ? xMin : crossSectionState.xMin;
         crossSectionState.xMax = Number.isFinite(xMax) ? xMax : crossSectionState.xMax;
         crossSectionState.yMin = Number.isFinite(yMin) ? yMin : crossSectionState.yMin;
@@ -1393,6 +1418,11 @@
                 <input id="csGapFillChk" type="checkbox" ${crossSectionState.gapFill ? 'checked' : ''}>
                 Active gap filling
               </label>
+              <label style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#374151;font-weight:700;min-width:180px">
+                Smooth
+                <input id="csSmoothSlider" type="range" min="0" max="3" step="0.1" value="${Number.isFinite(crossSectionState.smooth) ? crossSectionState.smooth : 1.0}" style="width:110px">
+                <span id="csSmoothValue" style="min-width:28px;text-align:right;color:#003A8F">${Number.isFinite(crossSectionState.smooth) ? Number(crossSectionState.smooth).toFixed(1) : '1.0'}</span>
+              </label>
             </div>
             <div style="display:grid;grid-template-columns:repeat(4,minmax(82px,1fr)) auto auto;gap:8px;align-items:end;margin-bottom:8px">
               <label style="display:grid;gap:4px;font-size:11px;color:#6B7280;font-weight:700">
@@ -1419,7 +1449,7 @@
                 <img id="crossSectionPlotImg" src="${imgUrl}" alt="Cross section" style="display:block;width:100%;height:auto" />
               </div>
             </div>
-            <div style="margin-top:8px;font-size:11px;color:#6B7280">X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y.</div>
+            <div style="margin-top:8px;font-size:11px;color:#6B7280">X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y. Smooth 0.0 paling raw, makin besar makin halus.</div>
             ${warnings ? `<div style="margin-top:8px;font-size:11px;color:#9a3412;line-height:1.35">${warnings}</div>` : ''}
           </div>`;
         crossSectionPopup.setContent(content);
