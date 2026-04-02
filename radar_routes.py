@@ -6,6 +6,8 @@ import json
 import os
 import re
 import tempfile
+from collections import OrderedDict
+from hashlib import md5
 from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Any
@@ -38,6 +40,12 @@ available_fields: list[str] = []
 radar_extent = [[-10, 100], [10, 120]]
 time_bounds: dict[str, dict[str, float]] = {}
 merge_window_minutes: int = 5
+
+# in-memory caches to keep playback responsive
+render_cache: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+merged_radar_cache: "OrderedDict[str, tuple[Any, list[str]]]" = OrderedDict()
+CACHE_MAX_ITEMS = 96
+MERGED_CACHE_MAX_ITEMS = 24
 
 default_configs = {
     'DBZ2': dict(vmin=-20, vmax=70, cmap='turbo'),
@@ -100,6 +108,56 @@ PYIRIS_DEFAULTS = {
     'th_SDZ': 35.0,
     'th_MDZ': -35.0,
 }
+
+
+def _cache_store(cache_obj: OrderedDict, key: str, value: Any, max_items: int):
+    cache_obj[key] = value
+    cache_obj.move_to_end(key)
+    while len(cache_obj) > max_items:
+        cache_obj.popitem(last=False)
+
+def _cache_get(cache_obj: OrderedDict, key: str):
+    if key not in cache_obj:
+        return None
+    cache_obj.move_to_end(key)
+    return cache_obj[key]
+
+def _make_render_cache_key(
+    group: str,
+    idx: int,
+    field: str,
+    cmap_override: str,
+    vmin_override: Any,
+    vmax_override: Any,
+    filters: dict[str, Any],
+    requested_sweep: Any,
+    requested_elevation: Any,
+    derived_product: str,
+    cappi_height_km: Any,
+):
+    raw = json.dumps({
+        'group': group,
+        'frame': idx,
+        'field': field,
+        'cmap': cmap_override or '',
+        'vmin': vmin_override,
+        'vmax': vmax_override,
+        'filters': filters or {},
+        'sweep': requested_sweep,
+        'elevation': requested_elevation,
+        'derived_product': derived_product or 'PPI',
+        'cappi_height_km': cappi_height_km,
+    }, sort_keys=True, default=str)
+    return md5(raw.encode('utf-8')).hexdigest()
+
+def _make_merged_cache_key(filepaths):
+    parts = []
+    for entry in filepaths:
+        if isinstance(entry, dict):
+            parts.append(f"{entry.get('filename','radar.raw')}:{len(entry.get('content', b''))}")
+        else:
+            parts.append(str(entry))
+    return md5("|".join(parts).encode('utf-8')).hexdigest()
 
 def load_pyiris_defaults() -> dict[str, Any]:
     defaults = dict(PYIRIS_DEFAULTS)
@@ -272,6 +330,11 @@ def _get_radar_epoch_and_label(radar, filepath: str) -> tuple[str, float | None]
         return 'N/A', None
 
 def _merge_radars(file_entries):
+    cache_key = _make_merged_cache_key(file_entries)
+    cached = _cache_get(merged_radar_cache, cache_key)
+    if cached is not None:
+        return cached
+
     warnings, radars = [], []
     for entry in file_entries:
         try:
@@ -290,6 +353,7 @@ def _merge_radars(file_entries):
             merged = pyart.util.join_radar(merged, nxt)
         except Exception as exc:
             warnings.append(f'join failed for radar #{i+1}: {exc}')
+    _cache_store(merged_radar_cache, cache_key, (merged, warnings), MERGED_CACHE_MAX_ITEMS)
     return merged, warnings
 
 # ---------- pyIRIS-like filters ----------
@@ -598,18 +662,52 @@ def _render_radar_png_from_files(
                 arr2 = np.nanmax(arr3, axis=0)
                 arr2 = np.ma.masked_invalid(arr2)
             else:
+                # CAPPI estimated from vertically interpolated gridded volume,
+                # then masked to radar range so the plot keeps a circular footprint.
                 cappi_h = float(cappi_height_km) * 1000.0
-                half = 250.0
+                z_top = max(12000.0, float(getattr(radar, 'nsweeps', 1) or 1) * 1000.0)
                 grid = pyart.map.grid_from_radars(
                     (radar,),
-                    grid_shape=(3, 400, 400),
-                    grid_limits=((max(0.0, cappi_h-half), cappi_h+half), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
+                    grid_shape=(12, 400, 400),
+                    grid_limits=((0.0, z_top), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
                     fields=[field],
                     weighting_function='Barnes2',
                 )
                 arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
-                arr2 = np.nanmean(arr3, axis=0)
-                arr2 = _fill_nan_nearest_2d(arr2)
+
+                try:
+                    z_levels = np.asarray(grid.z['data'], dtype=float)
+                except Exception:
+                    z_levels = np.linspace(0.0, z_top, arr3.shape[0])
+
+                if arr3.ndim != 3 or arr3.shape[0] < 2:
+                    arr2 = np.squeeze(arr3)
+                else:
+                    target = float(np.clip(cappi_h, z_levels.min(), z_levels.max()))
+                    hi = int(np.searchsorted(z_levels, target, side='left'))
+                    hi = max(1, min(hi, len(z_levels) - 1))
+                    lo = hi - 1
+
+                    z0 = float(z_levels[lo])
+                    z1 = float(z_levels[hi])
+                    a0 = arr3[lo]
+                    a1 = arr3[hi]
+
+                    if z1 <= z0:
+                        arr2 = a0
+                    else:
+                        w = (target - z0) / (z1 - z0)
+                        arr2 = (1.0 - w) * a0 + w * a1
+
+                    arr2 = _fill_nan_nearest_2d(arr2)
+                    arr2 = np.asarray(arr2, dtype=float)
+
+                ny, nx = arr2.shape
+                x = np.linspace(-rng_km, rng_km, nx)
+                y = np.linspace(-rng_km, rng_km, ny)
+                xx, yy = np.meshgrid(x, y)
+                rr = np.sqrt(xx**2 + yy**2)
+                arr2 = np.where(rr <= rng_km, arr2, np.nan)
                 arr2 = np.ma.masked_invalid(arr2)
 
             ax.imshow(
@@ -830,6 +928,82 @@ def _build_scan_groups(scan_window_minutes: int):
             available_fields[:] = []
 
 
+
+@radar_bp.route('/precompute', methods=['POST'])
+def radar_precompute():
+    payload = request.get_json(silent=True) or {}
+    group = payload.get('group')
+    field = payload.get('field')
+    cmap_override = payload.get('cmap', '')
+    vmin_override = payload.get('vmin')
+    vmax_override = payload.get('vmax')
+    filters = payload.get('filters') or {}
+    requested_sweep = payload.get('sweep')
+    requested_elevation = payload.get('elevation')
+    derived_product = (payload.get('derived_product') or 'PPI').upper()
+    cappi_height_km = payload.get('cappi_height_km', 2.0)
+
+    if group not in radar_groups:
+        return {'ok': False, 'error': 'Group not found'}, 404
+    if not field or field not in available_fields:
+        if available_fields:
+            field = available_fields[0]
+        else:
+            return {'ok': False, 'error': 'No radar fields available'}, 404
+
+    try:
+        vmin_override = None if vmin_override in ('', None) else float(vmin_override)
+        vmax_override = None if vmax_override in ('', None) else float(vmax_override)
+    except Exception:
+        vmin_override = None
+        vmax_override = None
+
+    frames = radar_groups[group]
+    built = 0
+    errors = []
+
+    for idx, frame_data in enumerate(frames):
+        try:
+            cache_key = _make_render_cache_key(
+                group, idx, field, cmap_override, vmin_override, vmax_override,
+                filters, requested_sweep, requested_elevation, derived_product, cappi_height_km
+            )
+            if _cache_get(render_cache, cache_key) is not None:
+                continue
+
+            png_buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation, product_used = _render_radar_png_from_files(
+                frame_data['files'],
+                field,
+                cmap_override,
+                vmin_override,
+                vmax_override,
+                filters,
+                requested_sweep=requested_sweep,
+                requested_elevation=requested_elevation,
+                derived_product=derived_product,
+                cappi_height_km=cappi_height_km,
+            )
+            cached = {
+                'png_bytes': png_buf.getvalue(),
+                'extent': extent,
+                'timestamp': frame_data['time'],
+                'file_count': frame_data.get('file_count', len(frame_data['files'])),
+                'sweeps': ', '.join(frame_data.get('sweeps', [])),
+                'elevations': frame_data.get('elevations_text', ''),
+                'selected_sweep_idx': selected_sweep_idx,
+                'selected_elevation': selected_elevation,
+                'sweep_options': json.dumps(sweep_options),
+                'warnings': '; '.join(warnings) if warnings else '',
+                'product_used': product_used,
+                'frames_total': len(frames),
+            }
+            _cache_store(render_cache, cache_key, cached, CACHE_MAX_ITEMS)
+            built += 1
+        except Exception as exc:
+            errors.append(f'frame {idx}: {exc}')
+
+    return {'ok': True, 'built': built, 'total': len(frames), 'errors': errors[:5]}
+
 @radar_bp.route('/export')
 def radar_export():
     group = request.args.get('group')
@@ -901,6 +1075,8 @@ def radar_home():
         except Exception:
             merge_window_minutes = 5
         uploaded_files_mem.clear()
+        render_cache.clear()
+        merged_radar_cache.clear()
         for uploaded in request.files.getlist('radarfiles'):
             if not uploaded or not uploaded.filename:
                 continue
@@ -964,29 +1140,52 @@ def radar_overlay():
     frames = radar_groups[group]
     idx = idx % len(frames)
     frame_data = frames[idx]
-    png_buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation, product_used = _render_radar_png_from_files(
-        frame_data['files'],
-        field,
-        cmap_override,
-        vmin_override,
-        vmax_override,
-        filters,
-        requested_sweep=requested_sweep,
-        requested_elevation=requested_elevation,
-        derived_product=derived_product,
-        cappi_height_km=cappi_height_km,
+    cache_key = _make_render_cache_key(
+        group, idx, field, cmap_override, vmin_override, vmax_override,
+        filters, requested_sweep, requested_elevation, derived_product, cappi_height_km
     )
-    response = send_file(png_buf, mimetype='image/png')
+    cached = _cache_get(render_cache, cache_key)
+    if cached is None:
+        png_buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation, product_used = _render_radar_png_from_files(
+            frame_data['files'],
+            field,
+            cmap_override,
+            vmin_override,
+            vmax_override,
+            filters,
+            requested_sweep=requested_sweep,
+            requested_elevation=requested_elevation,
+            derived_product=derived_product,
+            cappi_height_km=cappi_height_km,
+        )
+        cached = {
+            'png_bytes': png_buf.getvalue(),
+            'extent': extent,
+            'timestamp': frame_data['time'],
+            'file_count': frame_data.get('file_count', len(frame_data['files'])),
+            'sweeps': ', '.join(frame_data.get('sweeps', [])),
+            'elevations': frame_data.get('elevations_text', ''),
+            'selected_sweep_idx': selected_sweep_idx,
+            'selected_elevation': selected_elevation,
+            'sweep_options': json.dumps(sweep_options),
+            'warnings': '; '.join(warnings) if warnings else '',
+            'product_used': product_used,
+            'frames_total': len(frames),
+        }
+        _cache_store(render_cache, cache_key, cached, CACHE_MAX_ITEMS)
+
+    response = send_file(BytesIO(cached['png_bytes']), mimetype='image/png')
+    extent = cached['extent']
     response.headers['X-Extent'] = f'{extent[0]},{extent[1]},{extent[2]},{extent[3]}'
-    response.headers['X-Frames'] = str(len(frames))
-    response.headers['X-Timestamp'] = frame_data['time']
-    response.headers['X-File-Count'] = str(frame_data.get('file_count', len(frame_data['files'])))
-    response.headers['X-Sweeps'] = ', '.join(frame_data.get('sweeps', []))
-    response.headers['X-Elevations'] = frame_data.get('elevations_text', '')
-    response.headers['X-Active-Sweep-Index'] = str(selected_sweep_idx)
-    response.headers['X-Active-Elevation'] = '' if selected_elevation is None else str(selected_elevation)
-    response.headers['X-Sweep-Options'] = json.dumps(sweep_options)
-    response.headers['X-Derived-Product'] = product_used
-    if warnings:
-        response.headers['X-Warnings'] = '; '.join(warnings)
+    response.headers['X-Frames'] = str(cached['frames_total'])
+    response.headers['X-Timestamp'] = cached['timestamp']
+    response.headers['X-File-Count'] = str(cached['file_count'])
+    response.headers['X-Sweeps'] = cached['sweeps']
+    response.headers['X-Elevations'] = cached['elevations']
+    response.headers['X-Active-Sweep-Index'] = str(cached['selected_sweep_idx'])
+    response.headers['X-Active-Elevation'] = '' if cached['selected_elevation'] is None else str(cached['selected_elevation'])
+    response.headers['X-Sweep-Options'] = cached['sweep_options']
+    response.headers['X-Derived-Product'] = cached['product_used']
+    if cached['warnings']:
+        response.headers['X-Warnings'] = cached['warnings']
     return response

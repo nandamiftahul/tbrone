@@ -283,7 +283,7 @@
           <div class="field">
             <label for="derivedProduct">Produk Turunan</label>
             <select id="derivedProduct">
-              <option value="PPI">PPI biasa</option>
+              <option value="PPI">PPI</option>
               <option value="MAX">MAX</option>
               <option value="CAPPI">CAPPI</option>
             </select>
@@ -294,16 +294,6 @@
           </div>
           <div class="toolbarRow" style="padding:0;">
             <button class="miniBtn" type="button" onclick="applyDerivedProduct()">Generate Product</button>
-          </div>
-          <div class="field">
-            <label for="exportFormat">Convert / Export</label>
-            <select id="exportFormat">
-              <option value="nc">NetCDF (.nc)</option>
-              <option value="h5">HDF5 (.h5)</option>
-            </select>
-          </div>
-          <div class="toolbarRow" style="padding:0;">
-            <button class="miniBtn" type="button" onclick="exportCurrentProduct()">Download Converted Data</button>
           </div>
         </div>
 
@@ -516,7 +506,7 @@
   <script>
     const defaultConfigs = {{ default_configs | tojson }};
     const radarOverlayUrl = "{{ url_for('radar_bp.radar_overlay') }}";
-    const radarExportUrl = "{{ url_for('radar_bp.radar_export') }}";
+    const radarPrecomputeUrl = "{{ url_for('radar_bp.radar_precompute') }}";
     const hasGroups = {{ 'true' if groups else 'false' }};
     const pyirisDefaults = {{ pyiris_defaults | tojson }};
 
@@ -534,6 +524,8 @@
     let selectedSweep = 'auto';
     let derivedProduct = 'PPI';
     let cappiHeightKm = 2.0;
+    let loadingFrame = false;
+    let playIntervalMs = 1000;
     const times = {{ times | tojson }};
     const epochs = {{ epochs | tojson }};
     const bounds = {{ bounds | tojson }};
@@ -626,10 +618,11 @@
       filters.th_MDZ = document.getElementById('th_MDZ').value;
     }
 
-    function applyFilters() {
+    async function applyFilters() {
       gatherFilterInputs();
       frame = 0;
       showOverlay('Applying filter…', 'Rendering radar with selected filter', 55);
+      await precomputeCurrentView(false);
       loadRadar(true);
     }
 
@@ -711,11 +704,13 @@
     }
 
     function loadRadar(keepOverlay=false) {
+      if (loadingFrame) return;
       if (!group || !field) {
         setStatus('Upload file radar dulu untuk mulai viewer.');
         if (!keepOverlay) hideOverlay();
         return;
       }
+      loadingFrame = true;
       setStatus(`Memuat ${field} untuk ${group}...`);
 
       let overlayUrl = radarOverlayUrl
@@ -790,6 +785,9 @@
           console.error(err);
           setStatus('Gagal memuat radar overlay.');
           hideOverlay();
+        })
+        .finally(() => {
+          loadingFrame = false;
         });
     }
 
@@ -798,37 +796,50 @@
       loadRadar();
     }
 
-    function applyDerivedProduct() {
-      derivedProduct = document.getElementById('derivedProduct').value || 'PPI';
-      cappiHeightKm = parseFloat(document.getElementById('cappiHeightKm').value || '2.0') || 2.0;
+    async function precomputeCurrentView(showLoader=true) {
+      if (!group || !field) return;
+      gatherFilterInputs();
 
-      const frameSelect = document.getElementById('frameSelect');
-      if (frameSelect && frameSelect.value !== '') {
-        frame = parseInt(frameSelect.value, 10) || 0;
+      const payload = {
+        group: group,
+        field: field,
+        cmap: cmap,
+        vmin: vmin,
+        vmax: vmax,
+        filters: filters,
+        derived_product: derivedProduct,
+        cappi_height_km: cappiHeightKm
+      };
+
+      if (selectedSweep && selectedSweep !== 'auto') {
+        if (selectedSweep.startsWith('idx:')) payload.sweep = selectedSweep.slice(4);
+        else if (selectedSweep.startsWith('elev:')) payload.elevation = selectedSweep.slice(5);
       }
 
-      showOverlay('Generating product…', `Building ${derivedProduct} product`, 50);
-      loadRadar(true);
+      if (showLoader) {
+        showOverlay('Preparing playback cache…', 'Rendering frames once so playback stays light', 40);
+      }
+
+      try {
+        await fetch(radarPrecomputeUrl, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (showLoader) hideOverlay();
+      }
     }
 
-    function exportCurrentProduct() {
+    async function applyDerivedProduct() {
       derivedProduct = document.getElementById('derivedProduct').value || 'PPI';
       cappiHeightKm = parseFloat(document.getElementById('cappiHeightKm').value || '2.0') || 2.0;
-      gatherFilterInputs();
-      const exportFormat = document.getElementById('exportFormat').value || 'nc';
-      let exportUrl = radarExportUrl
-        + '?group=' + encodeURIComponent(group)
-        + '&frame=' + frame
-        + '&field=' + encodeURIComponent(field)
-        + '&export_format=' + encodeURIComponent(exportFormat)
-        + '&derived_product=' + encodeURIComponent(derivedProduct)
-        + '&cappi_height_km=' + encodeURIComponent(cappiHeightKm)
-        + '&filters=' + encodeURIComponent(JSON.stringify(filters));
-      if (selectedSweep && selectedSweep !== 'auto') {
-        if (selectedSweep.startsWith('idx:')) exportUrl += '&sweep=' + encodeURIComponent(selectedSweep.slice(4));
-        else if (selectedSweep.startsWith('elev:')) exportUrl += '&elevation=' + encodeURIComponent(selectedSweep.slice(5));
-      }
-      window.location.href = exportUrl;
+      frame = 0;
+      showOverlay('Generating product…', `Building ${derivedProduct} product`, 50);
+      await precomputeCurrentView(false);
+      loadRadar(true);
     }
 
     function fitRadar(){ if (currentBounds) map.fitBounds(currentBounds); }
@@ -895,25 +906,26 @@
     function prev(){ frame = Math.max(0, frame - 1); loadRadar(); }
     function next(){ frame = frame + 1; if (frame >= total) frame = 0; loadRadar(); }
     function changeField(){ field = document.getElementById('field').value; updateProductDefaults(); frame = 0; loadRadar(); }
-    function changeGroup(){
-      group = document.getElementById('group').value;
-      frame = 0;
-      populateFrameSelect();
-
-      const frameSelect = document.getElementById('frameSelect');
-      if (frameSelect && frameSelect.value !== '') {
-        frame = parseInt(frameSelect.value, 10) || 0;
-      }
-
-      loadRadar();
-    }
+    function changeGroup(){ group = document.getElementById('group').value; frame = 0; populateFrameSelect(); loadRadar(); }
 
     function togglePlay() {
       playing = !playing;
       document.getElementById('playBtn').innerText = playing ? '⏸' : '▶';
       document.getElementById('btnPlayTop').innerText = playing ? 'Pause' : 'Play';
-      if (playing) timer = setInterval(() => { frame++; if (frame >= total) frame = 0; loadRadar(); }, 1000);
-      else clearInterval(timer);
+
+      const heavyMode = !!filters.enable_standard_filter || !!filters.enable_speckle_filter || (derivedProduct && derivedProduct !== 'PPI');
+      playIntervalMs = heavyMode ? 2200 : 1000;
+
+      if (playing) {
+        timer = setInterval(() => {
+          if (loadingFrame) return;
+          frame++;
+          if (frame >= total) frame = 0;
+          loadRadar();
+        }, playIntervalMs);
+      } else {
+        clearInterval(timer);
+      }
     }
 
     function resetViewer() {
