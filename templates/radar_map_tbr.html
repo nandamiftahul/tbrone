@@ -1479,7 +1479,7 @@
               
                 <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700">
                   Smooth gap
-                  <input id="csSmoothGapSlider" type="range" min="0" max="3" step="0.1"
+                  <input id="csSmoothGapSlider" type="range" min="0" max="50" step="0.1"
                     value="${Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : 1.0}"
                     style="width:80px">
                   <span id="csSmoothGapValue">${Number.isFinite(crossSectionState.smoothGap) ? Number(crossSectionState.smoothGap).toFixed(1) : '1.0'}</span>
@@ -1487,7 +1487,7 @@
               
                 <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700">
                   Smooth interp
-                  <input id="csSmoothInterpSlider" type="range" min="0" max="3" step="0.1"
+                  <input id="csSmoothInterpSlider" type="range" min="0" max="10" step="0.1"
                     value="${Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0}"
                     style="width:80px">
                   <span id="csSmoothInterpValue">${Number.isFinite(crossSectionState.smoothInterp) ? Number(crossSectionState.smoothInterp).toFixed(1) : '1.0'}</span>

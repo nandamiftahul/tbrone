@@ -1021,7 +1021,7 @@ def _render_cross_section_png_from_files(
         interp_points = np.column_stack((x[valid_interp], z[valid_interp]))
         interp_values = v[valid_interp]
 
-        if interp_points.shape[0] < 150:
+        if interp_points.shape[0] < 80:
             warnings.append('Interpolate fallback to scatter: valid samples too sparse')
             sc = ax.scatter(x, z, c=v, s=10, marker='s', cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, linewidths=0)
         else:
