@@ -39,14 +39,14 @@
     .topbar{
       position:sticky; top:0; z-index:50;
       display:flex; align-items:center; justify-content:space-between;
-      padding:14px 18px; gap:12px;
+      padding:clamp(10px, 1vw, 14px) clamp(12px, 1.2vw, 18px); gap:clamp(8px, .9vw, 12px);
       background:rgba(0,58,143,.94);
       backdrop-filter:blur(8px);
       border-bottom:1px solid rgba(255,255,255,.15);
     }
-    .brand{display:flex; align-items:center; gap:12px; min-width:240px}
+    .brand{display:flex; align-items:center; gap:clamp(8px, .9vw, 12px); min-width:0}
     .brand img{
-      height:32px;
+      height:clamp(26px, 2vw, 32px);
       width:auto;
       filter: drop-shadow(0 6px 12px rgba(0,0,0,.12));
       border-radius: 8px;
@@ -58,12 +58,12 @@
       box-shadow:0 8px 18px rgba(0,0,0,.16)
     }
     .brand .title{display:flex; flex-direction:column; line-height:1.1; color:#fff; min-width:0}
-    .brand .title strong{font-size:14px; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-    .brand .title span{font-size:12px; opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-    .top-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end}
+    .brand .title strong{font-size:clamp(12px, 1vw, 14px); letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .brand .title span{font-size:clamp(10px, .85vw, 12px); opacity:.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .top-actions{display:flex; align-items:center; gap:clamp(6px, .8vw, 10px); flex-wrap:wrap; justify-content:flex-end}
     .btn{
       appearance:none; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10); color:#fff;
-      padding:10px 12px; border-radius:12px; cursor:pointer; font-weight:600; font-size:13px;
+      padding:clamp(8px, .8vw, 10px) clamp(10px, 1vw, 12px); border-radius:12px; cursor:pointer; font-weight:600; font-size:clamp(12px, .9vw, 13px);
       display:inline-flex; align-items:center; gap:8px; transition:transform .12s ease, background .12s ease, border-color .12s ease;
       text-decoration:none; user-select:none; white-space:nowrap;
     }
@@ -71,12 +71,13 @@
     .btn.primary{background:linear-gradient(135deg,var(--tbr-orange) 0%,#FFB565 100%); border-color:rgba(255,255,255,.10); color:#1A1A1A}
 
     .shell{
+      min-height:calc(100vh - 67px);
       height:calc(100vh - 67px);
-      display:grid; grid-template-columns:380px 1fr; gap:12px; padding:12px;
+      display:grid; grid-template-columns:clamp(290px, 27vw, 380px) minmax(0,1fr); gap:clamp(8px, .9vw, 12px); padding:clamp(8px, .9vw, 12px);
     }
     .sidebar{
       background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
-      overflow:hidden; display:flex; flex-direction:column; min-height:0;
+      overflow:hidden; display:flex; flex-direction:column; min-height:0; min-width:0;
     }
     .sidebar .head{padding:14px 14px 10px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%)}
     .sidebar .head .h{margin:0; font-weight:900; font-size:14px; color:var(--xw-blue); letter-spacing:.2px}
@@ -129,13 +130,13 @@
 
     .mapCard{
       background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
-      overflow:hidden; position:relative; min-height:0;
+      overflow:hidden; position:relative; min-height:0; min-width:0;
     }
     #map{position:absolute; inset:0; min-height:400px}
     .statusPill{
       position:absolute; top:14px; right:14px; z-index:9999; background:rgba(255,255,255,.94);
       border:1px solid var(--border); border-radius:999px; padding:8px 12px; font-size:12px; font-weight:700;
-      box-shadow:var(--shadow); max-width:min(52vw,520px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      box-shadow:var(--shadow); max-width:clamp(260px, 28vw, 520px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     }
     .warningBox{
       position:absolute; top:62px; right:14px; z-index:9998; background:#fff7ed; color:#9a3412;
@@ -154,7 +155,7 @@
     .dot.ok{background:var(--ok)}
     .infoPanel{
       position:absolute; right:14px; bottom:14px; z-index:9999; background:rgba(255,255,255,.94);
-      border:1px solid var(--border); border-radius:14px; padding:12px 14px; box-shadow:var(--shadow); min-width:250px; max-width:340px;
+      border:1px solid var(--border); border-radius:14px; padding:12px 14px; box-shadow:var(--shadow); min-width:220px; width:clamp(220px, 26vw, 340px); max-width:340px;
       backdrop-filter:blur(8px);
     }
     .infoTitle{font-size:12px; font-weight:900; color:var(--xw-blue); margin-bottom:4px}
@@ -163,7 +164,7 @@
     .infoSub{margin-top:6px; font-size:11px; color:var(--muted); line-height:1.35}
     .timelineCard{
       position:absolute; left:50%; transform:translateX(-50%); bottom:14px; z-index:9999;
-      width:min(620px, calc(100% - 640px)); background:rgba(255,255,255,.95); border:1px solid var(--border);
+      width:clamp(320px, 36vw, 620px); background:rgba(255,255,255,.95); border:1px solid var(--border);
       border-radius:14px; box-shadow:var(--shadow); padding:8px 10px; backdrop-filter:blur(8px);
     }
     .timelineTop{display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap}
@@ -192,7 +193,7 @@
       border-radius:12px;
       box-shadow:var(--shadow);
       padding:8px 10px;
-      min-width:170px;
+      min-width:clamp(140px, 14vw, 170px);
       backdrop-filter:blur(8px);
     }
     .imageQualityControl .qLabel{
@@ -217,14 +218,108 @@
       outline:none;
     }
 
+    
+
+    .crossSectionControl{
+      background:rgba(255,255,255,.94);
+      border:1px solid var(--border);
+      border-radius:12px;
+      box-shadow:var(--shadow);
+      padding:8px 10px;
+      min-width:150px;
+      backdrop-filter:blur(8px);
+    }
+    .crossSectionControl .csBtn{
+      width:100%;
+      appearance:none;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer;
+      font:inherit;
+      font-size:12px;
+      font-weight:800;
+    }
+    .crossSectionControl .csBtn.active{
+      background:rgba(37,99,235,.10);
+      border-color:rgba(37,99,235,.32);
+      color:#1d4ed8;
+    }
+    .crossSectionControl .csHint{
+      margin-top:6px;
+      font-size:11px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+    .map-crosshair, .map-crosshair .leaflet-container{cursor:crosshair!important;}
+
+    @media (max-width: 1500px){
+      .shell{grid-template-columns:clamp(280px, 25vw, 340px) minmax(0,1fr)}
+      .timelineCard{width:clamp(300px, 34vw, 560px)}
+      .infoPanel{width:clamp(210px, 24vw, 300px)}
+      .statusPill{max-width:clamp(240px, 26vw, 420px)}
+    }
+
+    @media (max-width: 1320px){
+      .shell{grid-template-columns:clamp(260px, 24vw, 310px) minmax(0,1fr)}
+      .toolbarRow{padding:8px 12px 0}
+      .search{padding:8px 12px}
+      .list{padding:8px}
+      .item{padding:10px}
+      .timelineCard{width:clamp(280px, 33vw, 500px)}
+    }
+
     @media (max-width: 1100px){
       body{overflow:auto}
-      .shell{grid-template-columns:1fr; height:auto}
+      .topbar{flex-wrap:wrap; align-items:flex-start}
+      .top-actions{width:100%}
+      .shell{grid-template-columns:1fr; height:auto; min-height:0}
       .sidebar{min-height:unset}
-      .mapCard{height:70vh}
+      .mapCard{height:70vh; min-height:520px}
       .timelineCard{width:calc(100% - 28px); left:14px; transform:none; bottom:10px}
       .legend{bottom:184px}
       .infoPanel{bottom:184px}
+    }
+
+    @media (max-width: 768px){
+      .topbar{padding:12px}
+      .brand{min-width:0}
+      .brand .title strong,
+      .brand .title span{white-space:normal}
+      .top-actions{gap:8px}
+      .btn{padding:9px 10px; font-size:12px}
+      .shell{padding:10px; gap:10px}
+      .mapCard{height:65vh; min-height:460px}
+      .statusPill{
+        left:14px; right:14px; top:14px; max-width:none;
+      }
+      .warningBox{
+        left:14px; right:14px; top:60px; max-width:none;
+      }
+      .infoPanel{
+        left:14px; right:14px; bottom:14px; min-width:0; max-width:none;
+      }
+      .timelineCard{
+        width:calc(100% - 28px);
+        left:14px;
+        transform:none;
+        bottom:150px;
+      }
+      .imageQualityControl{min-width:150px}
+    }
+
+    @media (max-width: 560px){
+      .top-actions{display:grid; grid-template-columns:repeat(3, minmax(0,1fr))}
+      .top-actions .btn,
+      .top-actions form{width:100%}
+      .top-actions form .btn{width:100%; justify-content:center}
+      .row2{grid-template-columns:1fr}
+      .filterRow{grid-template-columns:16px 32px minmax(0,1fr)}
+      .filterRow.dual{grid-template-columns:16px 32px minmax(0,1fr) minmax(0,1fr)}
+      .mapCard{height:62vh; min-height:420px}
+      .timelineCard{bottom:170px}
     }
   </style>
 </head>
@@ -352,12 +447,35 @@
             <label for="cmap">Colormap</label>
             <select id="cmap" onchange="changeCmap()">
               <option value="">Auto</option>
-              <option value="turbo">turbo</option>
-              <option value="seismic">seismic</option>
-              <option value="viridis">viridis</option>
-              <option value="plasma">plasma</option>
-              <option value="twilight_shifted">twilight_shifted</option>
-              <option value="gray">gray</option>
+              <optgroup label="Radar Standard">
+                <option value="turbo">turbo</option>
+                <option value="seismic">seismic</option>
+                <option value="viridis">viridis</option>
+                <option value="plasma">plasma</option>
+                <option value="twilight_shifted">twilight_shifted</option>
+                <option value="gray">gray</option>
+              </optgroup>
+              <optgroup label="pyIRIS Style · Reflectivity">
+                <option value="nipy_spectral">pyIRIS Style Reflectivity</option>
+                <option value="gist_ncar">pyIRIS Style Storm</option>
+                <option value="jet">pyIRIS Style Classic</option>
+                <option value="Spectral_r">pyIRIS Style Multi-band</option>
+                <option value="terrain">pyIRIS Style Terrain</option>
+              </optgroup>
+              <optgroup label="pyIRIS Style · Velocity / Diverging">
+                <option value="RdBu_r">pyIRIS Velocity Red/Blue</option>
+                <option value="coolwarm">pyIRIS Velocity Cool/Warm</option>
+                <option value="bwr">pyIRIS Velocity BWR</option>
+                <option value="PuOr">pyIRIS Velocity Purple/Orange</option>
+                <option value="BrBG">pyIRIS Velocity Brown/Green</option>
+              </optgroup>
+              <optgroup label="pyIRIS Style · Polarimetric / Smooth">
+                <option value="cividis">pyIRIS Polarimetric Cividis</option>
+                <option value="inferno">pyIRIS Polarimetric Inferno</option>
+                <option value="magma">pyIRIS Polarimetric Magma</option>
+                <option value="cubehelix">pyIRIS Polarimetric Cubehelix</option>
+                <option value="hsv">pyIRIS Phase HSV</option>
+              </optgroup>
             </select>
           </div>
           <div class="row2">
@@ -569,6 +687,17 @@
     const epochs = {{ epochs | tojson }};
     const bounds = {{ bounds | tojson }};
 
+    let crossSectionMode = false;
+    let crossSectionPoints = [];
+    let crossSectionMarkers = [];
+    let crossSectionLine = null;
+    let crossSectionPopup = null;
+    let crossSectionState = {
+      xMin: null, xMax: null, yMin: null, yMax: null,
+      defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
+      distanceKm: null
+    };
+
     function setStatus(text){ document.getElementById('statusPill').textContent = text; }
 
     function showOverlay(text='Processing…', progressText='Please wait', progress=35) {
@@ -609,6 +738,7 @@
     baseLayers['OpenStreetMap'].addTo(map);
     L.control.layers(baseLayers, null, { position: 'bottomleft' }).addTo(map);
     addImageQualityControl();
+    addCrossSectionControl();
 
 
     function applyImageQuality(quality, rerender=true) {
@@ -649,6 +779,259 @@
         }
       });
       map.addControl(new QualityControl());
+    }
+
+
+    function clearCrossSectionGraphics(closePopup=false) {
+      crossSectionMarkers.forEach(m => map.removeLayer(m));
+      crossSectionMarkers = [];
+      if (crossSectionLine) {
+        map.removeLayer(crossSectionLine);
+        crossSectionLine = null;
+      }
+      if (closePopup && crossSectionPopup) {
+        map.closePopup(crossSectionPopup);
+        crossSectionPopup = null;
+      }
+      crossSectionPoints = [];
+      crossSectionState = {
+        xMin: null, xMax: null, yMin: null, yMax: null,
+        defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
+        distanceKm: null
+      };
+    }
+
+    function setCrossSectionMode(enabled) {
+      crossSectionMode = !!enabled;
+      const btn = document.getElementById('crossSectionBtn');
+      if (btn) btn.classList.toggle('active', crossSectionMode);
+      if (crossSectionMode) {
+        map.getContainer().classList.add('map-crosshair');
+        setStatus('Cross section mode aktif · klik titik awal lalu titik akhir di map');
+      } else {
+        map.getContainer().classList.remove('map-crosshair');
+      }
+    }
+
+    function addCrossSectionControl() {
+      const CrossSectionControl = L.Control.extend({
+        options: { position: 'bottomleft' },
+        onAdd: function() {
+          const div = L.DomUtil.create('div', 'leaflet-control crossSectionControl');
+          div.innerHTML = `
+            <button id="crossSectionBtn" class="csBtn" type="button">Cross Section</button>
+            <div class="csHint">Klik tombol lalu gambar 2 titik garis pada map.</div>`;
+          L.DomEvent.disableClickPropagation(div);
+          L.DomEvent.disableScrollPropagation(div);
+          setTimeout(() => {
+            const btn = div.querySelector('#crossSectionBtn');
+            if (btn) {
+              btn.addEventListener('click', () => {
+                if (crossSectionMode) {
+                  setCrossSectionMode(false);
+                  clearCrossSectionGraphics(false);
+                  setStatus(`Loaded ${field} ${derivedProduct} frame ${frame + 1}/${total}`);
+                } else {
+                  clearCrossSectionGraphics(true);
+                  setCrossSectionMode(true);
+                }
+              });
+            }
+          }, 0);
+          return div;
+        }
+      });
+      map.addControl(new CrossSectionControl());
+    }
+
+    function bindCrossSectionPopupZoom() {
+      if (!crossSectionPopup) return;
+      const root = document.getElementById('crossSectionPopupRoot');
+      if (!root) return;
+
+      const viewport = root.querySelector('#csPlotViewport');
+      const img = root.querySelector('#crossSectionPlotImg');
+      const zoomInXBtn = root.querySelector('#csZoomInXBtn');
+      const zoomOutXBtn = root.querySelector('#csZoomOutXBtn');
+      const zoomInYBtn = root.querySelector('#csZoomInYBtn');
+      const zoomOutYBtn = root.querySelector('#csZoomOutYBtn');
+      const resetBtn = root.querySelector('#csZoomResetBtn');
+      const xRangeLabel = root.querySelector('#csXRangeLabel');
+      const yRangeLabel = root.querySelector('#csYRangeLabel');
+
+      if (!viewport || !img) return;
+
+      function fmt(val) {
+        return Number.isFinite(val) ? Number(val).toFixed(1) : '-';
+      }
+
+      function updateLabels() {
+        if (xRangeLabel && crossSectionState.xMin !== null && crossSectionState.xMax !== null) {
+          xRangeLabel.textContent = `${fmt(crossSectionState.xMin)}–${fmt(crossSectionState.xMax)} km`;
+        }
+        if (yRangeLabel && crossSectionState.yMin !== null && crossSectionState.yMax !== null) {
+          yRangeLabel.textContent = `${fmt(crossSectionState.yMin)}–${fmt(crossSectionState.yMax)} km`;
+        }
+      }
+
+      function zoomAxis(axis, factor) {
+        const minKey = axis === 'x' ? 'xMin' : 'yMin';
+        const maxKey = axis === 'x' ? 'xMax' : 'yMax';
+        const defaultMinKey = axis === 'x' ? 'defaultXMin' : 'defaultYMin';
+        const defaultMaxKey = axis === 'x' ? 'defaultXMax' : 'defaultYMax';
+
+        const lo = crossSectionState[minKey];
+        const hi = crossSectionState[maxKey];
+        const defLo = crossSectionState[defaultMinKey];
+        const defHi = crossSectionState[defaultMaxKey];
+        if (![lo, hi, defLo, defHi].every(Number.isFinite)) return;
+
+        const span = hi - lo;
+        const center = (lo + hi) / 2;
+        let nextSpan = span * factor;
+        const fullSpan = defHi - defLo;
+        const minSpan = axis === 'x' ? 0.25 : 0.10;
+        nextSpan = Math.max(minSpan, Math.min(fullSpan, nextSpan));
+
+        let nextLo = center - nextSpan / 2;
+        let nextHi = center + nextSpan / 2;
+
+        if (nextLo < defLo) {
+          nextHi += (defLo - nextLo);
+          nextLo = defLo;
+        }
+        if (nextHi > defHi) {
+          nextLo -= (nextHi - defHi);
+          nextHi = defHi;
+        }
+
+        crossSectionState[minKey] = Math.max(defLo, nextLo);
+        crossSectionState[maxKey] = Math.min(defHi, nextHi);
+        updateLabels();
+        requestCrossSection();
+      }
+
+      zoomInXBtn?.addEventListener('click', () => zoomAxis('x', 0.7));
+      zoomOutXBtn?.addEventListener('click', () => zoomAxis('x', 1.4285714286));
+      zoomInYBtn?.addEventListener('click', () => zoomAxis('y', 0.7));
+      zoomOutYBtn?.addEventListener('click', () => zoomAxis('y', 1.4285714286));
+      resetBtn?.addEventListener('click', () => {
+        crossSectionState.xMin = crossSectionState.defaultXMin;
+        crossSectionState.xMax = crossSectionState.defaultXMax;
+        crossSectionState.yMin = crossSectionState.defaultYMin;
+        crossSectionState.yMax = crossSectionState.defaultYMax;
+        updateLabels();
+        requestCrossSection();
+      });
+
+      viewport.addEventListener('wheel', (ev) => {
+        ev.preventDefault();
+        const factor = ev.deltaY < 0 ? 0.85 : 1.1764705882;
+        if (ev.shiftKey) zoomAxis('y', factor);
+        else zoomAxis('x', factor);
+      }, { passive: false });
+
+      updateLabels();
+    }
+
+    async function requestCrossSection() {
+      if (crossSectionPoints.length < 2 || !group || !field) return;
+      const [p1, p2] = crossSectionPoints;
+      const cfg = defaultConfigs[field] || {};
+      const finalCmap = cmap || cfg.cmap || '';
+      const finalVmin = (vmin !== '' && vmin !== null && vmin !== undefined) ? vmin : (cfg.vmin ?? '');
+      const finalVmax = (vmax !== '' && vmax !== null && vmax !== undefined) ? vmax : (cfg.vmax ?? '');
+
+      const params = new URLSearchParams({
+        group,
+        frame: String(frame),
+        field,
+        derived_product: derivedProduct,
+        cappi_height_km: String(cappiHeightKm),
+        cmap: String(finalCmap),
+        vmin: String(finalVmin),
+        vmax: String(finalVmax),
+        filters: JSON.stringify(filters),
+        quality: imageQuality,
+        start_lat: String(p1.lat),
+        start_lon: String(p1.lng),
+        end_lat: String(p2.lat),
+        end_lon: String(p2.lng),
+      });
+      if (crossSectionState.xMin !== null) params.set('x_min', String(crossSectionState.xMin));
+      if (crossSectionState.xMax !== null) params.set('x_max', String(crossSectionState.xMax));
+      if (crossSectionState.yMin !== null) params.set('y_min', String(crossSectionState.yMin));
+      if (crossSectionState.yMax !== null) params.set('y_max', String(crossSectionState.yMax));
+      if (selectedSweep && selectedSweep !== 'auto') {
+        if (selectedSweep.startsWith('idx:')) params.set('sweep', selectedSweep.slice(4));
+        else if (selectedSweep.startsWith('elev:')) params.set('elevation', selectedSweep.slice(5));
+      }
+
+      const midpoint = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
+      const popupHtml = `<div style="min-width:360px"><div style="font-weight:800;color:#003A8F;margin-bottom:6px">Cross Section</div><div style="font-size:12px;color:#6B7280">Generating plot...</div></div>`;
+      if (crossSectionPopup) map.closePopup(crossSectionPopup);
+      crossSectionPopup = L.popup({maxWidth: 760, className: 'crossSectionPopupWrap'}).setLatLng(midpoint).setContent(popupHtml).openOn(map);
+
+      try {
+        const res = await fetch(`{{ url_for('radar_bp.radar_cross_section') }}?${params.toString()}`);
+        if (!res.ok) throw new Error('Cross section failed');
+        const blob = await res.blob();
+        const imgUrl = URL.createObjectURL(blob);
+        const warnings = res.headers.get('X-Warnings') || '';
+        const distance = parseFloat(res.headers.get('X-Cross-Distance-Km') || 'nan');
+        const xMin = parseFloat(res.headers.get('X-Cross-X-Min') || 'nan');
+        const xMax = parseFloat(res.headers.get('X-Cross-X-Max') || 'nan');
+        const yMin = parseFloat(res.headers.get('X-Cross-Y-Min') || 'nan');
+        const yMax = parseFloat(res.headers.get('X-Cross-Y-Max') || 'nan');
+        const defaultXMin = parseFloat(res.headers.get('X-Cross-Default-X-Min') || 'nan');
+        const defaultXMax = parseFloat(res.headers.get('X-Cross-Default-X-Max') || 'nan');
+        const defaultYMin = parseFloat(res.headers.get('X-Cross-Default-Y-Min') || 'nan');
+        const defaultYMax = parseFloat(res.headers.get('X-Cross-Default-Y-Max') || 'nan');
+
+        crossSectionState.distanceKm = Number.isFinite(distance) ? distance : null;
+        crossSectionState.xMin = Number.isFinite(xMin) ? xMin : crossSectionState.xMin;
+        crossSectionState.xMax = Number.isFinite(xMax) ? xMax : crossSectionState.xMax;
+        crossSectionState.yMin = Number.isFinite(yMin) ? yMin : crossSectionState.yMin;
+        crossSectionState.yMax = Number.isFinite(yMax) ? yMax : crossSectionState.yMax;
+        crossSectionState.defaultXMin = Number.isFinite(defaultXMin) ? defaultXMin : crossSectionState.defaultXMin;
+        crossSectionState.defaultXMax = Number.isFinite(defaultXMax) ? defaultXMax : crossSectionState.defaultXMax;
+        crossSectionState.defaultYMin = Number.isFinite(defaultYMin) ? defaultYMin : crossSectionState.defaultYMin;
+        crossSectionState.defaultYMax = Number.isFinite(defaultYMax) ? defaultYMax : crossSectionState.defaultYMax;
+
+        const fmt = (v) => Number.isFinite(v) ? Number(v).toFixed(1) : '-';
+        const content = `
+          <div id="crossSectionPopupRoot" style="min-width:420px;max-width:720px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+              <div>
+                <div style="font-weight:800;color:#003A8F;margin-bottom:4px">Cross Section · ${field}</div>
+                <div style="font-size:11px;color:#6B7280">Distance: ${Number.isFinite(distance) ? Number(distance).toFixed(1) : '-'} km</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <button id="csZoomOutXBtn" type="button" class="miniBtn" style="padding:6px 10px">X−</button>
+                <button id="csZoomInXBtn" type="button" class="miniBtn" style="padding:6px 10px">X+</button>
+                <button id="csZoomOutYBtn" type="button" class="miniBtn" style="padding:6px 10px">Y−</button>
+                <button id="csZoomInYBtn" type="button" class="miniBtn" style="padding:6px 10px">Y+</button>
+                <button id="csZoomResetBtn" type="button" class="miniBtn" style="padding:6px 10px">Reset</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+              <div style="font-size:11px;color:#6B7280">X range: <strong id="csXRangeLabel" style="color:#003A8F">${fmt(crossSectionState.xMin)}–${fmt(crossSectionState.xMax)} km</strong></div>
+              <div style="font-size:11px;color:#6B7280">Y range: <strong id="csYRangeLabel" style="color:#003A8F">${fmt(crossSectionState.yMin)}–${fmt(crossSectionState.yMax)} km</strong></div>
+            </div>
+            <div id="csPlotViewport" style="width:100%;max-width:100%;max-height:520px;overflow:auto;border:1px solid rgba(17,24,39,.10);border-radius:10px;background:#fff">
+              <div style="width:100%;padding:10px;display:flex;justify-content:flex-start;align-items:flex-start">
+                <img id="crossSectionPlotImg" src="${imgUrl}" alt="Cross section" style="display:block;width:100%;height:auto" />
+              </div>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:#6B7280">X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y.</div>
+            ${warnings ? `<div style="margin-top:8px;font-size:11px;color:#9a3412;line-height:1.35">${warnings}</div>` : ''}
+          </div>`;
+        crossSectionPopup.setContent(content);
+        setTimeout(bindCrossSectionPopupZoom, 0);
+      } catch (err) {
+        console.error(err);
+        crossSectionPopup.setContent('<div style="min-width:320px"><div style="font-weight:800;color:#003A8F;margin-bottom:6px">Cross Section</div><div style="font-size:12px;color:#9a3412">Gagal membuat cross section.</div></div>');
+      }
     }
 
     function updateProductDefaults() {
@@ -1054,6 +1437,29 @@
     cappiHeightKm = parseFloat(document.getElementById('cappiHeightKm').value || '2.0') || 2.0;
     updateProductDefaults();
     populateFrameSelect();
+
+    function invalidateMapSize() {
+      setTimeout(() => map.invalidateSize(), 50);
+    }
+    window.addEventListener('resize', invalidateMapSize);
+    window.addEventListener('orientationchange', invalidateMapSize);
+
+    map.on('click', (e) => {
+      if (!crossSectionMode) return;
+      if (crossSectionPoints.length >= 2) {
+        clearCrossSectionGraphics(true);
+      }
+      crossSectionPoints.push(e.latlng);
+      const marker = L.circleMarker(e.latlng, {radius: 5, color: '#1d4ed8', weight: 2, fillColor: '#fff', fillOpacity: 1});
+      marker.addTo(map);
+      crossSectionMarkers.push(marker);
+      if (crossSectionPoints.length === 2) {
+        crossSectionLine = L.polyline(crossSectionPoints, {color: '#DC2626', weight: 3, dashArray: '8,6'}).addTo(map);
+        setCrossSectionMode(false);
+        requestCrossSection();
+      }
+    });
+
     if (hasGroups) loadRadar(); else setStatus('Belum ada file radar yang diupload.');
   </script>
 </body>

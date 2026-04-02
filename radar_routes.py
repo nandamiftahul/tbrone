@@ -671,7 +671,13 @@ def _render_radar_png_from_files(
     radar.fields[field]['data'] = np.ma.masked_invalid(filtered_data)
 
     product_used = (derived_product or 'PPI').upper()
-    cmap_obj = plt.get_cmap(cmap_override or default_configs.get(field, {}).get('cmap', 'turbo')).copy()
+    cfg = default_configs.get(field, {})
+    if vmin_override is None:
+        vmin_override = cfg.get('vmin')
+    if vmax_override is None:
+        vmax_override = cfg.get('vmax')
+
+    cmap_obj = plt.get_cmap(cmap_override or cfg.get('cmap', 'turbo')).copy()
     try:
         cmap_obj.set_bad(alpha=0.0)
     except Exception:
@@ -794,6 +800,172 @@ def _render_radar_png_from_files(
     plt.close(fig)
     buf.seek(0)
     return buf, extent, radar, warnings, selected_sweep_idx, sweep_options, selected_elevation, product_used
+
+
+def _latlon_to_local_km(lat0: float, lon0: float, lat: np.ndarray, lon: np.ndarray):
+    lat = np.asarray(lat, dtype=float)
+    lon = np.asarray(lon, dtype=float)
+    y = (lat - lat0) * 111.32
+    x = (lon - lon0) * 111.32 * np.cos(np.deg2rad(lat0))
+    return x, y
+
+
+def _circular_abs_diff_deg(a, b):
+    diff = np.abs(np.asarray(a, dtype=float) - np.asarray(b, dtype=float))
+    return np.minimum(diff, 360.0 - diff)
+
+
+def _render_cross_section_png_from_files(
+    filepaths,
+    field,
+    start_lat,
+    start_lon,
+    end_lat,
+    end_lon,
+    cmap_override='',
+    vmin_override=None,
+    vmax_override=None,
+    filters=None,
+    render_quality='high',
+    x_min=None,
+    x_max=None,
+    y_min=None,
+    y_max=None,
+):
+    filters = filters or {}
+    render_quality = _normalize_render_quality(render_quality)
+    quality_cfg = _quality_settings(render_quality)
+    radar, warnings = _merge_radars(filepaths)
+    if field not in radar.fields:
+        field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
+
+    raw_data = radar.fields[field]['data'].copy()
+    filtered_data, filter_warnings = _apply_pyiris_filters(radar, field, raw_data, filters, load_pyiris_defaults())
+    warnings.extend(filter_warnings)
+    radar.fields[field]['data'] = np.ma.masked_invalid(filtered_data)
+
+    cfg = default_configs.get(field, {})
+    if vmin_override is None:
+        vmin_override = cfg.get('vmin')
+    if vmax_override is None:
+        vmax_override = cfg.get('vmax')
+
+    cmap_obj = plt.get_cmap(cmap_override or cfg.get('cmap', 'turbo')).copy()
+    try:
+        cmap_obj.set_bad(alpha=0.0)
+    except Exception:
+        pass
+
+    lat0 = float(radar.latitude['data'][0])
+    lon0 = float(radar.longitude['data'][0])
+    alt0_km = float(np.asarray(radar.altitude['data']).ravel()[0]) / 1000.0 if 'altitude' in radar.__dict__ or getattr(radar, 'altitude', None) is not None else 0.0
+
+    n_samples = max(160, min(400, int(quality_cfg['ppi_grid'] * 0.25)))
+    lats = np.linspace(float(start_lat), float(end_lat), n_samples)
+    lons = np.linspace(float(start_lon), float(end_lon), n_samples)
+    sx, sy = _latlon_to_local_km(lat0, lon0, lats, lons)
+    dist_from_start = np.sqrt((sx - sx[0])**2 + (sy - sy[0])**2)
+    ranges_km = np.sqrt(sx**2 + sy**2)
+    azimuths = (np.degrees(np.arctan2(sx, sy)) + 360.0) % 360.0
+
+    max_range_km = float(np.nanmax(np.asarray(radar.range['data'], dtype=float)) / 1000.0)
+    valid_line = np.isfinite(ranges_km) & (ranges_km <= max_range_km)
+    if not np.any(valid_line):
+        raise RuntimeError('Cross section line is outside radar coverage')
+
+    range_data_km = np.asarray(radar.range['data'], dtype=float) / 1000.0
+    sweep_starts = np.asarray(radar.sweep_start_ray_index['data'], dtype=int)
+    sweep_ends = np.asarray(radar.sweep_end_ray_index['data'], dtype=int)
+    fixed_angles = np.asarray(radar.fixed_angle['data'], dtype=float) if getattr(radar, 'fixed_angle', None) is not None else np.zeros(len(sweep_starts), dtype=float)
+    data = np.ma.filled(radar.fields[field]['data'], np.nan).astype(float)
+
+    xs, zs, vals = [], [], []
+    for sweep_idx, (rs, re) in enumerate(zip(sweep_starts, sweep_ends)):
+        az = np.asarray(radar.azimuth['data'][rs:re+1], dtype=float)
+        if az.size == 0:
+            continue
+        elev_deg = float(fixed_angles[min(sweep_idx, len(fixed_angles)-1)]) if fixed_angles.size else 0.0
+        ray_sel_local = np.argmin(_circular_abs_diff_deg(az[:, None], azimuths[None, :]), axis=0)
+        ray_sel = rs + ray_sel_local
+        gate_sel = np.abs(range_data_km[:, None] - ranges_km[None, :]).argmin(axis=0)
+        sample_vals = data[ray_sel, gate_sel]
+        heights_km = alt0_km + ranges_km * np.sin(np.deg2rad(elev_deg))
+        valid = valid_line & np.isfinite(sample_vals) & np.isfinite(heights_km)
+        if np.any(valid):
+            xs.append(dist_from_start[valid])
+            zs.append(heights_km[valid])
+            vals.append(sample_vals[valid])
+
+    if not xs:
+        raise RuntimeError('No valid samples found for cross section')
+
+    x = np.concatenate(xs)
+    z = np.concatenate(zs)
+    v = np.concatenate(vals)
+    line_length_km = float(dist_from_start[-1])
+
+    fig_w = max(7.0, quality_cfg['figsize'])
+    fig_h = max(4.2, quality_cfg['figsize'] * 0.58)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    sc = ax.scatter(x, z, c=v, s=10, marker='s', cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, linewidths=0)
+    ax.set_xlabel('Distance along section (km)')
+    ax.set_ylabel('Approx. height (km)')
+    ax.set_title(f'Cross Section {field}')
+
+    default_xmin = 0.0
+    default_xmax = max(1.0, line_length_km)
+    try:
+        z_p98 = float(np.nanpercentile(z, 98))
+    except Exception:
+        z_p98 = float('nan')
+    ymax = z_p98 if np.isfinite(z_p98) else max(5.0, float(np.nanmax(z)))
+    default_ymin = 0.0
+    default_ymax = max(2.0, ymax * 1.08)
+
+    def _sanitize_axis_limits(lo, hi, data_lo, data_hi, min_span):
+        lo = data_lo if lo in (None, '') else float(lo)
+        hi = data_hi if hi in (None, '') else float(hi)
+        if not np.isfinite(lo):
+            lo = data_lo
+        if not np.isfinite(hi):
+            hi = data_hi
+        lo = max(data_lo, min(lo, data_hi))
+        hi = max(data_lo, min(hi, data_hi))
+        if hi - lo < min_span:
+            center = (lo + hi) / 2.0
+            half = min_span / 2.0
+            lo = max(data_lo, center - half)
+            hi = min(data_hi, center + half)
+            if hi - lo < min_span:
+                lo = data_lo
+                hi = data_hi
+        return lo, hi
+
+    x_lo, x_hi = _sanitize_axis_limits(x_min, x_max, default_xmin, default_xmax, 0.25)
+    y_lo, y_hi = _sanitize_axis_limits(y_min, y_max, default_ymin, default_ymax, 0.10)
+
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(bottom=y_lo, top=y_hi)
+    ax.grid(True, alpha=0.2)
+    cbar = fig.colorbar(sc, ax=ax, pad=0.02)
+    cbar.ax.tick_params(labelsize=8)
+    buf = BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format='png', dpi=quality_cfg['dpi'], bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    buf.seek(0)
+    meta = {
+        'line_length_km': float(line_length_km),
+        'x_min': float(x_lo),
+        'x_max': float(x_hi),
+        'y_min': float(y_lo),
+        'y_max': float(y_hi),
+        'default_x_min': float(default_xmin),
+        'default_x_max': float(default_xmax),
+        'default_y_min': float(default_ymin),
+        'default_y_max': float(default_ymax),
+    }
+    return buf, warnings, meta
 
 
 
@@ -1114,6 +1286,85 @@ def radar_export():
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response
+
+@radar_bp.route('/cross_section')
+def radar_cross_section():
+    group = request.args.get('group')
+    idx = int(request.args.get('frame', 0))
+    field = request.args.get('field')
+    cmap_override = request.args.get('cmap', '')
+    vmin_override = float(request.args.get('vmin', '') or 'nan')
+    vmax_override = float(request.args.get('vmax', '') or 'nan')
+    vmin_override = None if np.isnan(vmin_override) else vmin_override
+    vmax_override = None if np.isnan(vmax_override) else vmax_override
+    render_quality = _normalize_render_quality(request.args.get('quality'))
+    try:
+        start_lat = float(request.args.get('start_lat'))
+        start_lon = float(request.args.get('start_lon'))
+        end_lat = float(request.args.get('end_lat'))
+        end_lon = float(request.args.get('end_lon'))
+    except Exception:
+        return 'Invalid cross section coordinates', 400
+
+    def _opt_float(value):
+        try:
+            return None if value in (None, '') else float(value)
+        except Exception:
+            return None
+
+    x_min = _opt_float(request.args.get('x_min'))
+    x_max = _opt_float(request.args.get('x_max'))
+    y_min = _opt_float(request.args.get('y_min'))
+    y_max = _opt_float(request.args.get('y_max'))
+
+    filters_arg = request.args.get('filters')
+    try:
+        filters = json.loads(filters_arg) if filters_arg else {}
+    except Exception:
+        filters = {}
+
+    if not radar_groups or group not in radar_groups:
+        return 'No radar files loaded', 404
+    if not field or field not in available_fields:
+        if 'DBZ2' in available_fields:
+            field = 'DBZ2'
+        elif available_fields:
+            field = available_fields[0]
+        else:
+            return 'No radar fields available', 404
+
+    frames = radar_groups[group]
+    idx = idx % len(frames)
+    frame_data = frames[idx]
+
+    buf, warnings, meta = _render_cross_section_png_from_files(
+        frame_data['files'],
+        field,
+        start_lat, start_lon, end_lat, end_lon,
+        cmap_override=cmap_override,
+        vmin_override=vmin_override,
+        vmax_override=vmax_override,
+        filters=filters,
+        render_quality=render_quality,
+        x_min=x_min,
+        x_max=x_max,
+        y_min=y_min,
+        y_max=y_max,
+    )
+    response = send_file(buf, mimetype='image/png')
+    response.headers['X-Cross-Distance-Km'] = f"{meta['line_length_km']:.3f}"
+    response.headers['X-Cross-X-Min'] = f"{meta['x_min']:.6f}"
+    response.headers['X-Cross-X-Max'] = f"{meta['x_max']:.6f}"
+    response.headers['X-Cross-Y-Min'] = f"{meta['y_min']:.6f}"
+    response.headers['X-Cross-Y-Max'] = f"{meta['y_max']:.6f}"
+    response.headers['X-Cross-Default-X-Min'] = f"{meta['default_x_min']:.6f}"
+    response.headers['X-Cross-Default-X-Max'] = f"{meta['default_x_max']:.6f}"
+    response.headers['X-Cross-Default-Y-Min'] = f"{meta['default_y_min']:.6f}"
+    response.headers['X-Cross-Default-Y-Max'] = f"{meta['default_y_max']:.6f}"
+    if warnings:
+        response.headers['X-Warnings'] = '; '.join(warnings)
+    return response
+
 
 @radar_bp.route('/', methods=['GET', 'POST'])
 def radar_home():
