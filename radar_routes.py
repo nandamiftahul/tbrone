@@ -747,6 +747,43 @@ def _field_by_substring(radar, *tokens):
             return name
     return None
 
+
+def _compute_filter_availability(radar, field_name: str) -> dict[str, Any]:
+    category = _moment_category(field_name)
+    log_field = _field_by_substring(radar, 'LOG')
+    sqi_field = _field_by_substring(radar, 'SQI')
+    pmi_field = _field_by_substring(radar, 'PMI')
+    csr_field = _field_by_substring(radar, 'CSP', 'CSR')
+    snr_field = _field_by_substring(radar, 'SNR')
+    phi_field = _field_by_substring(radar, 'PHIDP', 'PHI')
+
+    helper_fields = {
+        'LOG': log_field,
+        'SQI': sqi_field,
+        'PMI': pmi_field,
+        'CSR': csr_field,
+        'SNR': snr_field,
+        'PHI': phi_field,
+    }
+
+    availability = {
+        'field_category': category,
+        'field_name': field_name,
+        'helper_fields': helper_fields,
+        'filters': {
+            'LOG': bool(log_field) and category in ('Z', 'E'),
+            'SQI': bool(sqi_field) and category in ('V', 'W'),
+            'PMI': bool(pmi_field) and category in ('V', 'W'),
+            'CSR': bool(csr_field) and category in ('Z', 'E', 'V', 'W'),
+            'SNR': bool(snr_field) and category in ('Z', 'E', 'V', 'W'),
+            'PHI': bool(phi_field) and category in ('Z', 'E'),
+            'SDZ': category in ('Z', 'E'),
+            'MDZ': category in ('Z', 'E'),
+            'SPECKLE': True,
+        }
+    }
+    return availability
+
 def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, Any], defaults: dict[str, Any]):
     data = np.ma.filled(np.ma.array(data_in).copy(), np.nan).astype(float)
     warnings = []
@@ -1985,6 +2022,7 @@ def radar_overlay():
             'product_used': product_used,
             'frames_total': len(frames),
             'render_quality': render_quality,
+            'filter_availability': json.dumps(_compute_filter_availability(radar, field)),
         }
         _cache_store(render_cache, cache_key, cached, CACHE_MAX_ITEMS)
 
@@ -2001,6 +2039,7 @@ def radar_overlay():
     response.headers['X-Sweep-Options'] = cached['sweep_options']
     response.headers['X-Derived-Product'] = cached['product_used']
     response.headers['X-Render-Quality'] = cached.get('render_quality', 'high')
+    response.headers['X-Filter-Availability'] = cached.get('filter_availability', '{}')
     if cached['warnings']:
         response.headers['X-Warnings'] = cached['warnings']
     return response

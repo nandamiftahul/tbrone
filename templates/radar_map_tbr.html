@@ -127,6 +127,17 @@
       margin:0;
     }
 
+.filterRow.is-disabled,
+    .field.is-disabled,
+    .check.is-disabled{
+      opacity:.45;
+    }
+    .filterRow.is-disabled .filterName,
+    .field.is-disabled label,
+    .check.is-disabled{
+      color:#9CA3AF;
+    }
+
 
     .mapCard{
       background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
@@ -1594,6 +1605,78 @@
       if (!document.getElementById('vmax').value && cfg.vmax !== undefined) document.getElementById('vmax').placeholder = cfg.vmax;
     }
 
+    function setFilterRowDisabled(filterKey, disabled, reason='') {
+      const checkboxIdMap = {
+        LOG: 'active_LOG',
+        SQI: 'active_SQI',
+        PMI: 'active_PMI',
+        CSR: 'active_CSR',
+        SNR: 'active_SNR',
+        PHI: 'active_PHI',
+        SDZ: 'active_SDZ',
+        MDZ: 'active_MDZ'
+      };
+      const thresholdIdMap = {
+        LOG: ['th_LOGZ'],
+        SQI: ['th_SQIV'],
+        PMI: ['th_PMIV'],
+        CSR: ['th_CSRZ'],
+        SNR: ['th_SNLGZ'],
+        PHI: ['th_PHID1', 'th_PHID2'],
+        SDZ: ['th_SDZ'],
+        MDZ: ['th_MDZ']
+      };
+      const checkbox = document.getElementById(checkboxIdMap[filterKey]);
+      if (!checkbox) return;
+      const row = checkbox.closest('.filterRow');
+      if (row) {
+        row.classList.toggle('is-disabled', !!disabled);
+        row.title = disabled ? (reason || 'Data pendukung filter ini tidak tersedia untuk product aktif.') : '';
+      }
+      checkbox.disabled = !!disabled;
+      if (disabled) checkbox.checked = false;
+      (thresholdIdMap[filterKey] || []).forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        input.disabled = !!disabled;
+        input.title = disabled ? (reason || 'Data pendukung filter ini tidak tersedia untuk product aktif.') : '';
+      });
+    }
+
+    function applyFilterAvailability(meta) {
+      const filtersMeta = (meta && meta.filters) ? meta.filters : {};
+      const helperFields = (meta && meta.helper_fields) ? meta.helper_fields : {};
+      const reasonMap = {
+        LOG: helperFields.LOG ? `LOG tersedia, tapi tidak relevan untuk product aktif.` : 'Field LOG tidak tersedia untuk frame aktif.',
+        SQI: helperFields.SQI ? `SQI tersedia, tapi tidak relevan untuk product aktif.` : 'Field SQI tidak tersedia untuk frame aktif.',
+        PMI: helperFields.PMI ? `PMI tersedia, tapi tidak relevan untuk product aktif.` : 'Field PMI tidak tersedia untuk frame aktif.',
+        CSR: helperFields.CSR ? `CSR/CSP tersedia, tapi tidak relevan untuk product aktif.` : 'Field CSR/CSP tidak tersedia untuk frame aktif.',
+        SNR: helperFields.SNR ? `SNR tersedia, tapi tidak relevan untuk product aktif.` : 'Field SNR tidak tersedia untuk frame aktif.',
+        PHI: helperFields.PHI ? `PHI tersedia, tapi tidak relevan untuk product aktif.` : 'Field PHI/PHIDP tidak tersedia untuk frame aktif.',
+        SDZ: 'SDZ hanya tersedia untuk product reflectivity.',
+        MDZ: 'MDZ hanya tersedia untuk product reflectivity.'
+      };
+      ['LOG','SQI','PMI','CSR','SNR','PHI','SDZ','MDZ'].forEach(key => {
+        const enabled = !!filtersMeta[key];
+        setFilterRowDisabled(key, !enabled, reasonMap[key] || '');
+      });
+
+      const stdEnabled = ['LOG','SQI','PMI','CSR','SNR','PHI','SDZ','MDZ'].some(key => !!filtersMeta[key]);
+      const stdCheckbox = document.getElementById('enable_standard_filter');
+      const stdLabel = stdCheckbox ? stdCheckbox.closest('.check') : null;
+      if (stdCheckbox) {
+        stdCheckbox.disabled = !stdEnabled;
+        if (!stdEnabled) stdCheckbox.checked = false;
+      }
+      if (stdLabel) {
+        stdLabel.classList.toggle('is-disabled', !stdEnabled);
+        stdLabel.title = !stdEnabled ? 'Tidak ada parameter standard filter yang tersedia untuk product/frame aktif.' : '';
+      }
+
+      gatherFilterInputs();
+      syncPyirisUIFromFilters();
+    }
+
     function syncPyirisUIFromFilters() {
       const ids = [
         'enable_standard_filter','active_LOG','active_SQI','active_PMI','active_CSR','active_SNR','active_PHI','active_SDZ','active_MDZ',
@@ -1623,27 +1706,35 @@
     }
 
     function gatherFilterInputs() {
-      filters.enable_standard_filter = document.getElementById('enable_standard_filter').checked;
-      filters.active_LOG = document.getElementById('active_LOG').checked;
-      filters.active_SQI = document.getElementById('active_SQI').checked;
-      filters.active_PMI = document.getElementById('active_PMI').checked;
-      filters.active_CSR = document.getElementById('active_CSR').checked;
-      filters.active_SNR = document.getElementById('active_SNR').checked;
-      filters.active_PHI = document.getElementById('active_PHI').checked;
-      filters.active_SDZ = document.getElementById('active_SDZ').checked;
-      filters.active_MDZ = document.getElementById('active_MDZ').checked;
-      filters.enable_speckle_filter = document.getElementById('enable_speckle_filter').checked;
-      filters.speckle_type = document.getElementById('speckle_type').value;
-      filters.window_size = document.getElementById('window_size').value;
-      filters.th_LOGZ = document.getElementById('th_LOGZ').value;
-      filters.th_SQIV = document.getElementById('th_SQIV').value;
-      filters.th_PMIV = document.getElementById('th_PMIV').value;
-      filters.th_CSRZ = document.getElementById('th_CSRZ').value;
-      filters.th_SNLGZ = document.getElementById('th_SNLGZ').value;
-      filters.th_PHID1 = document.getElementById('th_PHID1').value;
-      filters.th_PHID2 = document.getElementById('th_PHID2').value;
-      filters.th_SDZ = document.getElementById('th_SDZ').value;
-      filters.th_MDZ = document.getElementById('th_MDZ').value;
+      const getChecked = (id) => {
+        const el = document.getElementById(id);
+        return !!(el && !el.disabled && el.checked);
+      };
+      const getValue = (id) => {
+        const el = document.getElementById(id);
+        return (el && !el.disabled) ? el.value : '';
+      };
+      filters.enable_standard_filter = getChecked('enable_standard_filter');
+      filters.active_LOG = getChecked('active_LOG');
+      filters.active_SQI = getChecked('active_SQI');
+      filters.active_PMI = getChecked('active_PMI');
+      filters.active_CSR = getChecked('active_CSR');
+      filters.active_SNR = getChecked('active_SNR');
+      filters.active_PHI = getChecked('active_PHI');
+      filters.active_SDZ = getChecked('active_SDZ');
+      filters.active_MDZ = getChecked('active_MDZ');
+      filters.enable_speckle_filter = getChecked('enable_speckle_filter');
+      filters.speckle_type = getValue('speckle_type');
+      filters.window_size = getValue('window_size');
+      filters.th_LOGZ = getValue('th_LOGZ');
+      filters.th_SQIV = getValue('th_SQIV');
+      filters.th_PMIV = getValue('th_PMIV');
+      filters.th_CSRZ = getValue('th_CSRZ');
+      filters.th_SNLGZ = getValue('th_SNLGZ');
+      filters.th_PHID1 = getValue('th_PHID1');
+      filters.th_PHID2 = getValue('th_PHID2');
+      filters.th_SDZ = getValue('th_SDZ');
+      filters.th_MDZ = getValue('th_MDZ');
     }
 
     async function applyFilters() {
@@ -1776,6 +1867,8 @@
           const activeElevation = res.headers.get('X-Active-Elevation') || '';
           const sweepOptionsHeader = res.headers.get('X-Sweep-Options') || '[]';
           const derivedUsed = res.headers.get('X-Derived-Product') || derivedProduct;
+          let filterAvailability = {};
+          try { filterAvailability = JSON.parse(res.headers.get('X-Filter-Availability') || '{}'); } catch (err) { filterAvailability = {}; }
           currentBounds = [[extent[0], extent[1]], [extent[2], extent[3]]];
 
           const warningBox = document.getElementById('warningBox');
@@ -1787,9 +1880,9 @@
             warningBox.innerHTML = '';
           }
 
-          return res.blob().then(blob => ({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader, derivedUsed }));
+          return res.blob().then(blob => ({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader, derivedUsed, filterAvailability }));
         })
-        .then(({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader, derivedUsed }) => {
+        .then(({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader, derivedUsed, filterAvailability }) => {
           const url = URL.createObjectURL(blob);
           if (radarLayer) {
             radarLayer.setUrl(url);
@@ -1810,6 +1903,7 @@
           document.getElementById('elevationList').value = elevHeader || 'Tidak ada elevasi';
           document.getElementById('fileCountText').value = `${fileCount} file`;
           populateSweepOptions(sweepOptionsHeader, activeSweepIndex, activeElevation);
+          applyFilterAvailability(filterAvailability);
           setStatus(`Loaded ${field} ${derivedUsed} frame ${frame + 1}/${total} · ${fileCount} file merged · ${imageQuality.toUpperCase()}`);
           renderTimeline();
           if (inspectLatLng) {
