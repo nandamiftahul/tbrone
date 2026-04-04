@@ -266,6 +266,40 @@
     }
     .map-crosshair, .map-crosshair .leaflet-container{cursor:crosshair!important;}
 
+    .crossSectionMiniToggle{
+      position:absolute;
+      top:110px;
+      left:14px;
+      z-index:10000;
+      display:none;
+      appearance:none;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.96);
+      color:var(--xw-blue);
+      border-radius:12px;
+      padding:8px 12px;
+      font-size:12px;
+      font-weight:800;
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(8px);
+      cursor:pointer;
+    }
+    .crossSectionMiniToggle:hover{
+      background:#fff;
+      border-color:rgba(0,58,143,.22);
+    }
+    .cs-point-label{
+      background:rgba(255,255,255,.96);
+      border:1px solid rgba(17,24,39,.12);
+      color:#1F2937;
+      border-radius:10px;
+      padding:3px 7px;
+      font-size:10px;
+      font-weight:900;
+      box-shadow:0 6px 18px rgba(2,22,55,.12);
+      white-space:nowrap;
+    }
+
     .customCmapActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .customCmapMeta{margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(0,58,143,.05);border:1px solid rgba(0,58,143,.10);font-size:11px;color:var(--muted);line-height:1.4}
     .customCmapPreview{height:12px;border-radius:999px;border:1px solid var(--border);margin-top:8px;background:linear-gradient(90deg,#00ffff 0%,#0000ff 12%,#028086 20%,#00ff00 30%,#ffff03 50%,#fa3a07 68%,#c400ff 100%)}
@@ -685,6 +719,8 @@
       <div class="statusPill" id="statusPill">Menunggu data radar...</div>
       <div class="warningBox" id="warningBox"></div>
 
+      <button id="crossSectionMiniToggle" class="crossSectionMiniToggle" type="button">Show Cross Section</button>
+
 
       <div class="infoPanel">
         <div class="infoTitle">Radar Playback Info</div>
@@ -791,6 +827,9 @@
     let crossSectionMarkers = [];
     let crossSectionLine = null;
     let crossSectionPopup = null;
+    let crossSectionPopupLatLng = null;
+    let crossSectionPopupContent = '';
+    let crossSectionPopupMinimized = false;
     let inspectMarker = null;
     let inspectLatLng = null;
     let inspectRequestSeq = 0;
@@ -1114,6 +1153,11 @@
         map.closePopup(crossSectionPopup);
         crossSectionPopup = null;
       }
+      crossSectionPopupLatLng = null;
+      crossSectionPopupContent = '';
+      crossSectionPopupMinimized = false;
+      const miniBtn = document.getElementById('crossSectionMiniToggle');
+      if (miniBtn) miniBtn.style.display = 'none';
       crossSectionPoints = [];
       crossSectionState = {
         xMin: null, xMax: null, yMin: null, yMax: null,
@@ -1248,6 +1292,35 @@
       }
     }
 
+
+    function setCrossSectionPopupContent(content, latlng=null) {
+      crossSectionPopupContent = content || '';
+      if (latlng) crossSectionPopupLatLng = latlng;
+      if (crossSectionPopupMinimized) return;
+      if (!crossSectionPopup) {
+        crossSectionPopup = L.popup({maxWidth: 760, className: 'crossSectionPopupWrap'});
+      }
+      if (crossSectionPopupLatLng) crossSectionPopup.setLatLng(crossSectionPopupLatLng);
+      crossSectionPopup.setContent(crossSectionPopupContent).openOn(map);
+    }
+
+    function minimizeCrossSectionPopup() {
+      if (!crossSectionPopupContent) return;
+      crossSectionPopupMinimized = true;
+      if (crossSectionPopup) map.closePopup(crossSectionPopup);
+      const miniBtn = document.getElementById('crossSectionMiniToggle');
+      if (miniBtn) miniBtn.style.display = 'inline-flex';
+    }
+
+    function restoreCrossSectionPopup() {
+      if (!crossSectionPopupContent || !crossSectionPopupLatLng) return;
+      crossSectionPopupMinimized = false;
+      const miniBtn = document.getElementById('crossSectionMiniToggle');
+      if (miniBtn) miniBtn.style.display = 'none';
+      setCrossSectionPopupContent(crossSectionPopupContent, crossSectionPopupLatLng);
+      setTimeout(bindCrossSectionPopupZoom, 0);
+    }
+
     function bindCrossSectionPopupZoom() {
       if (!crossSectionPopup) return;
       const root = document.getElementById('crossSectionPopupRoot');
@@ -1274,8 +1347,11 @@
       const yMaxInput = root.querySelector('#csYMaxInput');
       const applyAxesBtn = root.querySelector('#csApplyAxesBtn');
       const setAutoAxesBtn = root.querySelector('#csSetAutoAxesBtn');
+      const minimizeBtn = root.querySelector('#csMinimizeBtn');
 
       if (!viewport || !img) return;
+
+      minimizeBtn?.addEventListener('click', minimizeCrossSectionPopup);
 
       function fmt(val) {
         return Number.isFinite(val) ? Number(val).toFixed(1) : '-';
@@ -1481,8 +1557,8 @@
 
       const midpoint = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
       const popupHtml = `<div style="min-width:360px"><div style="font-weight:800;color:#003A8F;margin-bottom:6px">Cross Section</div><div style="font-size:12px;color:#6B7280">Generating plot...</div></div>`;
-      if (crossSectionPopup) map.closePopup(crossSectionPopup);
-      crossSectionPopup = L.popup({maxWidth: 760, className: 'crossSectionPopupWrap'}).setLatLng(midpoint).setContent(popupHtml).openOn(map);
+      crossSectionPopupLatLng = midpoint;
+      setCrossSectionPopupContent(popupHtml, midpoint);
 
       try {
         const res = await fetch(`{{ url_for('radar_bp.radar_cross_section') }}?${params.toString()}`);
@@ -1527,6 +1603,7 @@
                 <div style="font-size:11px;color:#6B7280">Distance: ${Number.isFinite(distance) ? Number(distance).toFixed(1) : '-'} km</div>
               </div>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <button id="csMinimizeBtn" type="button" class="miniBtn" style="padding:6px 10px">Minimize</button>
                 <button id="csZoomOutXBtn" type="button" class="miniBtn" style="padding:6px 10px">X−</button>
                 <button id="csZoomInXBtn" type="button" class="miniBtn" style="padding:6px 10px">X+</button>
                 <button id="csZoomOutYBtn" type="button" class="miniBtn" style="padding:6px 10px">Y−</button>
@@ -1591,11 +1668,11 @@
             <div style="margin-top:8px;font-size:11px;color:#6B7280">X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y. Smooth interp mengatur kehalusan interpolasi dasar, smooth gap mengatur pelembutan area gap fill. Nilai 0.0 paling raw.</div>
             ${warnings ? `<div style="margin-top:8px;font-size:11px;color:#9a3412;line-height:1.35">${warnings}</div>` : ''}
           </div>`;
-        crossSectionPopup.setContent(content);
+        setCrossSectionPopupContent(content, midpoint);
         setTimeout(bindCrossSectionPopupZoom, 0);
       } catch (err) {
         console.error(err);
-        crossSectionPopup.setContent('<div style="min-width:320px"><div style="font-weight:800;color:#003A8F;margin-bottom:6px">Cross Section</div><div style="font-size:12px;color:#9a3412">Gagal membuat cross section.</div></div>');
+        setCrossSectionPopupContent('<div style="min-width:320px"><div style="font-weight:800;color:#003A8F;margin-bottom:6px">Cross Section</div><div style="font-size:12px;color:#9a3412">Gagal membuat cross section.</div></div>', midpoint);
       }
     }
 
@@ -2096,6 +2173,7 @@
     document.getElementById('btnNextTop').addEventListener('click', next);
     document.getElementById('btnSidebarPlay').addEventListener('click', togglePlay);
     document.getElementById('btnSidebarReset').addEventListener('click', resetViewer);
+    document.getElementById('crossSectionMiniToggle').addEventListener('click', restoreCrossSectionPopup);
 
     setPyirisDefaults();
     derivedProduct = document.getElementById('derivedProduct').value || 'PPI';
@@ -2119,9 +2197,24 @@
         clearCrossSectionGraphics(true);
       }
       crossSectionPoints.push(e.latlng);
-      const marker = L.circleMarker(e.latlng, {radius: 5, color: '#1d4ed8', weight: 2, fillColor: '#fff', fillOpacity: 1});
+      const pointIndex = crossSectionPoints.length - 1;
+      const isStart = pointIndex === 0;
+      const markerColor = isStart ? '#1d4ed8' : '#DC2626';
+      const marker = L.circleMarker(e.latlng, {radius: 5, color: markerColor, weight: 2, fillColor: '#fff', fillOpacity: 1});
       marker.addTo(map);
       crossSectionMarkers.push(marker);
+
+      const label = L.marker(e.latlng, {
+        interactive: false,
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="cs-point-label">${isStart ? 'START' : 'END'}</div>`,
+          iconSize: [52, 20],
+          iconAnchor: isStart ? [0, 26] : [52, 26]
+        })
+      }).addTo(map);
+      crossSectionMarkers.push(label);
+
       if (crossSectionPoints.length === 2) {
         crossSectionLine = L.polyline(crossSectionPoints, {color: '#DC2626', weight: 3, dashArray: '8,6'}).addTo(map);
         setCrossSectionMode(false);
