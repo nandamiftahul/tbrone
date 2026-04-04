@@ -1248,6 +1248,50 @@ def _circular_abs_diff_deg(a, b):
     return np.minimum(diff, 360.0 - diff)
 
 
+
+
+def _weighted_smooth_nan_2d(arr: Any, sigma: float = 1.0):
+    arr = np.asarray(arr, dtype=float)
+    if arr.ndim != 2 or sigma <= 0.01:
+        return arr
+    valid = np.isfinite(arr)
+    if not np.any(valid):
+        return arr
+    work = np.where(valid, arr, 0.0)
+    weights = valid.astype(float)
+    work_s = gaussian_filter(work, sigma=sigma)
+    weights_s = gaussian_filter(weights, sigma=sigma)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        out = work_s / weights_s
+    return np.where(weights_s > 0.03, out, np.nan)
+
+
+def _prepare_3d_volume_data(data: Any, interpolate: bool = False, gap_fill: bool = False):
+    arr = np.asarray(data, dtype=float)
+    if arr.ndim != 2 or arr.size == 0:
+        return arr
+    if not interpolate and not gap_fill:
+        return arr
+
+    base = arr.copy()
+    if gap_fill:
+        try:
+            base = _fill_nan_nearest_2d(base)
+        except Exception:
+            pass
+
+    if interpolate:
+        sigma = 1.1 if gap_fill else 0.75
+        smooth = _weighted_smooth_nan_2d(base, sigma=sigma)
+        if gap_fill:
+            base = np.where(np.isfinite(smooth), smooth, base)
+        else:
+            original_valid = np.isfinite(arr)
+            expanded = _weighted_smooth_nan_2d(arr, sigma=0.55)
+            base = np.where(original_valid, smooth, expanded)
+
+    return base
+
 def _render_cross_section_png_from_files(
     filepaths,
     field,
@@ -1779,6 +1823,10 @@ def radar_export():
         filters = json.loads(filters_arg) if filters_arg else {}
     except Exception:
         filters = {}
+    interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    if gap_fill:
+        interpolate = True
 
     if not radar_groups or group not in radar_groups:
         return 'No radar files loaded', 404
@@ -1873,6 +1921,10 @@ def radar_cross_section():
         filters = json.loads(filters_arg) if filters_arg else {}
     except Exception:
         filters = {}
+    interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    if gap_fill:
+        interpolate = True
 
     if not radar_groups or group not in radar_groups:
         return 'No radar files loaded', 404
@@ -1948,6 +2000,10 @@ def radar_accumulation_series():
         filters = json.loads(filters_arg) if filters_arg else {}
     except Exception:
         filters = {}
+    interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    if gap_fill:
+        interpolate = True
 
     if not radar_groups or group not in radar_groups:
         return jsonify({'ok': False, 'error': 'No radar files loaded'}), 404
@@ -2009,6 +2065,10 @@ def radar_sample_point():
         filters = json.loads(filters_arg) if filters_arg else {}
     except Exception:
         filters = {}
+    interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    if gap_fill:
+        interpolate = True
 
     if not radar_groups or group not in radar_groups:
         return jsonify({'ok': False, 'error': 'No radar files loaded'}), 404
@@ -2124,6 +2184,10 @@ def radar_overlay():
         filters = json.loads(filters_arg) if filters_arg else {}
     except Exception:
         filters = {}
+    interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    if gap_fill:
+        interpolate = True
     if not radar_groups or group not in radar_groups:
         return 'No radar files loaded', 404
     frames = radar_groups[group]
@@ -2184,3 +2248,154 @@ def radar_overlay():
     if cached['warnings']:
         response.headers['X-Warnings'] = cached['warnings']
     return response
+
+@radar_bp.route('/volume_data')
+def radar_volume_data():
+    group = request.args.get('group')
+    idx = int(request.args.get('frame', 0))
+    field = request.args.get('field')
+    render_quality = _normalize_render_quality(request.args.get('quality'))
+
+    try:
+        max_points = int(request.args.get('max_points') or 18000)
+    except Exception:
+        max_points = 18000
+    max_points = int(np.clip(max_points, 3000, 50000))
+
+    filters_arg = request.args.get('filters')
+    try:
+        filters = json.loads(filters_arg) if filters_arg else {}
+    except Exception:
+        filters = {}
+    interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    if gap_fill:
+        interpolate = True
+
+    if group not in radar_groups:
+        return jsonify({'ok': False, 'error': 'Group not found'}), 404
+
+    frames = radar_groups[group]
+    frame_data = frames[idx % len(frames)]
+
+    radar, warnings = _merge_radars(frame_data['files'])
+
+    if field not in radar.fields:
+        field = _choose_reflectivity_field(radar)
+    if not field or field not in radar.fields:
+        return jsonify({'ok': False, 'error': 'No valid radar field available'}), 404
+
+    try:
+        raw_data = radar.fields[field]['data'].copy()
+        filtered_data, filter_warnings = _apply_pyiris_filters(radar, field, raw_data, filters, load_pyiris_defaults())
+        warnings.extend(filter_warnings)
+        data = np.ma.filled(filtered_data, np.nan).astype(float)
+    except Exception:
+        data = np.ma.filled(radar.fields[field]['data'], np.nan).astype(float)
+
+    data = _prepare_3d_volume_data(data, interpolate=interpolate, gap_fill=gap_fill)
+
+    az = np.asarray(radar.azimuth['data'], dtype=float)
+    elev = np.asarray(radar.elevation['data'], dtype=float)
+    rng_km_full = np.asarray(radar.range['data'], dtype=float) / 1000.0
+
+    if data.ndim != 2 or data.size == 0 or az.size == 0 or rng_km_full.size == 0:
+        return jsonify({'ok': False, 'error': 'Radar volume is empty'}), 400
+
+    total_candidates = int(data.shape[0] * data.shape[1])
+    stride = int(np.ceil(np.sqrt(max(total_candidates, 1) / max_points)))
+    stride = max(1, stride)
+    if render_quality == 'low':
+        stride = max(stride, 4)
+    elif render_quality == 'medium':
+        stride = max(stride, 3)
+    elif render_quality == 'high':
+        stride = max(stride, 2)
+
+    sample = data[::stride, ::stride]
+    az_sample = az[::stride]
+    elev_sample = elev[::stride]
+    rng_km = rng_km_full[::stride]
+
+    cfg = default_configs.get(field, {})
+    base_min = float(cfg.get('vmin', -20.0))
+    if 'DB' in str(field).upper():
+        min_value = max(-5.0, base_min)
+    else:
+        finite_vals = sample[np.isfinite(sample)]
+        min_value = float(np.nanpercentile(finite_vals, 60)) if finite_vals.size else base_min
+
+    mask = np.isfinite(sample) & (sample >= min_value)
+    if not np.any(mask):
+        mask = np.isfinite(sample)
+    if not np.any(mask):
+        return jsonify({'ok': False, 'error': 'No finite radar voxels available'}), 400
+
+    az_rad = np.deg2rad(az_sample)[:, None]
+    elev_rad = np.deg2rad(elev_sample)[:, None]
+    rr_km = rng_km[None, :]
+
+    x_km = rr_km * np.sin(az_rad)
+    y_km = rr_km * np.cos(az_rad)
+
+    lat0 = float(radar.latitude['data'][0])
+    lon0 = float(radar.longitude['data'][0])
+    alt0_m = float(np.asarray(radar.altitude['data']).ravel()[0]) if getattr(radar, 'altitude', None) is not None else 0.0
+
+    lat = lat0 + (y_km / 111.32)
+    lon = lon0 + (x_km / (111.32 * max(np.cos(np.deg2rad(lat0)), 1e-6)))
+    alt_m = alt0_m + (rr_km * 1000.0 * np.sin(elev_rad))
+
+    values = sample[mask]
+    lat_vals = lat[mask]
+    lon_vals = lon[mask]
+    alt_vals = alt_m[mask]
+
+    valid = np.isfinite(values) & np.isfinite(lat_vals) & np.isfinite(lon_vals) & np.isfinite(alt_vals)
+    values = values[valid]
+    lat_vals = lat_vals[valid]
+    lon_vals = lon_vals[valid]
+    alt_vals = alt_vals[valid]
+
+    if values.size == 0:
+        return jsonify({'ok': False, 'error': 'No valid sampled voxels available'}), 400
+
+    if values.size > max_points:
+        keep_idx = np.linspace(0, values.size - 1, max_points).astype(int)
+        values = values[keep_idx]
+        lat_vals = lat_vals[keep_idx]
+        lon_vals = lon_vals[keep_idx]
+        alt_vals = alt_vals[keep_idx]
+
+    value_lo = float(np.nanmin(values))
+    value_hi = float(np.nanmax(values))
+    value_span = max(value_hi - value_lo, 1e-6)
+
+    points = []
+    for la, lo, al, val in zip(lat_vals.tolist(), lon_vals.tolist(), alt_vals.tolist(), values.tolist()):
+        alpha = int(np.clip(80 + 175 * ((float(val) - value_lo) / value_span), 80, 255))
+        points.append({
+            'lat': round(float(la), 6),
+            'lon': round(float(lo), 6),
+            'alt_m': round(float(al), 1),
+            'value': round(float(val), 2),
+            'alpha': alpha,
+        })
+
+    return jsonify({
+        'ok': True,
+        'field': field,
+        'points': points,
+        'point_count': len(points),
+        'stride': stride,
+        'center_lat': lat0,
+        'center_lon': lon0,
+        'max_range_km': float(np.nanmax(rng_km_full)) if rng_km_full.size else 0.0,
+        'max_height_m': float(np.nanmax(alt_vals)) if alt_vals.size else alt0_m,
+        'value_min': value_lo,
+        'value_max': value_hi,
+        'warnings': warnings,
+        'quality': render_quality,
+        'interpolate': bool(interpolate),
+        'gap_fill': bool(gap_fill),
+    })
