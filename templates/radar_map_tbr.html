@@ -155,6 +155,7 @@
     .dot.ok{background:var(--ok)}
     .infoPanel{
       position:absolute; right:14px; bottom:14px; z-index:9999; background:rgba(255,255,255,.94);
+#inspectPanel{right:14px;left:auto;bottom:176px}
       border:1px solid var(--border); border-radius:14px; padding:12px 14px; box-shadow:var(--shadow); min-width:220px; width:clamp(220px, 26vw, 340px); max-width:340px;
       backdrop-filter:blur(8px);
     }
@@ -329,6 +330,9 @@
       .infoPanel{
         left:14px; right:14px; bottom:14px; min-width:0; max-width:none;
       }
+      #inspectPanel{
+        left:14px !important; right:14px !important; bottom:170px !important; width:auto !important; min-width:0 !important;
+      }
       .timelineCard{
         width:calc(100% - 28px);
         left:14px;
@@ -447,6 +451,7 @@
               <option value="PPI">PPI</option>
               <option value="MAX">MAX</option>
               <option value="CAPPI">CAPPI</option>
+              <option value="SRI">SRI</option>
             </select>
           </div>
           <div class="field">
@@ -678,6 +683,13 @@
         <div class="infoSub"><span id="timestamp">--:--</span><br><span id="infoExtent">Extent belum tersedia.</span><br><span id="infoSweeps">Sweep belum tersedia.</span></div>
       </div>
 
+      <div class="infoPanel" id="inspectPanel" style="left:auto;right:14px;bottom:176px;min-width:250px;width:clamp(250px,28vw,360px);z-index:9999">
+        <div class="infoTitle">Point Inspector</div>
+        <div class="infoName" id="inspectName">Klik map untuk lihat nilai radar</div>
+        <div class="infoValue" id="inspectValue" style="font-size:20px">--</div>
+        <div class="infoSub" id="inspectSub">Lat/Lon dan nilai produk aktif akan tampil di sini.</div>
+      </div>
+
       <div class="timelineCard" id="timelineCard">
         <div class="timelineTop">
           <div style="font-size:12px; font-weight:800; color:var(--xw-blue);">Playback Timeline</div>
@@ -737,6 +749,7 @@
     const defaultConfigs = {{ default_configs | tojson }};
     const radarOverlayUrl = "{{ url_for('radar_bp.radar_overlay') }}";
     const radarPrecomputeUrl = "{{ url_for('radar_bp.radar_precompute') }}";
+    const radarSamplePointUrl = "{{ url_for('radar_bp.radar_sample_point') }}";
     const hasGroups = {{ 'true' if groups else 'false' }};
     const pyirisDefaults = {{ pyiris_defaults | tojson }};
 
@@ -768,6 +781,7 @@
     let crossSectionMarkers = [];
     let crossSectionLine = null;
     let crossSectionPopup = null;
+    let inspectMarker = null;
     let crossSectionState = {
       xMin: null, xMax: null, yMin: null, yMax: null,
       defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
@@ -1094,9 +1108,7 @@
         defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
         distanceKm: null,
         interpolate: false,
-        gapFill: false,
-        smoothInterp: 1.0,
-        smoothGap: 1.0
+        gapFill: false
       };
     }
 
@@ -1143,37 +1155,69 @@
       map.addControl(new CrossSectionControl());
     }
 
-
-    function getBearingDegrees(lat1, lon1, lat2, lon2) {
-      const toRad = deg => deg * Math.PI / 180;
-      const toDeg = rad => rad * 180 / Math.PI;
-      const phi1 = toRad(lat1);
-      const phi2 = toRad(lat2);
-      const dLon = toRad(lon2 - lon1);
-      const y = Math.sin(dLon) * Math.cos(phi2);
-      const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon);
-      let brng = toDeg(Math.atan2(y, x));
-      brng = (brng + 360) % 360;
-      return brng;
+    function updateInspectPanel(title, valueText, subText) {
+      const nameEl = document.getElementById('inspectName');
+      const valueEl = document.getElementById('inspectValue');
+      const subEl = document.getElementById('inspectSub');
+      if (nameEl) nameEl.textContent = title || 'Point Inspector';
+      if (valueEl) valueEl.textContent = valueText || '--';
+      if (subEl) subEl.innerHTML = subText || 'Lat/Lon dan nilai produk aktif akan tampil di sini.';
     }
 
-    function bearingToCompass16(bearing) {
-      const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-      const idx = Math.round((((bearing % 360) + 360) % 360) / 22.5) % 16;
-      return dirs[idx];
-    }
+    async function requestPointSample(latlng) {
+      if (!group || !field) return;
+      const params = new URLSearchParams({
+        group,
+        frame: String(frame),
+        field,
+        derived_product: derivedProduct,
+        cappi_height_km: String(cappiHeightKm),
+        lat: String(latlng.lat),
+        lon: String(latlng.lng),
+        filters: JSON.stringify(filters),
+      });
+      if (selectedSweep && selectedSweep !== 'auto') {
+        if (selectedSweep.startsWith('idx:')) params.set('sweep', selectedSweep.slice(4));
+        else if (selectedSweep.startsWith('elev:')) params.set('elevation', selectedSweep.slice(5));
+      }
 
-    function oppositeCompass16(label) {
-      const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-      const idx = dirs.indexOf(label);
-      return idx >= 0 ? dirs[(idx + 8) % 16] : label;
-    }
+      updateInspectPanel('Point Inspector', 'Sampling…', `Lat ${latlng.lat.toFixed(5)}, Lon ${latlng.lng.toFixed(5)}`);
+      try {
+        const res = await fetch(`${radarSamplePointUrl}?${params.toString()}`);
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          const errMsg = payload.error || payload.reason || 'No data';
+          updateInspectPanel(
+            `${derivedProduct} · ${field}`,
+            'No data',
+            `Lat ${latlng.lat.toFixed(5)}, Lon ${latlng.lng.toFixed(5)}<br>${errMsg}`
+          );
+          if (inspectMarker) map.removeLayer(inspectMarker);
+          inspectMarker = L.circleMarker(latlng, {radius: 6, color: '#DC2626', weight: 2, fillColor: '#fff', fillOpacity: 1}).addTo(map);
+          inspectMarker.bindPopup(`<div style="font-size:12px"><b>${derivedProduct} · ${field}</b><br>Lat ${latlng.lat.toFixed(5)}<br>Lon ${latlng.lng.toFixed(5)}<br>${errMsg}</div>`).openPopup();
+          return;
+        }
 
-    function directionPairText(lat1, lon1, lat2, lon2) {
-      const bearing = getBearingDegrees(lat1, lon1, lat2, lon2);
-      const toDir = bearingToCompass16(bearing);
-      const fromDir = oppositeCompass16(toDir);
-      return { bearing, fromDir, toDir, text: `${fromDir} → ${toDir}` };
+        const val = Number(payload.value);
+        const unit = payload.unit || '';
+        const valueText = Number.isFinite(val) ? `${val.toFixed(val >= 100 ? 0 : val >= 10 ? 1 : 2)} ${unit}`.trim() : '--';
+        const detail = payload.details || {};
+        let detailText = `Lat ${payload.lat.toFixed(5)}, Lon ${payload.lon.toFixed(5)}`;
+        if (Number.isFinite(detail.range_km)) detailText += `<br>Range ${Number(detail.range_km).toFixed(2)} km`;
+        if (Number.isFinite(detail.azimuth_deg)) detailText += ` · Az ${Number(detail.azimuth_deg).toFixed(1)}°`;
+        if (Number.isFinite(detail.elevation_deg)) detailText += ` · El ${Number(detail.elevation_deg).toFixed(2)}°`;
+        if (Number.isFinite(detail.height_km)) detailText += `<br>Height ${Number(detail.height_km).toFixed(2)} km`;
+        if (payload.timestamp) detailText += `<br>${payload.timestamp}`;
+
+        updateInspectPanel(`${payload.product} · ${payload.field}`, valueText, detailText);
+
+        if (inspectMarker) map.removeLayer(inspectMarker);
+        inspectMarker = L.circleMarker(latlng, {radius: 6, color: '#F28C28', weight: 2, fillColor: '#fff', fillOpacity: 1}).addTo(map);
+        inspectMarker.bindPopup(`<div style="font-size:12px;line-height:1.45"><b>${payload.product} · ${payload.field}</b><br>${valueText}<br>Lat ${payload.lat.toFixed(5)}<br>Lon ${payload.lon.toFixed(5)}</div>`).openPopup();
+      } catch (err) {
+        console.error(err);
+        updateInspectPanel(`${derivedProduct} · ${field}`, 'Error', `Lat ${latlng.lat.toFixed(5)}, Lon ${latlng.lng.toFixed(5)}<br>Gagal membaca nilai titik.`);
+      }
     }
 
     function bindCrossSectionPopupZoom() {
@@ -1372,7 +1416,6 @@
     async function requestCrossSection() {
       if (crossSectionPoints.length < 2 || !group || !field) return;
       const [p1, p2] = crossSectionPoints;
-      const directionInfo = directionPairText(p1.lat, p1.lng, p2.lat, p2.lng);
       const cfg = defaultConfigs[field] || {};
       const finalCmap = cmap || cfg.cmap || '';
       const finalVmin = (vmin !== '' && vmin !== null && vmin !== undefined) ? vmin : (cfg.vmin ?? '');
@@ -1454,7 +1497,6 @@
               <div>
                 <div style="font-weight:800;color:#003A8F;margin-bottom:4px">Cross Section · ${field}</div>
                 <div style="font-size:11px;color:#6B7280">Distance: ${Number.isFinite(distance) ? Number(distance).toFixed(1) : '-'} km</div>
-                <div style="font-size:11px;color:#6B7280">Direction: <b style="color:#003A8F">${directionInfo.text}</b> · ${Number.isFinite(directionInfo.bearing) ? directionInfo.bearing.toFixed(1) : '-'}°</div>
               </div>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                 <button id="csZoomOutXBtn" type="button" class="miniBtn" style="padding:6px 10px">X−</button>
@@ -1475,25 +1517,16 @@
                 <input id="csGapFillChk" type="checkbox" ${crossSectionState.gapFill ? 'checked' : ''}>
                 Active gap filling
               </label>
-              <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-              
-                <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700">
-                  Smooth gap
-                  <input id="csSmoothGapSlider" type="range" min="0" max="50" step="0.1"
-                    value="${Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : 1.0}"
-                    style="width:80px">
-                  <span id="csSmoothGapValue">${Number.isFinite(crossSectionState.smoothGap) ? Number(crossSectionState.smoothGap).toFixed(1) : '1.0'}</span>
-                </label>
-              
-                <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700">
-                  Smooth interp
-                  <input id="csSmoothInterpSlider" type="range" min="0" max="10" step="0.1"
-                    value="${Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0}"
-                    style="width:80px">
-                  <span id="csSmoothInterpValue">${Number.isFinite(crossSectionState.smoothInterp) ? Number(crossSectionState.smoothInterp).toFixed(1) : '1.0'}</span>
-                </label>
-              
-              </div>
+              <label style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#374151;font-weight:700;min-width:210px">
+                Smooth interp
+                <input id="csSmoothInterpSlider" type="range" min="0" max="10" step="0.1" value="${Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0}" style="width:90px">
+                <span id="csSmoothInterpValue" style="min-width:28px;text-align:right;color:#003A8F">${Number.isFinite(crossSectionState.smoothInterp) ? Number(crossSectionState.smoothInterp).toFixed(1) : '1.0'}</span>
+              </label>
+              <label style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#374151;font-weight:700;min-width:200px">
+                Smooth gap
+                <input id="csSmoothGapSlider" type="range" min="0" max="50" step="0.1" value="${Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : 1.0}" style="width:90px">
+                <span id="csSmoothGapValue" style="min-width:28px;text-align:right;color:#003A8F">${Number.isFinite(crossSectionState.smoothGap) ? Number(crossSectionState.smoothGap).toFixed(1) : '1.0'}</span>
+              </label>
             </div>
             <div style="display:grid;grid-template-columns:repeat(4,minmax(82px,1fr)) auto auto;gap:8px;align-items:end;margin-bottom:8px">
               <label style="display:grid;gap:4px;font-size:11px;color:#6B7280;font-weight:700">
@@ -1520,7 +1553,7 @@
                 <img id="crossSectionPlotImg" src="${imgUrl}" alt="Cross section" style="display:block;width:100%;height:auto" />
               </div>
             </div>
-            <div style="margin-top:8px;font-size:11px;color:#6B7280">Arah penampang mengikuti garis <b>START → END</b>, jadi sumbu X dibaca dari titik START ke titik END. X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y. Smooth interp mengatur kehalusan interpolasi dasar, smooth gap mengatur pelembutan area gap fill. Nilai 0.0 paling raw.</div>
+            <div style="margin-top:8px;font-size:11px;color:#6B7280">X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y. Smooth interp mengatur kehalusan interpolasi dasar, smooth gap mengatur pelembutan area gap fill. Nilai 0.0 paling raw.</div>
             ${warnings ? `<div style="margin-top:8px;font-size:11px;color:#9a3412;line-height:1.35">${warnings}</div>` : ''}
           </div>`;
         crossSectionPopup.setContent(content);
@@ -1957,7 +1990,10 @@
     window.addEventListener('orientationchange', invalidateMapSize);
 
     map.on('click', (e) => {
-      if (!crossSectionMode) return;
+      if (!crossSectionMode) {
+        requestPointSample(e.latlng);
+        return;
+      }
       if (crossSectionPoints.length >= 2) {
         clearCrossSectionGraphics(true);
       }
@@ -1967,43 +2003,6 @@
       crossSectionMarkers.push(marker);
       if (crossSectionPoints.length === 2) {
         crossSectionLine = L.polyline(crossSectionPoints, {color: '#DC2626', weight: 3, dashArray: '8,6'}).addTo(map);
-
-        const [p1, p2] = crossSectionPoints;
-        const directionInfo = directionPairText(p1.lat, p1.lng, p2.lat, p2.lng);
-
-        const startLabel = L.marker(p1, {
-          interactive: false,
-          icon: L.divIcon({
-            className: 'cs-dir-label',
-            html: '<div style="padding:2px 6px;border-radius:999px;background:#ffffff;border:1px solid rgba(29,78,216,.25);box-shadow:0 4px 12px rgba(2,22,55,.10);font-size:10px;font-weight:800;color:#1d4ed8;white-space:nowrap;">START</div>',
-            iconSize: [56, 20],
-            iconAnchor: [-8, 10]
-          })
-        }).addTo(map);
-
-        const endLabel = L.marker(p2, {
-          interactive: false,
-          icon: L.divIcon({
-            className: 'cs-dir-label',
-            html: '<div style="padding:2px 6px;border-radius:999px;background:#ffffff;border:1px solid rgba(220,38,38,.25);box-shadow:0 4px 12px rgba(2,22,55,.10);font-size:10px;font-weight:800;color:#DC2626;white-space:nowrap;">END</div>',
-            iconSize: [48, 20],
-            iconAnchor: [-8, 10]
-          })
-        }).addTo(map);
-
-        const mid = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
-        const arrowLabel = L.marker(mid, {
-          interactive: false,
-          icon: L.divIcon({
-            className: 'cs-dir-label',
-            html: `<div style="padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.96);border:1px solid rgba(17,24,39,.10);box-shadow:0 4px 12px rgba(2,22,55,.10);font-size:10px;font-weight:800;color:#374151;white-space:nowrap;">${directionInfo.text}</div>`,
-            iconSize: [92, 20],
-            iconAnchor: [46, -8]
-          })
-        }).addTo(map);
-
-        crossSectionMarkers.push(startLabel, endLabel, arrowLabel);
-
         setCrossSectionMode(false);
         requestCrossSection();
       }

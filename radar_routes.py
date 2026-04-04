@@ -19,7 +19,7 @@ from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import numpy as np
 import patch_pyart  # noqa: F401
 import pyart
-from flask import Blueprint, current_app, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, url_for
 
 from scipy.ndimage import generic_filter, median_filter, distance_transform_edt, gaussian_filter
 from scipy.ndimage.measurements import variance
@@ -163,6 +163,210 @@ def _resolve_cmap(field: str, cmap_override: str = '', custom_cmap: Any = None):
     except Exception:
         pass
     return cmap_obj
+
+
+def _choose_reflectivity_field(radar, preferred: str | None = None) -> str | None:
+    candidates = []
+    if preferred:
+        candidates.append(str(preferred))
+    candidates.extend(['DBZ2', 'DBT2', 'DBZH', 'DBZ', 'TH', 'DZ'])
+    seen = set()
+    for name in candidates:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        if name in radar.fields:
+            return name
+    for name in radar.fields.keys():
+        up = str(name).upper()
+        if 'DBZ' in up or 'DBT' in up or up in ('TH', 'DZ'):
+            return name
+    return list(radar.fields.keys())[0] if radar.fields else None
+
+
+def _dbz_to_rain_rate(dbz: Any, a: float = 200.0, b: float = 1.6):
+    arr = np.asarray(dbz, dtype=float)
+    z_lin = np.power(10.0, arr / 10.0)
+    with np.errstate(invalid='ignore', divide='ignore', over='ignore'):
+        rain = np.power(np.maximum(z_lin / max(a, 1e-6), 0.0), 1.0 / max(b, 1e-6))
+    rain = np.where(np.isfinite(arr), rain, np.nan)
+    rain = np.where(rain < 0, np.nan, rain)
+    return rain
+
+
+def _sample_nearest_polar_value(radar, data2d, sweep_idx: int, lat: float, lon: float):
+    lat0 = float(radar.latitude['data'][0])
+    lon0 = float(radar.longitude['data'][0])
+    x_km, y_km = _latlon_to_local_km(lat0, lon0, np.asarray([lat]), np.asarray([lon]))
+    x_km = float(x_km[0])
+    y_km = float(y_km[0])
+    range_km = float(np.hypot(x_km, y_km))
+    azimuth = float((np.degrees(np.arctan2(x_km, y_km)) + 360.0) % 360.0)
+
+    range_data_km = np.asarray(radar.range['data'], dtype=float) / 1000.0
+    max_range_km = float(np.nanmax(range_data_km)) if range_data_km.size else 0.0
+    if range_km > max_range_km:
+        return {'ok': False, 'reason': 'outside_range', 'range_km': range_km, 'azimuth_deg': azimuth}
+
+    sweep_starts = np.asarray(radar.sweep_start_ray_index['data'], dtype=int)
+    sweep_ends = np.asarray(radar.sweep_end_ray_index['data'], dtype=int)
+    fixed_angles = np.asarray(radar.fixed_angle['data'], dtype=float) if getattr(radar, 'fixed_angle', None) is not None else np.zeros(len(sweep_starts), dtype=float)
+    sweep_idx = int(np.clip(sweep_idx, 0, max(len(sweep_starts) - 1, 0)))
+    rs = int(sweep_starts[sweep_idx])
+    re = int(sweep_ends[sweep_idx])
+    az = np.asarray(radar.azimuth['data'][rs:re+1], dtype=float)
+    if az.size == 0:
+        return {'ok': False, 'reason': 'empty_sweep'}
+    ray_local = int(np.argmin(_circular_abs_diff_deg(az, azimuth)))
+    ray_idx = rs + ray_local
+    gate_idx = int(np.argmin(np.abs(range_data_km - range_km)))
+    try:
+        value = float(np.asarray(data2d, dtype=float)[ray_idx, gate_idx])
+    except Exception:
+        value = float('nan')
+    if not np.isfinite(value):
+        return {'ok': False, 'reason': 'no_data', 'range_km': range_km, 'azimuth_deg': azimuth, 'ray_idx': ray_idx, 'gate_idx': gate_idx}
+    elevation = float(fixed_angles[min(sweep_idx, len(fixed_angles) - 1)]) if fixed_angles.size else 0.0
+    return {
+        'ok': True,
+        'value': value,
+        'range_km': range_km,
+        'azimuth_deg': azimuth,
+        'elevation_deg': elevation,
+        'ray_idx': ray_idx,
+        'gate_idx': gate_idx,
+        'x_km': x_km,
+        'y_km': y_km,
+    }
+
+
+def _compute_product_field_data(radar, field, product_used: str, selected_sweep_idx: int, cappi_height_km: float):
+    product_used = (product_used or 'PPI').upper()
+    source_field = field
+    source_data = np.ma.filled(radar.fields[field]['data'], np.nan).astype(float)
+
+    if product_used == 'SRI':
+        source_field = _choose_reflectivity_field(radar, preferred=field)
+        source_data = np.ma.filled(radar.fields[source_field]['data'], np.nan).astype(float)
+        return source_field, source_data, _dbz_to_rain_rate(source_data)
+
+    return source_field, source_data, source_data
+
+
+def _sample_product_value_from_files(
+    filepaths,
+    field,
+    lat,
+    lon,
+    filters=None,
+    requested_sweep=None,
+    requested_elevation=None,
+    derived_product='PPI',
+    cappi_height_km=2.0,
+):
+    filters = filters or {}
+    radar, warnings = _merge_radars(filepaths)
+    if field not in radar.fields:
+        field = _choose_reflectivity_field(radar, preferred='DBZ2')
+
+    selected_sweep_idx, sweep_options, selected_elevation = _resolve_sweep_index(radar, requested_sweep, requested_elevation)
+
+    for fname in list(radar.fields.keys()):
+        raw_data = radar.fields[fname]['data'].copy()
+        filtered_data, _ = _apply_pyiris_filters(radar, fname, raw_data, filters, load_pyiris_defaults())
+        radar.fields[fname]['data'] = np.ma.masked_invalid(filtered_data)
+
+    product_used = (derived_product or 'PPI').upper()
+    source_field, source_data, product_data = _compute_product_field_data(radar, field, product_used, selected_sweep_idx, cappi_height_km)
+
+    unit = 'value'
+    display_name = source_field
+    detail = {}
+
+    if product_used == 'PPI':
+        sample = _sample_nearest_polar_value(radar, product_data, selected_sweep_idx, lat, lon)
+        unit = 'dBZ' if 'DB' in str(source_field).upper() else 'value'
+        display_name = source_field
+    elif product_used == 'SRI':
+        lowest_idx = 0
+        sample = _sample_nearest_polar_value(radar, product_data, lowest_idx, lat, lon)
+        unit = 'mm/h'
+        display_name = 'SRI'
+    elif product_used == 'MAX':
+        samples = []
+        nsweeps = int(getattr(radar, 'nsweeps', 1) or 1)
+        for sidx in range(nsweeps):
+            s = _sample_nearest_polar_value(radar, product_data, sidx, lat, lon)
+            if s.get('ok'):
+                samples.append(s)
+        if samples:
+            best = max(samples, key=lambda s: s['value'])
+            sample = dict(best)
+            sample['sweep_count_used'] = len(samples)
+        else:
+            sample = {'ok': False, 'reason': 'no_data'}
+        unit = 'dBZ' if 'DB' in str(source_field).upper() else 'value'
+        display_name = f'MAX {source_field}'
+    elif product_used == 'CAPPI':
+        grid_limit_xy = float(radar.range['data'][-1])
+        z_top = max(12000.0, float(getattr(radar, 'nsweeps', 1) or 1) * 1000.0)
+        grid = pyart.map.grid_from_radars(
+            (radar,),
+            grid_shape=(max(6, _quality_settings('medium')['vertical_levels']), 320, 320),
+            grid_limits=((0.0, z_top), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
+            fields=[source_field],
+            weighting_function='Barnes2',
+        )
+        arr3 = np.ma.filled(grid.fields[source_field]['data'], np.nan)
+        try:
+            z_levels = np.asarray(grid.z['data'], dtype=float)
+        except Exception:
+            z_levels = np.linspace(0.0, z_top, arr3.shape[0])
+        target = float(np.clip(float(cappi_height_km) * 1000.0, z_levels.min(), z_levels.max()))
+        hi = int(np.searchsorted(z_levels, target, side='left'))
+        hi = max(1, min(hi, len(z_levels) - 1))
+        lo = hi - 1
+        z0 = float(z_levels[lo])
+        z1 = float(z_levels[hi])
+        a0 = arr3[lo]
+        a1 = arr3[hi]
+        w = 0.0 if z1 <= z0 else (target - z0) / (z1 - z0)
+        arr2 = (1.0 - w) * a0 + w * a1
+        x_km, y_km = _latlon_to_local_km(float(radar.latitude['data'][0]), float(radar.longitude['data'][0]), np.asarray([lat]), np.asarray([lon]))
+        x_m = float(x_km[0] * 1000.0)
+        y_m = float(y_km[0] * 1000.0)
+        gx = np.asarray(grid.x['data'], dtype=float)
+        gy = np.asarray(grid.y['data'], dtype=float)
+        if np.hypot(x_m, y_m) > float(np.nanmax(radar.range['data'])):
+            sample = {'ok': False, 'reason': 'outside_range'}
+        else:
+            ix = int(np.argmin(np.abs(gx - x_m)))
+            iy = int(np.argmin(np.abs(gy - y_m)))
+            value = float(arr2[iy, ix]) if np.isfinite(arr2[iy, ix]) else float('nan')
+            if np.isfinite(value):
+                sample = {'ok': True, 'value': value, 'x_km': x_m / 1000.0, 'y_km': y_m / 1000.0, 'height_km': target / 1000.0}
+            else:
+                sample = {'ok': False, 'reason': 'no_data'}
+        unit = 'dBZ' if 'DB' in str(source_field).upper() else 'value'
+        display_name = f'CAPPI {source_field}'
+    else:
+        sample = _sample_nearest_polar_value(radar, product_data, selected_sweep_idx, lat, lon)
+
+    return {
+        'ok': bool(sample.get('ok')),
+        'product': product_used,
+        'field': display_name,
+        'source_field': source_field,
+        'unit': unit,
+        'lat': float(lat),
+        'lon': float(lon),
+        'value': sample.get('value'),
+        'details': {k: v for k, v in sample.items() if k not in ('ok', 'value')},
+        'warnings': warnings,
+        'selected_sweep_idx': selected_sweep_idx,
+        'selected_elevation': selected_elevation,
+        'sweep_options': sweep_options,
+    }
 
 PYIRIS_DEFAULTS = {
     'enable_standard_filter': False,
@@ -721,16 +925,6 @@ def _render_radar_png_from_files(
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
     quality_cfg = _quality_settings(render_quality)
-    try:
-        smooth_interp = float(smooth_interp)
-    except Exception:
-        smooth_interp = 1.0
-    try:
-        smooth_gap = float(smooth_gap)
-    except Exception:
-        smooth_gap = 1.0
-    smooth_interp = float(np.clip(smooth_interp, 0.0, 3.0))
-    smooth_gap = float(np.clip(smooth_gap, 0.0, 3.0))
     radar, warnings = _merge_radars(filepaths)
     if field not in radar.fields:
         field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
@@ -766,7 +960,7 @@ def _render_radar_png_from_files(
     fig, ax = plt.subplots(figsize=(quality_cfg['figsize'], quality_cfg['figsize']))
     extent = None
 
-    if product_used in ('MAX', 'CAPPI'):
+    if product_used in ('MAX', 'CAPPI', 'SRI'):
         try:
             grid_limit_xy = rng_km * 1000.0
             if product_used == 'MAX':
@@ -781,6 +975,48 @@ def _render_radar_png_from_files(
                 arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
                 arr2 = np.nanmax(arr3, axis=0)
                 arr2 = np.ma.masked_invalid(arr2)
+            elif product_used == 'SRI':
+                sri_field = _choose_reflectivity_field(radar, preferred=field)
+                selected_sweep_idx = 0
+                raw_sri = np.ma.filled(radar.fields[sri_field]['data'], np.nan).astype(float)
+                filtered_sri, sri_warnings = _apply_pyiris_filters(radar, sri_field, raw_sri, filters, load_pyiris_defaults())
+                warnings.extend(sri_warnings)
+                radar.fields[sri_field]['data'] = np.ma.masked_invalid(filtered_sri)
+                product_used = 'SRI'
+                field = sri_field
+                if vmin_override is None:
+                    vmin_override = 0.0
+                if vmax_override is None:
+                    vmax_override = 150.0
+                if not cmap_override and not custom_cmap:
+                    cmap_obj = plt.get_cmap('turbo').copy()
+                    try:
+                        cmap_obj.set_bad(alpha=0.0)
+                    except Exception:
+                        pass
+                display = pyart.graph.RadarDisplay(radar)
+                temp_field = '__SRI__'
+                sri_data = _dbz_to_rain_rate(np.ma.filled(radar.fields[sri_field]['data'], np.nan))
+                radar.fields[temp_field] = {
+                    **radar.fields[sri_field],
+                    'data': np.ma.masked_invalid(sri_data),
+                    'units': 'mm/h',
+                    'long_name': 'surface_rainfall_intensity',
+                    'standard_name': 'rainfall_rate',
+                }
+                display.plot(
+                    temp_field,
+                    selected_sweep_idx,
+                    ax=ax,
+                    colorbar_flag=False,
+                    vmin=vmin_override,
+                    vmax=vmax_override,
+                    cmap=cmap_obj,
+                    title_flag=False
+                )
+                ax.axis('off')
+                d = rng_km / 111.0
+                extent = [lat0 - d, lon0 - d, lat0 + d, lon0 + d]
             else:
                 # CAPPI estimated from vertically interpolated gridded volume,
                 # then masked to radar range so the plot keeps a circular footprint.
@@ -830,20 +1066,21 @@ def _render_radar_png_from_files(
                 arr2 = np.where(rr <= rng_km, arr2, np.nan)
                 arr2 = np.ma.masked_invalid(arr2)
 
-            ax.imshow(
-                arr2,
-                origin='lower',
-                extent=[-rng_km, rng_km, -rng_km, rng_km],
-                cmap=cmap_obj,
-                vmin=vmin_override,
-                vmax=vmax_override,
-                interpolation='nearest',
-                aspect='equal'
-            )
-            ax.axis('off')
-            dlat = rng_km / 111.0
-            dlon = rng_km / max(0.1, 111.0 * np.cos(np.deg2rad(lat0)))
-            extent = [lat0 - dlat, lon0 - dlon, lat0 + dlat, lon0 + dlon]
+            if product_used != 'SRI':
+                ax.imshow(
+                    arr2,
+                    origin='lower',
+                    extent=[-rng_km, rng_km, -rng_km, rng_km],
+                    cmap=cmap_obj,
+                    vmin=vmin_override,
+                    vmax=vmax_override,
+                    interpolation='nearest',
+                    aspect='equal'
+                )
+                ax.axis('off')
+                dlat = rng_km / 111.0
+                dlon = rng_km / max(0.1, 111.0 * np.cos(np.deg2rad(lat0)))
+                extent = [lat0 - dlat, lon0 - dlon, lat0 + dlat, lon0 + dlon]
         except Exception as exc:
             warnings.append(f'{product_used} generation failed, fallback to PPI: {exc}')
             product_used = 'PPI'
@@ -903,8 +1140,6 @@ def _render_cross_section_png_from_files(
     y_max=None,
     interpolate=False,
     gap_fill=False,
-    smooth_interp=1.0,
-    smooth_gap=1.0,
 ):
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
@@ -1021,7 +1256,7 @@ def _render_cross_section_png_from_files(
         interp_points = np.column_stack((x[valid_interp], z[valid_interp]))
         interp_values = v[valid_interp]
 
-        if interp_points.shape[0] < 80:
+        if interp_points.shape[0] < 150:
             warnings.append('Interpolate fallback to scatter: valid samples too sparse')
             sc = ax.scatter(x, z, c=v, s=10, marker='s', cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, linewidths=0)
         else:
@@ -1055,7 +1290,7 @@ def _render_cross_section_png_from_files(
 
             def _weighted_smooth(arr, sigma):
                 valid_mask_local = np.isfinite(arr)
-                if not np.any(valid_mask_local) or sigma <= 0.01:
+                if not np.any(valid_mask_local):
                     return arr
                 tmp = np.where(valid_mask_local, arr, 0.0)
                 w = valid_mask_local.astype(float)
@@ -1066,7 +1301,7 @@ def _render_cross_section_png_from_files(
                 return np.where(w_s > 0.03, arr_s, np.nan)
 
             try:
-                sigma_pre = 0.12 + (smooth_interp * (0.60 if not gap_fill else 0.72))
+                sigma_pre = 0.85 if not gap_fill else 1.00
                 grid_v = _weighted_smooth(grid_v, sigma_pre)
                 grid_v = np.where(support_mask, grid_v, np.nan)
             except Exception as exc:
@@ -1077,8 +1312,7 @@ def _render_cross_section_png_from_files(
                     nearest_v = griddata(interp_points, interp_values, (gx, gz), method='nearest')
                     nearest_v = np.where(gap_fill_mask, nearest_v, np.nan)
                     grid_v = np.where(np.isfinite(grid_v), grid_v, nearest_v)
-                    sigma_post = 0.18 + (smooth_gap * 0.82)
-                    grid_v = _weighted_smooth(grid_v, sigma_post)
+                    grid_v = _weighted_smooth(grid_v, 1.15)
                 except Exception as exc:
                     warnings.append(f'Cross-section gap fill skipped: {exc}')
 
@@ -1116,8 +1350,6 @@ def _render_cross_section_png_from_files(
         'default_y_max': float(default_ymax),
         'interpolate': bool(interpolate),
         'gap_fill': bool(gap_fill),
-        'smooth_interp': float(smooth_interp),
-        'smooth_gap': float(smooth_gap),
     }
     return buf, warnings, meta
 
@@ -1483,15 +1715,6 @@ def radar_cross_section():
     y_max = _opt_float(request.args.get('y_max'))
     interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
     gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
-    smooth_interp = _opt_float(request.args.get('smooth_interp'))
-    if smooth_interp is None:
-        smooth_interp = _opt_float(request.args.get('smooth'))
-    if smooth_interp is None:
-        smooth_interp = 1.0
-
-    smooth_gap = _opt_float(request.args.get('smooth_gap'))
-    if smooth_gap is None:
-        smooth_gap = smooth_interp
 
     filters_arg = request.args.get('filters')
     try:
@@ -1529,8 +1752,6 @@ def radar_cross_section():
         y_max=y_max,
         interpolate=interpolate,
         gap_fill=gap_fill,
-        smooth_interp=smooth_interp,
-        smooth_gap=smooth_gap,
     )
     response = send_file(buf, mimetype='image/png')
     response.headers['X-Cross-Distance-Km'] = f"{meta['line_length_km']:.3f}"
@@ -1544,12 +1765,70 @@ def radar_cross_section():
     response.headers['X-Cross-Default-Y-Max'] = f"{meta['default_y_max']:.6f}"
     response.headers['X-Cross-Interpolate'] = '1' if meta.get('interpolate') else '0'
     response.headers['X-Cross-Gap-Fill'] = '1' if meta.get('gap_fill') else '0'
-    response.headers['X-Cross-Smooth-Interp'] = f"{meta.get('smooth_interp', 1.0):.3f}"
-    response.headers['X-Cross-Smooth-Gap'] = f"{meta.get('smooth_gap', meta.get('smooth_interp', 1.0)):.3f}"
-    response.headers['X-Cross-Smooth'] = f"{meta.get('smooth_interp', 1.0):.3f}"
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response
+
+
+@radar_bp.route('/sample_point')
+def radar_sample_point():
+    group = request.args.get('group')
+    idx = int(request.args.get('frame', 0))
+    field = request.args.get('field')
+    derived_product = (request.args.get('derived_product') or 'PPI').upper()
+    requested_sweep = request.args.get('sweep')
+    requested_elevation = request.args.get('elevation')
+    try:
+        cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
+    except Exception:
+        cappi_height_km = 2.0
+    try:
+        lat = float(request.args.get('lat'))
+        lon = float(request.args.get('lon'))
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Invalid coordinates'}), 400
+
+    filters_arg = request.args.get('filters')
+    try:
+        filters = json.loads(filters_arg) if filters_arg else {}
+    except Exception:
+        filters = {}
+
+    if not radar_groups or group not in radar_groups:
+        return jsonify({'ok': False, 'error': 'No radar files loaded'}), 404
+
+    if not field or field not in available_fields:
+        if 'DBZ2' in available_fields:
+            field = 'DBZ2'
+        elif available_fields:
+            field = available_fields[0]
+        else:
+            return jsonify({'ok': False, 'error': 'No radar fields available'}), 404
+
+    frames = radar_groups[group]
+    idx = idx % len(frames)
+    frame_data = frames[idx]
+
+    try:
+        payload = _sample_product_value_from_files(
+            frame_data['files'],
+            field,
+            lat,
+            lon,
+            filters=filters,
+            requested_sweep=requested_sweep,
+            requested_elevation=requested_elevation,
+            derived_product=derived_product,
+            cappi_height_km=cappi_height_km,
+        )
+        payload.update({
+            'group': group,
+            'frame': idx,
+            'timestamp': frame_data.get('time'),
+        })
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
 
 
 @radar_bp.route('/', methods=['GET', 'POST'])
