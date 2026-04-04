@@ -155,7 +155,6 @@
     .dot.ok{background:var(--ok)}
     .infoPanel{
       position:absolute; right:14px; bottom:14px; z-index:9999; background:rgba(255,255,255,.94);
-#inspectPanel{right:14px;left:auto;bottom:176px}
       border:1px solid var(--border); border-radius:14px; padding:12px 14px; box-shadow:var(--shadow); min-width:220px; width:clamp(220px, 26vw, 340px); max-width:340px;
       backdrop-filter:blur(8px);
     }
@@ -782,6 +781,8 @@
     let crossSectionLine = null;
     let crossSectionPopup = null;
     let inspectMarker = null;
+    let inspectLatLng = null;
+    let inspectRequestSeq = 0;
     let crossSectionState = {
       xMin: null, xMax: null, yMin: null, yMax: null,
       defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
@@ -1108,7 +1109,9 @@
         defaultXMin: null, defaultXMax: null, defaultYMin: null, defaultYMax: null,
         distanceKm: null,
         interpolate: false,
-        gapFill: false
+        gapFill: false,
+        smoothInterp: 1.0,
+        smoothGap: 1.0
       };
     }
 
@@ -1164,8 +1167,12 @@
       if (subEl) subEl.innerHTML = subText || 'Lat/Lon dan nilai produk aktif akan tampil di sini.';
     }
 
-    async function requestPointSample(latlng) {
-      if (!group || !field) return;
+    async function requestPointSample(latlng, opts = {}) {
+      if (!group || !field || !latlng) return;
+      const options = opts || {};
+      inspectLatLng = latlng;
+      const requestId = ++inspectRequestSeq;
+
       const params = new URLSearchParams({
         group,
         frame: String(frame),
@@ -1181,10 +1188,15 @@
         else if (selectedSweep.startsWith('elev:')) params.set('elevation', selectedSweep.slice(5));
       }
 
-      updateInspectPanel('Point Inspector', 'Sampling…', `Lat ${latlng.lat.toFixed(5)}, Lon ${latlng.lng.toFixed(5)}`);
+      if (!options.silent) {
+        updateInspectPanel('Point Inspector', 'Sampling…', `Lat ${latlng.lat.toFixed(5)}, Lon ${latlng.lng.toFixed(5)}`);
+      }
+
       try {
         const res = await fetch(`${radarSamplePointUrl}?${params.toString()}`);
         const payload = await res.json();
+        if (requestId !== inspectRequestSeq) return;
+
         if (!res.ok || !payload.ok) {
           const errMsg = payload.error || payload.reason || 'No data';
           updateInspectPanel(
@@ -1194,7 +1206,9 @@
           );
           if (inspectMarker) map.removeLayer(inspectMarker);
           inspectMarker = L.circleMarker(latlng, {radius: 6, color: '#DC2626', weight: 2, fillColor: '#fff', fillOpacity: 1}).addTo(map);
-          inspectMarker.bindPopup(`<div style="font-size:12px"><b>${derivedProduct} · ${field}</b><br>Lat ${latlng.lat.toFixed(5)}<br>Lon ${latlng.lng.toFixed(5)}<br>${errMsg}</div>`).openPopup();
+          if (!options.silentPopup) {
+            inspectMarker.bindPopup(`<div style="font-size:12px"><b>${derivedProduct} · ${field}</b><br>Lat ${latlng.lat.toFixed(5)}<br>Lon ${latlng.lng.toFixed(5)}<br>${errMsg}</div>`).openPopup();
+          }
           return;
         }
 
@@ -1213,8 +1227,11 @@
 
         if (inspectMarker) map.removeLayer(inspectMarker);
         inspectMarker = L.circleMarker(latlng, {radius: 6, color: '#F28C28', weight: 2, fillColor: '#fff', fillOpacity: 1}).addTo(map);
-        inspectMarker.bindPopup(`<div style="font-size:12px;line-height:1.45"><b>${payload.product} · ${payload.field}</b><br>${valueText}<br>Lat ${payload.lat.toFixed(5)}<br>Lon ${payload.lon.toFixed(5)}</div>`).openPopup();
+        if (!options.silentPopup) {
+          inspectMarker.bindPopup(`<div style="font-size:12px;line-height:1.45"><b>${payload.product} · ${payload.field}</b><br>${valueText}<br>Lat ${payload.lat.toFixed(5)}<br>Lon ${payload.lon.toFixed(5)}</div>`).openPopup();
+        }
       } catch (err) {
+        if (requestId !== inspectRequestSeq) return;
         console.error(err);
         updateInspectPanel(`${derivedProduct} · ${field}`, 'Error', `Lat ${latlng.lat.toFixed(5)}, Lon ${latlng.lng.toFixed(5)}<br>Gagal membaca nilai titik.`);
       }
@@ -1517,15 +1534,22 @@
                 <input id="csGapFillChk" type="checkbox" ${crossSectionState.gapFill ? 'checked' : ''}>
                 Active gap filling
               </label>
-              <label style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#374151;font-weight:700;min-width:210px">
-                Smooth interp
-                <input id="csSmoothInterpSlider" type="range" min="0" max="10" step="0.1" value="${Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0}" style="width:90px">
-                <span id="csSmoothInterpValue" style="min-width:28px;text-align:right;color:#003A8F">${Number.isFinite(crossSectionState.smoothInterp) ? Number(crossSectionState.smoothInterp).toFixed(1) : '1.0'}</span>
-              </label>
-              <label style="display:inline-flex;align-items:center;gap:8px;font-size:11px;color:#374151;font-weight:700;min-width:200px">
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700">
                 Smooth gap
-                <input id="csSmoothGapSlider" type="range" min="0" max="50" step="0.1" value="${Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : 1.0}" style="width:90px">
-                <span id="csSmoothGapValue" style="min-width:28px;text-align:right;color:#003A8F">${Number.isFinite(crossSectionState.smoothGap) ? Number(crossSectionState.smoothGap).toFixed(1) : '1.0'}</span>
+                <input id="csSmoothGapSlider" type="range" min="0" max="50" step="0.1"
+                  value="${Number.isFinite(crossSectionState.smoothGap) ? crossSectionState.smoothGap : 1.0}"
+                  style="width:80px">
+                <span id="csSmoothGapValue">${Number.isFinite(crossSectionState.smoothGap) ? Number(crossSectionState.smoothGap).toFixed(1) : '1.0'}</span>
+              </label>
+
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700">
+                Smooth interp
+                <input id="csSmoothInterpSlider" type="range" min="0" max="10" step="0.1"
+                  value="${Number.isFinite(crossSectionState.smoothInterp) ? crossSectionState.smoothInterp : 1.0}"
+                  style="width:80px">
+                <span id="csSmoothInterpValue">${Number.isFinite(crossSectionState.smoothInterp) ? Number(crossSectionState.smoothInterp).toFixed(1) : '1.0'}</span>
               </label>
             </div>
             <div style="display:grid;grid-template-columns:repeat(4,minmax(82px,1fr)) auto auto;gap:8px;align-items:end;margin-bottom:8px">
@@ -1788,6 +1812,9 @@
           populateSweepOptions(sweepOptionsHeader, activeSweepIndex, activeElevation);
           setStatus(`Loaded ${field} ${derivedUsed} frame ${frame + 1}/${total} · ${fileCount} file merged · ${imageQuality.toUpperCase()}`);
           renderTimeline();
+          if (inspectLatLng) {
+            requestPointSample(inspectLatLng, { silent: true, silentPopup: true });
+          }
           hideOverlay();
         })
         .catch(err => {

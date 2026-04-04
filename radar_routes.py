@@ -925,6 +925,16 @@ def _render_radar_png_from_files(
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
     quality_cfg = _quality_settings(render_quality)
+    try:
+        smooth_interp = float(smooth_interp)
+    except Exception:
+        smooth_interp = 1.0
+    try:
+        smooth_gap = float(smooth_gap)
+    except Exception:
+        smooth_gap = 1.0
+    smooth_interp = float(np.clip(smooth_interp, 0.0, 10.0))
+    smooth_gap = float(np.clip(smooth_gap, 0.0, 50.0))
     radar, warnings = _merge_radars(filepaths)
     if field not in radar.fields:
         field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
@@ -1140,10 +1150,22 @@ def _render_cross_section_png_from_files(
     y_max=None,
     interpolate=False,
     gap_fill=False,
+    smooth_interp=1.0,
+    smooth_gap=1.0,
 ):
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
     quality_cfg = _quality_settings(render_quality)
+    try:
+        smooth_interp = float(smooth_interp)
+    except Exception:
+        smooth_interp = 1.0
+    try:
+        smooth_gap = float(smooth_gap)
+    except Exception:
+        smooth_gap = 1.0
+    smooth_interp = float(np.clip(smooth_interp, 0.0, 10.0))
+    smooth_gap = float(np.clip(smooth_gap, 0.0, 50.0))
     radar, warnings = _merge_radars(filepaths)
     if field not in radar.fields:
         field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
@@ -1290,7 +1312,7 @@ def _render_cross_section_png_from_files(
 
             def _weighted_smooth(arr, sigma):
                 valid_mask_local = np.isfinite(arr)
-                if not np.any(valid_mask_local):
+                if not np.any(valid_mask_local) or sigma <= 0.01:
                     return arr
                 tmp = np.where(valid_mask_local, arr, 0.0)
                 w = valid_mask_local.astype(float)
@@ -1301,7 +1323,7 @@ def _render_cross_section_png_from_files(
                 return np.where(w_s > 0.03, arr_s, np.nan)
 
             try:
-                sigma_pre = 0.85 if not gap_fill else 1.00
+                sigma_pre = 0.12 + (smooth_interp * (0.60 if not gap_fill else 0.72))
                 grid_v = _weighted_smooth(grid_v, sigma_pre)
                 grid_v = np.where(support_mask, grid_v, np.nan)
             except Exception as exc:
@@ -1312,7 +1334,8 @@ def _render_cross_section_png_from_files(
                     nearest_v = griddata(interp_points, interp_values, (gx, gz), method='nearest')
                     nearest_v = np.where(gap_fill_mask, nearest_v, np.nan)
                     grid_v = np.where(np.isfinite(grid_v), grid_v, nearest_v)
-                    grid_v = _weighted_smooth(grid_v, 1.15)
+                    sigma_post = 0.18 + (smooth_gap * 0.82)
+                    grid_v = _weighted_smooth(grid_v, sigma_post)
                 except Exception as exc:
                     warnings.append(f'Cross-section gap fill skipped: {exc}')
 
@@ -1350,6 +1373,8 @@ def _render_cross_section_png_from_files(
         'default_y_max': float(default_ymax),
         'interpolate': bool(interpolate),
         'gap_fill': bool(gap_fill),
+        'smooth_interp': float(smooth_interp),
+        'smooth_gap': float(smooth_gap),
     }
     return buf, warnings, meta
 
@@ -1715,6 +1740,15 @@ def radar_cross_section():
     y_max = _opt_float(request.args.get('y_max'))
     interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
     gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    smooth_interp = _opt_float(request.args.get('smooth_interp'))
+    if smooth_interp is None:
+        smooth_interp = _opt_float(request.args.get('smooth'))
+    if smooth_interp is None:
+        smooth_interp = 1.0
+
+    smooth_gap = _opt_float(request.args.get('smooth_gap'))
+    if smooth_gap is None:
+        smooth_gap = smooth_interp
 
     filters_arg = request.args.get('filters')
     try:
@@ -1752,6 +1786,8 @@ def radar_cross_section():
         y_max=y_max,
         interpolate=interpolate,
         gap_fill=gap_fill,
+        smooth_interp=smooth_interp,
+        smooth_gap=smooth_gap,
     )
     response = send_file(buf, mimetype='image/png')
     response.headers['X-Cross-Distance-Km'] = f"{meta['line_length_km']:.3f}"
@@ -1765,6 +1801,9 @@ def radar_cross_section():
     response.headers['X-Cross-Default-Y-Max'] = f"{meta['default_y_max']:.6f}"
     response.headers['X-Cross-Interpolate'] = '1' if meta.get('interpolate') else '0'
     response.headers['X-Cross-Gap-Fill'] = '1' if meta.get('gap_fill') else '0'
+    response.headers['X-Cross-Smooth-Interp'] = f"{meta.get('smooth_interp', 1.0):.3f}"
+    response.headers['X-Cross-Smooth-Gap'] = f"{meta.get('smooth_gap', meta.get('smooth_interp', 1.0)):.3f}"
+    response.headers['X-Cross-Smooth'] = f"{meta.get('smooth_interp', 1.0):.3f}"
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response
