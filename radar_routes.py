@@ -194,6 +194,15 @@ def _dbz_to_rain_rate(dbz: Any, a: float = 200.0, b: float = 1.6):
     return rain
 
 
+def _estimate_accumulation_from_rate(rain_rate_mmh: Any, accumulation_minutes: float):
+    arr = np.asarray(rain_rate_mmh, dtype=float)
+    hours = max(float(accumulation_minutes), 0.0) / 60.0
+    acc = arr * hours
+    acc = np.where(np.isfinite(arr), acc, np.nan)
+    acc = np.where(acc < 0, np.nan, acc)
+    return acc
+
+
 def _sample_nearest_polar_value(radar, data2d, sweep_idx: int, lat: float, lon: float):
     lat0 = float(radar.latitude['data'][0])
     lon0 = float(radar.longitude['data'][0])
@@ -240,18 +249,73 @@ def _sample_nearest_polar_value(radar, data2d, sweep_idx: int, lat: float, lon: 
     }
 
 
-def _compute_product_field_data(radar, field, product_used: str, selected_sweep_idx: int, cappi_height_km: float):
+def _compute_product_field_data(
+    radar,
+    field,
+    product_used: str,
+    selected_sweep_idx: int,
+    cappi_height_km: float,
+    accumulation_minutes: float = 5.0,
+):
     product_used = (product_used or 'PPI').upper()
     source_field = field
     source_data = np.ma.filled(radar.fields[field]['data'], np.nan).astype(float)
 
-    if product_used == 'SRI':
+    if product_used in ('SRI', 'ACC'):
         source_field = _choose_reflectivity_field(radar, preferred=field)
         source_data = np.ma.filled(radar.fields[source_field]['data'], np.nan).astype(float)
-        return source_field, source_data, _dbz_to_rain_rate(source_data)
+        rain_rate = _dbz_to_rain_rate(source_data)
+        if product_used == 'ACC':
+            return source_field, source_data, _estimate_accumulation_from_rate(rain_rate, accumulation_minutes)
+        return source_field, source_data, rain_rate
 
     return source_field, source_data, source_data
 
+
+
+
+def _sample_accumulation_series_by_group(
+    group: str,
+    field: str,
+    lat: float,
+    lon: float,
+    filters=None,
+    requested_sweep=None,
+    requested_elevation=None,
+    cappi_height_km: float = 2.0,
+):
+    filters = filters or {}
+    if group not in radar_groups:
+        raise RuntimeError('Group not found')
+
+    series = []
+    frames = radar_groups[group]
+    for idx, frame_data in enumerate(frames):
+        try:
+            payload = _sample_product_value_from_files(
+                frame_data['files'],
+                field,
+                lat,
+                lon,
+                filters=filters,
+                requested_sweep=requested_sweep,
+                requested_elevation=requested_elevation,
+                derived_product='ACC',
+                cappi_height_km=cappi_height_km,
+                accumulation_minutes=float(merge_window_minutes),
+            )
+            value = payload.get('value')
+            value = float(value) if value is not None and np.isfinite(value) else None
+        except Exception:
+            value = None
+
+        series.append({
+            'frame': idx,
+            'timestamp': frame_data.get('time'),
+            'epoch': frame_data.get('epoch'),
+            'value': value,
+        })
+    return series
 
 def _sample_product_value_from_files(
     filepaths,
@@ -263,6 +327,7 @@ def _sample_product_value_from_files(
     requested_elevation=None,
     derived_product='PPI',
     cappi_height_km=2.0,
+    accumulation_minutes: float = 5.0,
 ):
     filters = filters or {}
     radar, warnings = _merge_radars(filepaths)
@@ -277,7 +342,9 @@ def _sample_product_value_from_files(
         radar.fields[fname]['data'] = np.ma.masked_invalid(filtered_data)
 
     product_used = (derived_product or 'PPI').upper()
-    source_field, source_data, product_data = _compute_product_field_data(radar, field, product_used, selected_sweep_idx, cappi_height_km)
+    source_field, source_data, product_data = _compute_product_field_data(
+        radar, field, product_used, selected_sweep_idx, cappi_height_km, accumulation_minutes=accumulation_minutes
+    )
 
     unit = 'value'
     display_name = source_field
@@ -292,6 +359,11 @@ def _sample_product_value_from_files(
         sample = _sample_nearest_polar_value(radar, product_data, lowest_idx, lat, lon)
         unit = 'mm/h'
         display_name = 'SRI'
+    elif product_used == 'ACC':
+        lowest_idx = 0
+        sample = _sample_nearest_polar_value(radar, product_data, lowest_idx, lat, lon)
+        unit = 'mm'
+        display_name = 'Estimated Rain Accumulation'
     elif product_used == 'MAX':
         samples = []
         nsweeps = int(getattr(radar, 'nsweeps', 1) or 1)
@@ -962,16 +1034,6 @@ def _render_radar_png_from_files(
     filters = filters or {}
     render_quality = _normalize_render_quality(render_quality)
     quality_cfg = _quality_settings(render_quality)
-    try:
-        smooth_interp = float(smooth_interp)
-    except Exception:
-        smooth_interp = 1.0
-    try:
-        smooth_gap = float(smooth_gap)
-    except Exception:
-        smooth_gap = 1.0
-    smooth_interp = float(np.clip(smooth_interp, 0.0, 10.0))
-    smooth_gap = float(np.clip(smooth_gap, 0.0, 50.0))
     radar, warnings = _merge_radars(filepaths)
     if field not in radar.fields:
         field = 'DBZ2' if 'DBZ2' in radar.fields else list(radar.fields.keys())[0]
@@ -1007,7 +1069,7 @@ def _render_radar_png_from_files(
     fig, ax = plt.subplots(figsize=(quality_cfg['figsize'], quality_cfg['figsize']))
     extent = None
 
-    if product_used in ('MAX', 'CAPPI', 'SRI'):
+    if product_used in ('MAX', 'CAPPI', 'SRI', 'ACC'):
         try:
             grid_limit_xy = rng_km * 1000.0
             if product_used == 'MAX':
@@ -1022,34 +1084,51 @@ def _render_radar_png_from_files(
                 arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
                 arr2 = np.nanmax(arr3, axis=0)
                 arr2 = np.ma.masked_invalid(arr2)
-            elif product_used == 'SRI':
-                sri_field = _choose_reflectivity_field(radar, preferred=field)
+            elif product_used in ('SRI', 'ACC'):
+                rain_field = _choose_reflectivity_field(radar, preferred=field)
                 selected_sweep_idx = 0
-                raw_sri = np.ma.filled(radar.fields[sri_field]['data'], np.nan).astype(float)
-                filtered_sri, sri_warnings = _apply_pyiris_filters(radar, sri_field, raw_sri, filters, load_pyiris_defaults())
-                warnings.extend(sri_warnings)
-                radar.fields[sri_field]['data'] = np.ma.masked_invalid(filtered_sri)
-                product_used = 'SRI'
-                field = sri_field
-                if vmin_override is None:
-                    vmin_override = 0.0
-                if vmax_override is None:
-                    vmax_override = 150.0
+                raw_rain = np.ma.filled(radar.fields[rain_field]['data'], np.nan).astype(float)
+                filtered_rain, rain_warnings = _apply_pyiris_filters(radar, rain_field, raw_rain, filters, load_pyiris_defaults())
+                warnings.extend(rain_warnings)
+                radar.fields[rain_field]['data'] = np.ma.masked_invalid(filtered_rain)
+                field = rain_field
+
+                if product_used == 'SRI':
+                    if vmin_override is None:
+                        vmin_override = 0.0
+                    if vmax_override is None:
+                        vmax_override = 150.0
+                    temp_field = '__SRI__'
+                    rain_data = _dbz_to_rain_rate(np.ma.filled(radar.fields[rain_field]['data'], np.nan))
+                    units = 'mm/h'
+                    long_name = 'surface_rainfall_intensity'
+                    standard_name = 'rainfall_rate'
+                else:
+                    if vmin_override is None:
+                        vmin_override = 0.0
+                    if vmax_override is None:
+                        vmax_override = max(5.0, float(merge_window_minutes) * 2.5)
+                    temp_field = '__ACC__'
+                    rain_rate = _dbz_to_rain_rate(np.ma.filled(radar.fields[rain_field]['data'], np.nan))
+                    rain_data = _estimate_accumulation_from_rate(rain_rate, float(merge_window_minutes))
+                    units = 'mm'
+                    long_name = 'estimated_rain_accumulation'
+                    standard_name = 'lwe_thickness_of_precipitation_amount'
+
                 if not cmap_override and not custom_cmap:
                     cmap_obj = plt.get_cmap('turbo').copy()
                     try:
                         cmap_obj.set_bad(alpha=0.0)
                     except Exception:
                         pass
+
                 display = pyart.graph.RadarDisplay(radar)
-                temp_field = '__SRI__'
-                sri_data = _dbz_to_rain_rate(np.ma.filled(radar.fields[sri_field]['data'], np.nan))
                 radar.fields[temp_field] = {
-                    **radar.fields[sri_field],
-                    'data': np.ma.masked_invalid(sri_data),
-                    'units': 'mm/h',
-                    'long_name': 'surface_rainfall_intensity',
-                    'standard_name': 'rainfall_rate',
+                    **radar.fields[rain_field],
+                    'data': np.ma.masked_invalid(rain_data),
+                    'units': units,
+                    'long_name': long_name,
+                    'standard_name': standard_name,
                 }
                 display.plot(
                     temp_field,
@@ -1113,7 +1192,7 @@ def _render_radar_png_from_files(
                 arr2 = np.where(rr <= rng_km, arr2, np.nan)
                 arr2 = np.ma.masked_invalid(arr2)
 
-            if product_used != 'SRI':
+            if product_used not in ('SRI', 'ACC'):
                 ax.imshow(
                     arr2,
                     origin='lower',
@@ -1666,6 +1745,7 @@ def radar_precompute():
                 'product_used': product_used,
                 'frames_total': len(frames),
                 'render_quality': render_quality,
+                'filter_availability': json.dumps(_compute_filter_availability(radar, field)),
             }
             _cache_store(render_cache, cache_key, cached, CACHE_MAX_ITEMS)
             built += 1
@@ -1846,6 +1926,65 @@ def radar_cross_section():
     return response
 
 
+@radar_bp.route('/accumulation_series')
+def radar_accumulation_series():
+    group = request.args.get('group')
+    field = request.args.get('field')
+    requested_sweep = request.args.get('sweep')
+    requested_elevation = request.args.get('elevation')
+    try:
+        cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
+    except Exception:
+        cappi_height_km = 2.0
+    try:
+        lat = float(request.args.get('lat'))
+        lon = float(request.args.get('lon'))
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Invalid coordinates'}), 400
+
+    filters_arg = request.args.get('filters')
+    try:
+        filters = json.loads(filters_arg) if filters_arg else {}
+    except Exception:
+        filters = {}
+
+    if not radar_groups or group not in radar_groups:
+        return jsonify({'ok': False, 'error': 'No radar files loaded'}), 404
+
+    if not field or field not in available_fields:
+        if 'DBZ2' in available_fields:
+            field = 'DBZ2'
+        elif available_fields:
+            field = available_fields[0]
+        else:
+            return jsonify({'ok': False, 'error': 'No radar fields available'}), 404
+
+    try:
+        series = _sample_accumulation_series_by_group(
+            group,
+            field,
+            lat,
+            lon,
+            filters=filters,
+            requested_sweep=requested_sweep,
+            requested_elevation=requested_elevation,
+            cappi_height_km=cappi_height_km,
+        )
+        return jsonify({
+            'ok': True,
+            'group': group,
+            'field': field,
+            'product': 'ACC',
+            'unit': 'mm',
+            'accumulation_minutes': float(merge_window_minutes),
+            'lat': float(lat),
+            'lon': float(lon),
+            'series': series,
+        })
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+
+
 @radar_bp.route('/sample_point')
 def radar_sample_point():
     group = request.args.get('group')
@@ -1896,6 +2035,7 @@ def radar_sample_point():
             requested_elevation=requested_elevation,
             derived_product=derived_product,
             cappi_height_km=cappi_height_km,
+            accumulation_minutes=float(merge_window_minutes),
         )
         payload.update({
             'group': group,

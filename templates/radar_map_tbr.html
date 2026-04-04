@@ -442,15 +442,15 @@
         <button class="miniBtn" id="btnSidebarReset">Reset</button>
       </div>
       <div class="search">
-        <input id="quickInfo" value="{{ groups|length }} group radar tersedia · merge {{ scan_window_minutes }} menit" readonly />
+        <input id="quickInfo" value="{{ groups|length }} radar groups available · merge {{ scan_window_minutes }} minutes" readonly />
       </div>
       <div class="list">
         <div class="sectionLabel">Radar Source</div>
         <div class="item">
           <div class="headRow">
             <div>
-              <p class="name">Dataset Radar</p>
-              <p class="coord">Upload banyak file raw radar, lalu pilih group scan untuk playback.</p>
+              <p class="name">Radar Dataset</p>
+              <p class="coord">Upload multiple raw radar files, then select a scan group for playback.</p>
             </div>
             <div class="tag {% if groups %}ok{% endif %}">{{ 'Loaded' if groups else 'No Data' }}</div>
           </div>
@@ -472,13 +472,13 @@
             </select>
           </div>
           <div class="field">
-            <label for="frameSelect">Datetime start scan</label>
+            <label for="frameSelect">Scan start datetime</label>
             <select id="frameSelect" onchange="changeFrameSelect()"></select>
           </div>
           <div class="field">
-            <label for="sweepSelect">Elevasi / Sweep yang diplot</label>
+            <label for="sweepSelect">Elevation / Sweep to plot</label>
             <select id="sweepSelect" onchange="changeSweepSelection()">
-              <option value="auto">Auto (sweep pertama)</option>
+              <option value="auto">Auto (first sweep)</option>
             </select>
           </div>
           <div class="field">
@@ -490,12 +490,13 @@
             </select>
           </div>
           <div class="field">
-            <label for="derivedProduct">Produk Turunan</label>
+            <label for="derivedProduct">Derived Product</label>
             <select id="derivedProduct">
               <option value="PPI">PPI</option>
               <option value="MAX">MAX</option>
               <option value="CAPPI">CAPPI</option>
               <option value="SRI">SRI</option>
+              <option value="ACC">Estimated Rain Accumulation</option>
             </select>
           </div>
           <div class="field">
@@ -512,7 +513,7 @@
           <div class="headRow">
             <div>
               <p class="name">Product Styling</p>
-              <p class="coord">Atur opacity, colormap, dan manual range untuk produk radar.</p>
+              <p class="coord">Set opacity, colormap, and manual range for radar products.</p>
             </div>
             <div class="tag">Display</div>
           </div>
@@ -572,7 +573,7 @@
             <button class="miniBtn" type="button" onclick="openCustomCmapModal()">Custom Colormap</button>
             <button class="miniBtn" type="button" onclick="toggleCustomCmap()" id="toggleCustomCmapBtn">Enable Custom</button>
           </div>
-          <div class="customCmapMeta" id="customCmapMeta">Custom colormap belum aktif.</div>
+          <div class="customCmapMeta" id="customCmapMeta">Custom colormap is not active yet.</div>
           <div class="customCmapPreview" id="customCmapPreview"></div>
         </div>
 
@@ -581,7 +582,7 @@
           <div class="headRow">
             <div>
               <p class="name">Standard Filter</p>
-              <p class="coord">Pilih filter mana yang aktif, lalu tekan Apply Filter.</p>
+              <p class="coord">Choose which filters are active, then click Apply Filter.</p>
             </div>
             <div class="tag">pyIRIS</div>
           </div>
@@ -656,7 +657,7 @@
             <button class="miniBtn" type="button" onclick="resetPyirisDefaults()">Reset Default</button>
             <button class="miniBtn" type="button" onclick="disableAllFilters()">Disable All</button>
           </div>
-          <div class="smallText">Filter diterapkan saat menekan Apply Filter supaya rendering tidak berat setiap kali input berubah.</div>
+          <div class="smallText">Filters are applied when you click Apply Filter so rendering does not become heavy every time an input changes.</div>
         </div>
 
         <div class="sectionLabel">Sweeps in Active Frame</div>
@@ -664,17 +665,17 @@
           <div class="headRow">
             <div>
               <p class="name">Merged Sweep List</p>
-              <p class="coord">Daftar sweep/elevasi yang berhasil digabung dalam frame aktif.</p>
+              <p class="coord">List of sweeps/elevations successfully merged in the active frame.</p>
             </div>
             <div class="tag">Sweep</div>
           </div>
           <div class="field">
             <label>Frame sweeps</label>
-            <input id="sweepList" value="Belum ada data" readonly />
+            <input id="sweepList" value="No data yet" readonly />
           </div>
           <div class="field">
             <label>Elevations</label>
-            <input id="elevationList" value="Belum ada data" readonly />
+            <input id="elevationList" value="No data yet" readonly />
           </div>
           <div class="field">
             <label>Files merged</label>
@@ -687,7 +688,7 @@
           <div class="headRow">
             <div>
               <p class="name">Playback Window</p>
-              <p class="coord">Gunakan untuk mempersempit rentang waktu marker di timeline.</p>
+              <p class="coord">Use this to narrow the marker time range on the timeline.</p>
             </div>
             <div class="tag">Time</div>
           </div>
@@ -716,7 +717,7 @@
 
     <section class="mapCard">
       <div id="map"></div>
-      <div class="statusPill" id="statusPill">Menunggu data radar...</div>
+      <div class="statusPill" id="statusPill">Waiting for radar data...</div>
       <div class="warningBox" id="warningBox"></div>
 
       <button id="crossSectionMiniToggle" class="crossSectionMiniToggle" type="button">Show Cross Section</button>
@@ -724,16 +725,16 @@
 
       <div class="infoPanel">
         <div class="infoTitle">Radar Playback Info</div>
-        <div class="infoName" id="infoName">Belum ada radar dipilih</div>
+        <div class="infoName" id="infoName">No radar selected yet</div>
         <div class="infoValue" id="frameText">1/1</div>
-        <div class="infoSub"><span id="timestamp">--:--</span><br><span id="infoExtent">Extent belum tersedia.</span><br><span id="infoSweeps">Sweep belum tersedia.</span></div>
+        <div class="infoSub"><span id="timestamp">--:--</span><br><span id="infoExtent">Extent is not available yet.</span><br><span id="infoSweeps">Sweep is not available yet.</span></div>
       </div>
 
       <div class="infoPanel" id="inspectPanel" style="left:auto;right:14px;bottom:176px;min-width:250px;width:clamp(250px,28vw,360px);z-index:9999">
         <div class="infoTitle">Point Inspector</div>
-        <div class="infoName" id="inspectName">Klik map untuk lihat nilai radar</div>
+        <div class="infoName" id="inspectName">Click the map to inspect radar values</div>
         <div class="infoValue" id="inspectValue" style="font-size:20px">--</div>
-        <div class="infoSub" id="inspectSub">Lat/Lon dan nilai produk aktif akan tampil di sini.</div>
+        <div class="infoSub" id="inspectSub">Lat/Lon and the active product value will appear here.</div>
       </div>
 
       <div class="timelineCard" id="timelineCard">
@@ -757,7 +758,7 @@
       <div class="modalHead">
         <div>
           <h3 class="modalTitle">Custom Colormap Editor</h3>
-          <div class="modalSub">Tambahkan pasangan nilai dan warna. Bisa dipakai untuk overlay radar dan cross section. Mode <b>Gradients</b> membuat transisi halus, mode <b>Ranges</b> membuat blok warna diskrit.</div>
+          <div class="modalSub">Add value-color pairs. They can be used for radar overlays and cross sections. <b>Gradients</b> creates smooth transitions, while <b>Ranges</b> creates discrete color blocks.</div>
         </div>
         <button class="modalClose" type="button" onclick="closeCustomCmapModal()">✕</button>
       </div>
@@ -796,6 +797,7 @@
     const radarOverlayUrl = "{{ url_for('radar_bp.radar_overlay') }}";
     const radarPrecomputeUrl = "{{ url_for('radar_bp.radar_precompute') }}";
     const radarSamplePointUrl = "{{ url_for('radar_bp.radar_sample_point') }}";
+    const radarAccumulationSeriesUrl = "{{ url_for('radar_bp.radar_accumulation_series') }}";
     const hasGroups = {{ 'true' if groups else 'false' }};
     const pyirisDefaults = {{ pyiris_defaults | tojson }};
 
@@ -928,13 +930,13 @@
       const active = getActiveCustomCmap();
       const spec = customCmapSpec;
       if (!spec) {
-        meta.textContent = 'Custom colormap belum aktif.';
+        meta.textContent = 'Custom colormap is not active yet.';
         preview.style.background = 'linear-gradient(90deg,#e5e7eb,#cbd5e1)';
         toggleBtn.textContent = 'Enable Custom';
         return;
       }
       preview.style.background = buildGradientCss(spec);
-      meta.textContent = `${spec.name} · ${spec.mode === 'ranges' ? 'Ranges' : 'Gradients'} · ${spec.stops.length} warna${active ? ' · aktif' : ' · tersimpan'}`;
+      meta.textContent = `${spec.name} · ${spec.mode === 'ranges' ? 'Ranges' : 'Gradients'} · ${spec.stops.length} colors${active ? ' · active' : ' · saved'}`;
       toggleBtn.textContent = active ? 'Disable Custom' : 'Enable Custom';
     }
 
@@ -1048,7 +1050,7 @@
     function saveCustomCmapFromEditor() {
       const spec = getEditorSpec();
       if (!spec) {
-        alert('Minimal harus ada 2 baris nilai-warna yang valid.');
+        alert('Minimal harus ada 2 baris nilai-colors yang valid.');
         return;
       }
       spec.enabled = true;
@@ -1176,7 +1178,7 @@
       if (btn) btn.classList.toggle('active', crossSectionMode);
       if (crossSectionMode) {
         map.getContainer().classList.add('map-crosshair');
-        setStatus('Cross section mode aktif · klik titik awal lalu titik akhir di map');
+        setStatus('Cross section mode active · click the start point and then the end point on the map');
       } else {
         map.getContainer().classList.remove('map-crosshair');
       }
@@ -1189,7 +1191,7 @@
           const div = L.DomUtil.create('div', 'leaflet-control crossSectionControl');
           div.innerHTML = `
             <button id="crossSectionBtn" class="csBtn" type="button">Cross Section</button>
-            <div class="csHint">Klik tombol lalu gambar 2 titik garis pada map.</div>`;
+            <div class="csHint">Click the button and then draw a 2-point line on the map.</div>`;
           L.DomEvent.disableClickPropagation(div);
           L.DomEvent.disableScrollPropagation(div);
           setTimeout(() => {
@@ -1219,7 +1221,218 @@
       const subEl = document.getElementById('inspectSub');
       if (nameEl) nameEl.textContent = title || 'Point Inspector';
       if (valueEl) valueEl.textContent = valueText || '--';
-      if (subEl) subEl.innerHTML = subText || 'Lat/Lon dan nilai produk aktif akan tampil di sini.';
+      if (subEl) subEl.innerHTML = subText || 'Lat/Lon and the active product value will appear here.';
+    }
+
+
+    function formatInspectValue(val, unit='') {
+      return Number.isFinite(val) ? `${val.toFixed(val >= 100 ? 0 : val >= 10 ? 1 : 2)} ${unit}`.trim() : '--';
+    }
+
+    let accumulationPopupState = null;
+
+    function escapeAccumulationHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatAccumulationTimestampLabel(ts) {
+      if (!ts) return '--';
+      const text = String(ts).trim();
+      const parts = text.split(' ');
+      if (parts.length >= 2) return parts[1].slice(0, 5);
+      return text.length > 5 ? text.slice(-5) : text;
+    }
+
+    function formatAccumulationTooltip(ts, value, unit, index, total) {
+      const mmText = Number.isFinite(value) ? `${Number(value).toFixed(value >= 10 ? 1 : 2)} ${unit}` : `No data ${unit}`;
+      return `Time: ${ts || '--'}
+Accumulation: ${mmText}
+Frame: ${index + 1}/${total}`;
+    }
+
+    function getAccumulationWindowStart(series, activeFrame, limit = 10) {
+      const total = Array.isArray(series) ? series.length : 0;
+      if (total <= limit) return 0;
+      const activeIndex = Math.max(0, (series || []).findIndex(p => Number(p.frame) === Number(activeFrame)));
+      const centered = Math.max(0, activeIndex - Math.floor(limit / 2));
+      return Math.min(centered, total - limit);
+    }
+
+    function buildAccumulationBarsHtml(series, activeFrame, startIndex = 0, unit = 'mm') {
+      const points = Array.isArray(series) ? series : [];
+      const limit = 10;
+      const total = points.length;
+      const safeStart = Math.max(0, Math.min(Number(startIndex) || 0, Math.max(total - limit, 0)));
+      const visible = points.slice(safeStart, safeStart + limit);
+      const validVals = visible.map(p => Number(p.value)).filter(v => Number.isFinite(v));
+      const maxVal = validVals.length ? Math.max(...validVals, 0.1) : 1.0;
+
+      const bars = visible.map((p, localIdx) => {
+        const value = Number(p.value);
+        const active = Number(p.frame) === Number(activeFrame);
+        const barHeight = Number.isFinite(value) ? Math.max(8, Math.round((value / maxVal) * 110)) : 8;
+        const fill = active ? '#F28C28' : '#89A7F5';
+        const border = active ? 'rgba(242,140,40,.55)' : 'rgba(59,130,246,.24)';
+        const labelColor = active ? '#B45309' : '#6B7280';
+        const tooltip = escapeAccumulationHtml(formatAccumulationTooltip(p.timestamp, value, unit, Number(p.frame) || 0, total));
+        const mmText = Number.isFinite(value) ? `${Number(value).toFixed(value >= 10 ? 1 : 2)} ${unit}` : `-- ${unit}`;
+        return `
+          <div style="flex:1;min-width:24px;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div title="${tooltip}" style="width:100%;height:124px;display:flex;align-items:flex-end;justify-content:center;cursor:help;position:relative">
+              <div style="width:100%;max-width:30px;height:${barHeight}px;min-height:${Number.isFinite(value) ? '8px' : '4px'};background:${fill};opacity:${Number.isFinite(value) ? '1' : '.24'};border:1px solid ${border};border-radius:10px 10px 4px 4px;box-shadow:${active ? '0 8px 16px rgba(242,140,40,.18)' : '0 4px 10px rgba(15,23,42,.08)'};transition:transform .15s ease, box-shadow .15s ease"></div>
+            </div>
+            <div style="font-size:9px;font-weight:${active ? '800' : '700'};color:${labelColor};line-height:1.1;text-align:center">${escapeAccumulationHtml(formatAccumulationTimestampLabel(p.timestamp))}</div>
+            <div style="font-size:9px;color:${active ? '#B45309' : '#94A3B8'};line-height:1;text-align:center;white-space:nowrap">${escapeAccumulationHtml(mmText)}</div>
+          </div>`;
+      }).join('');
+
+      return `
+        <div style="border:1px solid rgba(17,24,39,.08);border-radius:12px;padding:10px;background:linear-gradient(180deg,#FFFFFF 0%,#F8FAFC 100%)">
+          <div style="display:flex;align-items:flex-end;gap:6px;height:156px;padding:10px 8px 4px;border-bottom:1px solid rgba(148,163,184,.22)">${bars || '<div style="font-size:11px;color:#94A3B8">No history available.</div>'}</div>
+        </div>`;
+    }
+
+    function renderAccumulationPopupWindow() {
+      if (!accumulationPopupState) return;
+      const chartWrap = document.getElementById('accChartViewport');
+      const slider = document.getElementById('accWindowSlider');
+      const rangeText = document.getElementById('accRangeText');
+      const prevBtn = document.getElementById('accPrevBtn');
+      const nextBtn = document.getElementById('accNextBtn');
+      const firstLabel = document.getElementById('accFirstTimestamp');
+      const lastLabel = document.getElementById('accLastTimestamp');
+      if (!chartWrap) return;
+
+      const state = accumulationPopupState;
+      const points = Array.isArray(state.series) ? state.series : [];
+      const limit = 10;
+      const maxStart = Math.max(points.length - limit, 0);
+      state.startIndex = Math.max(0, Math.min(Number(state.startIndex) || 0, maxStart));
+      const visible = points.slice(state.startIndex, state.startIndex + limit);
+      chartWrap.innerHTML = buildAccumulationBarsHtml(points, state.activeFrame, state.startIndex, state.unit);
+
+      if (slider) {
+        slider.min = '0';
+        slider.max = String(maxStart);
+        slider.step = '1';
+        slider.value = String(state.startIndex);
+        slider.disabled = points.length <= limit;
+      }
+      if (prevBtn) prevBtn.disabled = state.startIndex <= 0;
+      if (nextBtn) nextBtn.disabled = state.startIndex >= maxStart;
+      if (rangeText) {
+        const startNo = points.length ? state.startIndex + 1 : 0;
+        const endNo = Math.min(state.startIndex + visible.length, points.length);
+        rangeText.textContent = points.length ? `Showing ${startNo}-${endNo} of ${points.length}` : 'No history';
+      }
+      if (firstLabel) firstLabel.textContent = visible[0]?.timestamp || '--';
+      if (lastLabel) lastLabel.textContent = visible[visible.length - 1]?.timestamp || '--';
+    }
+
+    function bindAccumulationPopupInteractions() {
+      const slider = document.getElementById('accWindowSlider');
+      const prevBtn = document.getElementById('accPrevBtn');
+      const nextBtn = document.getElementById('accNextBtn');
+      if (!accumulationPopupState || !slider || slider.dataset.bound === '1') {
+        renderAccumulationPopupWindow();
+        return;
+      }
+
+      const rerender = () => renderAccumulationPopupWindow();
+
+      prevBtn?.addEventListener('click', () => {
+        if (!accumulationPopupState) return;
+        accumulationPopupState.startIndex = Math.max(0, accumulationPopupState.startIndex - 1);
+        rerender();
+      });
+
+      nextBtn?.addEventListener('click', () => {
+        if (!accumulationPopupState) return;
+        const maxStart = Math.max((accumulationPopupState.series?.length || 0) - 10, 0);
+        accumulationPopupState.startIndex = Math.min(maxStart, accumulationPopupState.startIndex + 1);
+        rerender();
+      });
+
+      slider.addEventListener('input', () => {
+        if (!accumulationPopupState) return;
+        accumulationPopupState.startIndex = Number(slider.value) || 0;
+        rerender();
+      });
+
+      slider.dataset.bound = '1';
+      rerender();
+    }
+
+    async function fetchAccumulationSeries(latlng) {
+      const params = new URLSearchParams({
+        group,
+        field,
+        cappi_height_km: String(cappiHeightKm),
+        lat: String(latlng.lat),
+        lon: String(latlng.lng),
+        filters: JSON.stringify(filters),
+      });
+      if (selectedSweep && selectedSweep !== 'auto') {
+        if (selectedSweep.startsWith('idx:')) params.set('sweep', selectedSweep.slice(4));
+        else if (selectedSweep.startsWith('elev:')) params.set('elevation', selectedSweep.slice(5));
+      }
+      const res = await fetch(`${radarAccumulationSeriesUrl}?${params.toString()}`);
+      const payload = await res.json();
+      if (!res.ok || !payload.ok) throw new Error(payload.error || 'Failed to load accumulation series');
+      return payload;
+    }
+
+    function buildAccumulationPopupHtml(pointPayload, seriesPayload) {
+      const currentValue = Number(pointPayload.value);
+      const unit = pointPayload.unit || 'mm';
+      const series = Array.isArray(seriesPayload?.series) ? seriesPayload.series : [];
+      const activeRow = series.find(p => Number(p.frame) === Number(frame)) || null;
+      const activeTs = activeRow?.timestamp || pointPayload.timestamp || '--';
+      const mergeText = Number.isFinite(Number(seriesPayload?.accumulation_minutes))
+        ? `${Number(seriesPayload.accumulation_minutes).toFixed(0)} min accumulation`
+        : 'Accumulation history';
+
+      accumulationPopupState = {
+        pointPayload,
+        series,
+        unit,
+        activeFrame: Number(frame),
+        startIndex: getAccumulationWindowStart(series, frame, 10)
+      };
+
+      return `<div style="font-size:12px;line-height:1.45;width:100%;max-width:340px">
+        <div style="font-weight:800;color:#003A8F;margin-bottom:4px">${pointPayload.product} · ${pointPayload.field}</div>
+        <div style="font-size:24px;font-weight:900;color:#F28C28;line-height:1.05;margin-bottom:6px">${formatInspectValue(currentValue, unit)}</div>
+        <div style="font-size:11px;color:#6B7280;margin-bottom:10px">Lat ${pointPayload.lat.toFixed(5)} · Lon ${pointPayload.lon.toFixed(5)}</div>
+        <div style="border:1px solid rgba(17,24,39,.08);border-radius:12px;padding:10px;background:#fff">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-size:11px;font-weight:800;color:#1F2937">Rain accumulation history</div>
+              <div style="font-size:10px;color:#64748B;margin-top:2px">Hover each bar for time and accumulation details.</div>
+            </div>
+            <div style="font-size:10px;color:#6B7280;text-align:right">${mergeText}<br><span style="color:#F28C28;font-weight:800">Active: ${activeTs}</span></div>
+          </div>
+          <div id="accChartViewport"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+            <button id="accPrevBtn" type="button" class="miniBtn" style="padding:6px 10px">◀</button>
+            <input id="accWindowSlider" type="range" min="0" max="0" step="1" value="0" style="flex:1;accent-color:#F28C28">
+            <button id="accNextBtn" type="button" class="miniBtn" style="padding:6px 10px">▶</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:6px;font-size:10px;color:#6B7280">
+            <span id="accRangeText">Showing 1-10</span>
+            <span style="font-weight:700;color:#94A3B8">Max 10 bars / view</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px;font-size:10px;color:#6B7280">
+            <span id="accFirstTimestamp">${series[0]?.timestamp || '--'}</span>
+            <span id="accLastTimestamp">${series[Math.min(series.length, 10) - 1]?.timestamp || '--'}</span>
+          </div>
+        </div>
+      </div>`;
     }
 
     async function requestPointSample(latlng, opts = {}) {
@@ -1269,7 +1482,7 @@
 
         const val = Number(payload.value);
         const unit = payload.unit || '';
-        const valueText = Number.isFinite(val) ? `${val.toFixed(val >= 100 ? 0 : val >= 10 ? 1 : 2)} ${unit}`.trim() : '--';
+        const valueText = formatInspectValue(val, unit);
         const detail = payload.details || {};
         let detailText = `Lat ${payload.lat.toFixed(5)}, Lon ${payload.lon.toFixed(5)}`;
         if (Number.isFinite(detail.range_km)) detailText += `<br>Range ${Number(detail.range_km).toFixed(2)} km`;
@@ -1282,13 +1495,33 @@
 
         if (inspectMarker) map.removeLayer(inspectMarker);
         inspectMarker = L.circleMarker(latlng, {radius: 6, color: '#F28C28', weight: 2, fillColor: '#fff', fillOpacity: 1}).addTo(map);
+
+        let popupHtml = `<div style="font-size:12px;line-height:1.45"><b>${payload.product} · ${payload.field}</b><br>${valueText}<br>Lat ${payload.lat.toFixed(5)}<br>Lon ${payload.lon.toFixed(5)}</div>`;
+
+        if (String(payload.product).toUpperCase() === 'ACC') {
+          try {
+            const seriesPayload = await fetchAccumulationSeries(latlng);
+            if (requestId !== inspectRequestSeq) return;
+            popupHtml = buildAccumulationPopupHtml(payload, seriesPayload);
+          } catch (seriesErr) {
+            console.error(seriesErr);
+          }
+        }
+
+        inspectMarker.bindPopup(popupHtml, { maxWidth: 360, minWidth: 320 });
+        inspectMarker.off('popupopen');
+        if (String(payload.product).toUpperCase() === 'ACC') {
+          inspectMarker.on('popupopen', () => {
+            setTimeout(() => bindAccumulationPopupInteractions(), 0);
+          });
+        }
         if (!options.silentPopup) {
-          inspectMarker.bindPopup(`<div style="font-size:12px;line-height:1.45"><b>${payload.product} · ${payload.field}</b><br>${valueText}<br>Lat ${payload.lat.toFixed(5)}<br>Lon ${payload.lon.toFixed(5)}</div>`).openPopup();
+          inspectMarker.openPopup();
         }
       } catch (err) {
         if (requestId !== inspectRequestSeq) return;
         console.error(err);
-        updateInspectPanel(`${derivedProduct} · ${field}`, 'Error', `Lat ${latlng.lat.toFixed(5)}, Lon ${latlng.lng.toFixed(5)}<br>Gagal membaca nilai titik.`);
+        updateInspectPanel(`${derivedProduct} · ${field}`, 'Error', `Lat ${latlng.lat.toFixed(5)}, Lon ${latlng.lng.toFixed(5)}<br>Failed to read point value.`);
       }
     }
 
@@ -1665,14 +1898,14 @@
                 <img id="crossSectionPlotImg" src="${imgUrl}" alt="Cross section" style="display:block;width:100%;height:auto" />
               </div>
             </div>
-            <div style="margin-top:8px;font-size:11px;color:#6B7280">X+/X− mengubah skala jarak, Y+/Y− mengubah skala ketinggian. Scroll mouse untuk zoom sumbu X, tahan Shift lalu scroll untuk zoom sumbu Y. Smooth interp mengatur kehalusan interpolasi dasar, smooth gap mengatur pelembutan area gap fill. Nilai 0.0 paling raw.</div>
+            <div style="margin-top:8px;font-size:11px;color:#6B7280">X+/X− changes distance scaling, Y+/Y− changes height scaling. Scroll to zoom the X axis, hold Shift while scrolling to zoom the Y axis. Smooth interp controls base interpolation smoothing, smooth gap controls smoothing in gap-filled areas. A value of 0.0 is the rawest view.</div>
             ${warnings ? `<div style="margin-top:8px;font-size:11px;color:#9a3412;line-height:1.35">${warnings}</div>` : ''}
           </div>`;
         setCrossSectionPopupContent(content, midpoint);
         setTimeout(bindCrossSectionPopupZoom, 0);
       } catch (err) {
         console.error(err);
-        setCrossSectionPopupContent('<div style="min-width:320px"><div style="font-weight:800;color:#003A8F;margin-bottom:6px">Cross Section</div><div style="font-size:12px;color:#9a3412">Gagal membuat cross section.</div></div>', midpoint);
+        setCrossSectionPopupContent('<div style="min-width:320px"><div style="font-weight:800;color:#003A8F;margin-bottom:6px">Cross Section</div><div style="font-size:12px;color:#9a3412">Failed to generate cross section.</div></div>', midpoint);
       }
     }
 
@@ -1708,7 +1941,7 @@
       const row = checkbox.closest('.filterRow');
       if (row) {
         row.classList.toggle('is-disabled', !!disabled);
-        row.title = disabled ? (reason || 'Data pendukung filter ini tidak tersedia untuk product aktif.') : '';
+        row.title = disabled ? (reason || 'Data pendukung filter ini tidak tersedia untuk product active.') : '';
       }
       checkbox.disabled = !!disabled;
       if (disabled) checkbox.checked = false;
@@ -1716,7 +1949,7 @@
         const input = document.getElementById(id);
         if (!input) return;
         input.disabled = !!disabled;
-        input.title = disabled ? (reason || 'Data pendukung filter ini tidak tersedia untuk product aktif.') : '';
+        input.title = disabled ? (reason || 'Data pendukung filter ini tidak tersedia untuk product active.') : '';
       });
     }
 
@@ -1724,12 +1957,12 @@
       const filtersMeta = (meta && meta.filters) ? meta.filters : {};
       const helperFields = (meta && meta.helper_fields) ? meta.helper_fields : {};
       const reasonMap = {
-        LOG: helperFields.LOG ? `LOG tersedia, tapi tidak relevan untuk product aktif.` : 'Field LOG tidak tersedia untuk frame aktif.',
-        SQI: helperFields.SQI ? `SQI tersedia, tapi tidak relevan untuk product aktif.` : 'Field SQI tidak tersedia untuk frame aktif.',
-        PMI: helperFields.PMI ? `PMI tersedia, tapi tidak relevan untuk product aktif.` : 'Field PMI tidak tersedia untuk frame aktif.',
-        CSR: helperFields.CSR ? `CSR/CSP tersedia, tapi tidak relevan untuk product aktif.` : 'Field CSR/CSP tidak tersedia untuk frame aktif.',
-        SNR: helperFields.SNR ? `SNR tersedia, tapi tidak relevan untuk product aktif.` : 'Field SNR tidak tersedia untuk frame aktif.',
-        PHI: helperFields.PHI ? `PHI tersedia, tapi tidak relevan untuk product aktif.` : 'Field PHI/PHIDP tidak tersedia untuk frame aktif.',
+        LOG: helperFields.LOG ? `LOG tersedia, tapi tidak relevan untuk product active.` : 'Field LOG tidak tersedia untuk frame active.',
+        SQI: helperFields.SQI ? `SQI tersedia, tapi tidak relevan untuk product active.` : 'Field SQI tidak tersedia untuk frame active.',
+        PMI: helperFields.PMI ? `PMI tersedia, tapi tidak relevan untuk product active.` : 'Field PMI tidak tersedia untuk frame active.',
+        CSR: helperFields.CSR ? `CSR/CSP tersedia, tapi tidak relevan untuk product active.` : 'Field CSR/CSP tidak tersedia untuk frame active.',
+        SNR: helperFields.SNR ? `SNR tersedia, tapi tidak relevan untuk product active.` : 'Field SNR tidak tersedia untuk frame active.',
+        PHI: helperFields.PHI ? `PHI tersedia, tapi tidak relevan untuk product active.` : 'Field PHI/PHIDP tidak tersedia untuk frame active.',
         SDZ: 'SDZ hanya tersedia untuk product reflectivity.',
         MDZ: 'MDZ hanya tersedia untuk product reflectivity.'
       };
@@ -1747,7 +1980,7 @@
       }
       if (stdLabel) {
         stdLabel.classList.toggle('is-disabled', !stdEnabled);
-        stdLabel.title = !stdEnabled ? 'Tidak ada parameter standard filter yang tersedia untuk product/frame aktif.' : '';
+        stdLabel.title = !stdEnabled ? 'Tidak ada parameter standard filter yang tersedia untuk product/frame active.' : '';
       }
 
       gatherFilterInputs();
@@ -1849,7 +2082,7 @@
       if (!frames.length) {
         const opt = document.createElement('option');
         opt.value = '0';
-        opt.textContent = 'Belum ada frame';
+        opt.textContent = 'No frame yet';
         select.appendChild(opt);
         select.disabled = true;
         return;
@@ -1877,7 +2110,7 @@
       select.innerHTML = '';
       const autoOpt = document.createElement('option');
       autoOpt.value = 'auto';
-      autoOpt.textContent = 'Auto (sweep pertama)';
+      autoOpt.textContent = 'Auto (first sweep)';
       select.appendChild(autoOpt);
 
       options.forEach(opt => {
@@ -1905,12 +2138,12 @@
     function loadRadar(keepOverlay=false) {
       if (loadingFrame) return;
       if (!group || !field) {
-        setStatus('Upload file radar dulu untuk mulai viewer.');
+        setStatus('Upload radar files first to start the viewer.');
         if (!keepOverlay) hideOverlay();
         return;
       }
       loadingFrame = true;
-      setStatus(`Memuat ${field} untuk ${group}...`);
+      setStatus(`Loading ${field} untuk ${group}...`);
 
       let overlayUrl = radarOverlayUrl
         + '?group=' + encodeURIComponent(group)
@@ -1976,9 +2209,9 @@
           document.getElementById('infoName').innerText = group + ' · ' + field + ' · ' + derivedUsed + ' · ' + imageQuality.toUpperCase();
           document.getElementById('infoExtent').innerText = `Extent: ${extent.map(v => Number.isFinite(v) ? v.toFixed(3) : '-').join(', ')}`;
           document.getElementById('infoSweeps').innerText = `Sweeps: ${sweepHeader || '-'} · Files: ${fileCount}`;
-          document.getElementById('sweepList').value = sweepHeader || 'Tidak ada sweep';
-          document.getElementById('elevationList').value = elevHeader || 'Tidak ada elevasi';
-          document.getElementById('fileCountText').value = `${fileCount} file`;
+          document.getElementById('sweepList').value = sweepHeader || 'No sweep';
+          document.getElementById('elevationList').value = elevHeader || 'No elevation';
+          document.getElementById('fileCountText').value = `${fileCount} files`;
           populateSweepOptions(sweepOptionsHeader, activeSweepIndex, activeElevation);
           applyFilterAvailability(filterAvailability);
           setStatus(`Loaded ${field} ${derivedUsed} frame ${frame + 1}/${total} · ${fileCount} file merged · ${imageQuality.toUpperCase()}`);
@@ -1990,7 +2223,7 @@
         })
         .catch(err => {
           console.error(err);
-          setStatus('Gagal memuat radar overlay.');
+          setStatus('Failed to load radar overlay.');
           hideOverlay();
         })
         .finally(() => {
