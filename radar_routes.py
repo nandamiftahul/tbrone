@@ -17,6 +17,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import numpy as np
+os.environ["PYART_QUIET"] = "1"
 import patch_pyart  # noqa: F401
 import pyart
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, url_for
