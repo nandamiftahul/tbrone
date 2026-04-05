@@ -1938,7 +1938,7 @@ Frame: ${index + 1}/${total}`;
         startIndex: getAccumulationWindowStart(series, frame, 10)
       };
 
-      return `<div style="font-size:12px;line-height:1.45;min-width:390px;max-width:520px">
+      return `<div style="font-size:12px;line-height:1.45;width:100%;max-width:340px">
         <div style="font-weight:800;color:#003A8F;margin-bottom:4px">${pointPayload.product} · ${pointPayload.field}</div>
         <div style="font-size:24px;font-weight:900;color:#F28C28;line-height:1.05;margin-bottom:6px">${formatInspectValue(currentValue, unit)}</div>
         <div style="font-size:11px;color:#6B7280;margin-bottom:10px">Lat ${pointPayload.lat.toFixed(5)} · Lon ${pointPayload.lon.toFixed(5)}</div>
@@ -2041,7 +2041,7 @@ Frame: ${index + 1}/${total}`;
           }
         }
 
-        inspectMarker.bindPopup(popupHtml);
+        inspectMarker.bindPopup(popupHtml, { maxWidth: 360, minWidth: 320 });
         inspectMarker.off('popupopen');
         if (String(payload.product).toUpperCase() === 'ACC') {
           inspectMarker.on('popupopen', () => {
@@ -3004,7 +3004,7 @@ Frame: ${index + 1}/${total}`;
     });
 
     document.getElementById('customCmapModal').addEventListener('click', (e) => { if (e.target.id === 'customCmapModal') closeCustomCmapModal(); });
-    if (hasGroups) loadRadar(); else setStatus('Belum ada file radar yang diupload.');
+    if (hasGroups) loadRadar(); else setStatus('No Files Available. Please upload RAW Files.');
 
 function buildRadar3DLayer(framesData) {
     latestRadarVolumeData = framesData && framesData.ok ? framesData : null;
