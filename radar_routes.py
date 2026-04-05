@@ -108,6 +108,21 @@ def _normalize_render_quality(value: Any) -> str:
 def _quality_settings(value: Any) -> dict[str, Any]:
     return QUALITY_PRESETS[_normalize_render_quality(value)]
 
+
+def _unique_warning_messages(warnings: list[str] | tuple[str, ...] | None) -> list[str]:
+    unique = []
+    seen = set()
+    for item in warnings or []:
+        msg = str(item or '').strip()
+        if not msg:
+            continue
+        key = msg.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(msg)
+    return unique
+
 def _safe_float(value: Any) -> float | None:
     try:
         if value in (None, '', 'null', 'None'):
@@ -1439,66 +1454,111 @@ def _render_cross_section_png_from_files(
         interp_points = np.column_stack((x[valid_interp], z[valid_interp]))
         interp_values = v[valid_interp]
 
-        if interp_points.shape[0] < 150:
-            warnings.append('Interpolate fallback to scatter: valid samples too sparse')
+        def _weighted_smooth(arr, sigma):
+            valid_mask_local = np.isfinite(arr)
+            if not np.any(valid_mask_local) or sigma <= 0.01:
+                return arr
+            tmp = np.where(valid_mask_local, arr, 0.0)
+            w = valid_mask_local.astype(float)
+            tmp_s = gaussian_filter(tmp, sigma=sigma)
+            w_s = gaussian_filter(w, sigma=sigma)
+            with np.errstate(invalid='ignore', divide='ignore'):
+                arr_s = tmp_s / w_s
+            return np.where(w_s > 0.03, arr_s, np.nan)
+
+        if interp_points.shape[0] < 4:
+            warnings.append('Cross-section interpolation has too few valid samples, showing raw scatter only')
             sc = ax.scatter(x, z, c=v, s=10, marker='s', cmap=cmap_obj, vmin=vmin_override, vmax=vmax_override, linewidths=0)
         else:
+            sparse_mode = interp_points.shape[0] < 150
             grid_nx = max(260, min(900, int(quality_cfg['ppi_grid'] * 0.70)))
             grid_nz = max(180, min(520, int(grid_nx * 0.62)))
+            if sparse_mode:
+                grid_nx = max(220, int(grid_nx * 0.86))
+                grid_nz = max(160, int(grid_nz * 0.86))
             grid_x = np.linspace(x_lo, x_hi, grid_nx)
             grid_z = np.linspace(y_lo, y_hi, grid_nz)
             gx, gz = np.meshgrid(grid_x, grid_z)
 
             try:
-                grid_v = griddata(interp_points, interp_values, (gx, gz), method='linear')
+                linear_ok = interp_points.shape[0] >= 8
+                if linear_ok:
+                    grid_linear = griddata(interp_points, interp_values, (gx, gz), method='linear')
+                else:
+                    grid_linear = np.full_like(gx, np.nan, dtype=float)
             except Exception as exc:
                 warnings.append(f'Cross-section linear interpolation failed: {exc}')
-                grid_v = np.full_like(gx, np.nan, dtype=float)
+                grid_linear = np.full_like(gx, np.nan, dtype=float)
+
+            try:
+                grid_nearest = griddata(interp_points, interp_values, (gx, gz), method='nearest')
+            except Exception as exc:
+                warnings.append(f'Cross-section nearest interpolation failed: {exc}')
+                grid_nearest = np.full_like(gx, np.nan, dtype=float)
 
             try:
                 tree = cKDTree(interp_points)
-                nearest_dist, _ = tree.query(np.column_stack((gx.ravel(), gz.ravel())), k=1)
+                query_points = np.column_stack((gx.ravel(), gz.ravel()))
+                nearest_dist, _ = tree.query(query_points, k=1)
                 nearest_dist = nearest_dist.reshape(gx.shape)
+
+                nn_spacing = 0.0
+                if interp_points.shape[0] >= 3:
+                    try:
+                        k = min(3, interp_points.shape[0])
+                        pt_dists, _ = tree.query(interp_points, k=k)
+                        if np.ndim(pt_dists) == 2 and pt_dists.shape[1] >= 2:
+                            local_spacing = pt_dists[:, 1]
+                            local_spacing = local_spacing[np.isfinite(local_spacing) & (local_spacing > 0)]
+                            if local_spacing.size:
+                                nn_spacing = float(np.nanmedian(local_spacing))
+                    except Exception:
+                        nn_spacing = 0.0
 
                 dx = (x_hi - x_lo) / max(grid_nx - 1, 1)
                 dz = (y_hi - y_lo) / max(grid_nz - 1, 1)
-                support_radius = max(dx * 3.0, dz * 3.0, 0.12)
+                base_support = max(dx * 3.0, dz * 3.0, 0.12)
+                if nn_spacing > 0:
+                    base_support = max(base_support, nn_spacing * (1.10 if sparse_mode else 0.90))
+                support_radius = base_support * (1.75 if sparse_mode else 1.0)
+                gap_fill_radius = support_radius * (2.6 if sparse_mode else 1.65)
                 support_mask = nearest_dist <= support_radius
-                gap_fill_mask = nearest_dist <= (support_radius * 1.65)
-                grid_v = np.where(support_mask, grid_v, np.nan)
+                gap_fill_mask = nearest_dist <= gap_fill_radius
             except Exception as exc:
-                support_mask = np.isfinite(grid_v)
-                gap_fill_mask = support_mask.copy()
                 warnings.append(f'Cross-section support mask skipped: {exc}')
+                support_mask = np.isfinite(grid_linear) | np.isfinite(grid_nearest)
+                gap_fill_mask = support_mask.copy()
+                sparse_mode = True
 
-            def _weighted_smooth(arr, sigma):
-                valid_mask_local = np.isfinite(arr)
-                if not np.any(valid_mask_local) or sigma <= 0.01:
-                    return arr
-                tmp = np.where(valid_mask_local, arr, 0.0)
-                w = valid_mask_local.astype(float)
-                tmp_s = gaussian_filter(tmp, sigma=sigma)
-                w_s = gaussian_filter(w, sigma=sigma)
-                with np.errstate(invalid='ignore', divide='ignore'):
-                    arr_s = tmp_s / w_s
-                return np.where(w_s > 0.03, arr_s, np.nan)
-
-            try:
-                sigma_pre = 0.12 + (smooth_interp * (0.60 if not gap_fill else 0.72))
-                grid_v = _weighted_smooth(grid_v, sigma_pre)
-                grid_v = np.where(support_mask, grid_v, np.nan)
-            except Exception as exc:
-                warnings.append(f'Cross-section smoothing skipped: {exc}')
-
-            if gap_fill:
+            if sparse_mode:
+                sigma_sparse = 0.32 + (smooth_interp * 0.90)
+                grid_v = np.where(support_mask, grid_nearest, np.nan)
+                grid_v = _weighted_smooth(grid_v, sigma_sparse)
+                if np.any(np.isfinite(grid_linear)):
+                    linear_soft = _weighted_smooth(np.where(support_mask, grid_linear, np.nan), max(0.20, sigma_sparse * 0.75))
+                    grid_v = np.where(np.isfinite(linear_soft), linear_soft, grid_v)
+                if gap_fill:
+                    expanded = np.where(gap_fill_mask, grid_nearest, np.nan)
+                    expanded = _weighted_smooth(expanded, 0.40 + (smooth_gap * 0.95))
+                    grid_v = np.where(np.isfinite(grid_v), grid_v, expanded)
+                warnings.append('Cross-section sparse interpolation mode applied')
+            else:
+                grid_v = np.where(support_mask, grid_linear, np.nan)
                 try:
-                    nearest_v = griddata(interp_points, interp_values, (gx, gz), method='nearest')
-                    nearest_v = np.where(gap_fill_mask, nearest_v, np.nan)
-                    grid_v = np.where(np.isfinite(grid_v), grid_v, nearest_v)
-                    sigma_post = 0.18 + (smooth_gap * 0.82)
-                    grid_v = _weighted_smooth(grid_v, sigma_post)
+                    sigma_pre = 0.12 + (smooth_interp * (0.60 if not gap_fill else 0.72))
+                    grid_v = _weighted_smooth(grid_v, sigma_pre)
+                    grid_v = np.where(support_mask, grid_v, np.nan)
                 except Exception as exc:
-                    warnings.append(f'Cross-section gap fill skipped: {exc}')
+                    warnings.append(f'Cross-section smoothing skipped: {exc}')
+
+                if gap_fill:
+                    try:
+                        nearest_v = np.where(gap_fill_mask, grid_nearest, np.nan)
+                        grid_v = np.where(np.isfinite(grid_v), grid_v, nearest_v)
+                        sigma_post = 0.18 + (smooth_gap * 0.82)
+                        grid_v = _weighted_smooth(grid_v, sigma_post)
+                    except Exception as exc:
+                        warnings.append(f'Cross-section gap fill skipped: {exc}')
 
             masked_grid = np.ma.masked_invalid(grid_v)
             sc = ax.imshow(
@@ -1786,7 +1846,7 @@ def radar_precompute():
                 'selected_sweep_idx': selected_sweep_idx,
                 'selected_elevation': selected_elevation,
                 'sweep_options': json.dumps(sweep_options),
-                'warnings': '; '.join(warnings) if warnings else '',
+                'warnings': '; '.join(_unique_warning_messages(warnings)) if warnings else '',
                 'product_used': product_used,
                 'frames_total': len(frames),
                 'render_quality': render_quality,
@@ -1866,6 +1926,7 @@ def radar_export():
         except Exception:
             pass
 
+    warnings = _unique_warning_messages(warnings)
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response
@@ -1974,6 +2035,7 @@ def radar_cross_section():
     response.headers['X-Cross-Smooth-Interp'] = f"{meta.get('smooth_interp', 1.0):.3f}"
     response.headers['X-Cross-Smooth-Gap'] = f"{meta.get('smooth_gap', meta.get('smooth_interp', 1.0)):.3f}"
     response.headers['X-Cross-Smooth'] = f"{meta.get('smooth_interp', 1.0):.3f}"
+    warnings = _unique_warning_messages(warnings)
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response

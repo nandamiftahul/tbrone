@@ -1104,6 +1104,51 @@
       loadRadar();
     }
 
+    function normalizeWarningMessages(rawWarnings) {
+      if (!rawWarnings) return [];
+      const parts = String(rawWarnings)
+        .split(';')
+        .map(w => w.trim())
+        .filter(Boolean);
+      const unique = [];
+      const seen = new Set();
+      for (const part of parts) {
+        const key = part.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(part);
+      }
+      return unique;
+    }
+
+    function updateWarningBox(rawWarnings) {
+      const warningBox = document.getElementById('warningBox');
+      if (!warningBox) return;
+      const warnings = normalizeWarningMessages(rawWarnings);
+      if (warnings.length) {
+        warningBox.style.display = 'block';
+        warningBox.innerHTML = '<strong>⚠ Issues detected</strong><br>' + warnings.join('<br>');
+      } else {
+        warningBox.style.display = 'none';
+        warningBox.innerHTML = '';
+      }
+    }
+
+    function buildAccumulationLoadingPopupHtml(pointPayload) {
+      const unit = pointPayload?.unit || 'mm';
+      const currentValue = Number(pointPayload?.value);
+      return `<div style="font-size:12px;line-height:1.45;width:100%;max-width:340px">
+        <div style="font-weight:800;color:#003A8F;margin-bottom:4px">${pointPayload?.product || 'ACC'} · ${pointPayload?.field || 'Estimated Rain Accumulation'}</div>
+        <div style="font-size:24px;font-weight:900;color:#F28C28;line-height:1.05;margin-bottom:6px">${formatInspectValue(currentValue, unit)}</div>
+        <div style="font-size:11px;color:#6B7280;margin-bottom:10px">Lat ${Number(pointPayload?.lat || 0).toFixed(5)} · Lon ${Number(pointPayload?.lon || 0).toFixed(5)}</div>
+        <div style="border:1px solid rgba(17,24,39,.08);border-radius:12px;padding:16px 14px;background:#fff;min-height:220px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px">
+          <div style="width:34px;height:34px;border:4px solid rgba(37,99,235,.14);border-top-color:#F28C28;border-radius:50%;animation:spin 1s linear infinite"></div>
+          <div style="font-size:12px;font-weight:800;color:#1F2937">Loading rain accumulation history...</div>
+          <div style="font-size:10px;color:#64748B;text-align:center">The popup is already open. The bar graph will appear here as soon as the calculation is finished.</div>
+        </div>
+      </div>`;
+    }
+
     function setStatus(text){ document.getElementById('statusPill').textContent = text; }
 
     function showOverlay(text='Processing…', progressText='Please wait', progress=35) {
@@ -2029,27 +2074,52 @@ Frame: ${index + 1}/${total}`;
         if (inspectMarker) map.removeLayer(inspectMarker);
         inspectMarker = L.circleMarker(latlng, {radius: 6, color: '#F28C28', weight: 2, fillColor: '#fff', fillOpacity: 1}).addTo(map);
 
+        const isAccumulation = String(payload.product).toUpperCase() === 'ACC';
         let popupHtml = `<div style="font-size:12px;line-height:1.45"><b>${payload.product} · ${payload.field}</b><br>${valueText}<br>Lat ${payload.lat.toFixed(5)}<br>Lon ${payload.lon.toFixed(5)}</div>`;
 
-        if (String(payload.product).toUpperCase() === 'ACC') {
-          try {
-            const seriesPayload = await fetchAccumulationSeries(latlng);
-            if (requestId !== inspectRequestSeq) return;
-            popupHtml = buildAccumulationPopupHtml(payload, seriesPayload);
-          } catch (seriesErr) {
-            console.error(seriesErr);
-          }
+        if (isAccumulation) {
+          accumulationPopupState = {
+            pointPayload: payload,
+            series: [],
+            unit: payload.unit || 'mm',
+            activeFrame: Number(frame),
+            startIndex: 0
+          };
+          popupHtml = buildAccumulationLoadingPopupHtml(payload);
         }
 
         inspectMarker.bindPopup(popupHtml, { maxWidth: 360, minWidth: 320 });
         inspectMarker.off('popupopen');
-        if (String(payload.product).toUpperCase() === 'ACC') {
+        if (isAccumulation) {
           inspectMarker.on('popupopen', () => {
-            setTimeout(() => bindAccumulationPopupInteractions(), 0);
+            if (accumulationPopupState && Array.isArray(accumulationPopupState.series) && accumulationPopupState.series.length) {
+              setTimeout(() => bindAccumulationPopupInteractions(), 0);
+            }
           });
         }
         if (!options.silentPopup) {
           inspectMarker.openPopup();
+        }
+
+        if (isAccumulation) {
+          try {
+            const seriesPayload = await fetchAccumulationSeries(latlng);
+            if (requestId !== inspectRequestSeq) return;
+            const updatedPopupHtml = buildAccumulationPopupHtml(payload, seriesPayload);
+            inspectMarker.bindPopup(updatedPopupHtml, { maxWidth: 360, minWidth: 320 });
+            if (!options.silentPopup || inspectMarker.isPopupOpen()) {
+              inspectMarker.openPopup();
+            }
+            setTimeout(() => bindAccumulationPopupInteractions(), 0);
+          } catch (seriesErr) {
+            console.error(seriesErr);
+            if (requestId !== inspectRequestSeq) return;
+            const failedHtml = `<div style="font-size:12px;line-height:1.45;width:100%;max-width:340px"><b>${payload.product} · ${payload.field}</b><br>${valueText}<br>Lat ${payload.lat.toFixed(5)}<br>Lon ${payload.lon.toFixed(5)}<br><span style="color:#B45309">Failed to load accumulation history.</span></div>`;
+            inspectMarker.bindPopup(failedHtml, { maxWidth: 360, minWidth: 320 });
+            if (!options.silentPopup || inspectMarker.isPopupOpen()) {
+              inspectMarker.openPopup();
+            }
+          }
         }
       } catch (err) {
         if (requestId !== inspectRequestSeq) return;
@@ -2696,6 +2766,8 @@ Frame: ${index + 1}/${total}`;
         else if (selectedSweep.startsWith('elev:')) overlayUrl += '&elevation=' + encodeURIComponent(selectedSweep.slice(5));
       }
 
+      updateWarningBox('');
+
       fetch(overlayUrl)
         .then(res => {
           if (!res.ok) throw new Error('Radar fetch failed');
@@ -2717,14 +2789,7 @@ Frame: ${index + 1}/${total}`;
           latestRadarCenter = [((extent[0] + extent[2]) / 2), ((extent[1] + extent[3]) / 2)];
           latestRadarRadiusKm = Math.max(1, (L.latLng(extent[0], extent[1]).distanceTo(L.latLng(extent[2], extent[3])) / 2000));
 
-          const warningBox = document.getElementById('warningBox');
-          if (warnings) {
-            warningBox.style.display = 'block';
-            warningBox.innerHTML = '<strong>⚠ Issues detected</strong><br>' + warnings.split(';').map(w => w.trim()).join('<br>');
-          } else {
-            warningBox.style.display = 'none';
-            warningBox.innerHTML = '';
-          }
+          updateWarningBox(warnings);
 
           return res.blob().then(blob => ({ blob, ts, extent, sweepHeader, elevHeader, fileCount, activeSweepIndex, activeElevation, sweepOptionsHeader, derivedUsed, filterAvailability }));
         })
