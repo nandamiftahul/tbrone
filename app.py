@@ -7,6 +7,7 @@ from xweather_monthly_report_sqlite_routes import xweather_report_bp
 from xweather_mapgolf_routes import xweather_mapgolf_bp
 from kotatua_routes import kotatua_bp
 from radar_routes import radar_bp
+from iris_product_flow_routes import iris_product_flow_bp
 
 
 def load_env_file(env_path: str = '.env') -> None:
@@ -45,6 +46,7 @@ def create_app():
     app.register_blueprint(xweather_report_bp)
     app.register_blueprint(kotatua_bp)
     app.register_blueprint(radar_bp)
+    app.register_blueprint(iris_product_flow_bp)
 
     @app.route('/')
     def index():

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IRIS Product Flow Manual – Terrindo Bumi Raya</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --xw-blue:#003A8F;
+      --xw-blue-2:#0A4BBF;
+      --tbr-orange:#F28C28;
+      --bg:#F4F7FB;
+      --card:#FFFFFF;
+      --text:#1F2937;
+      --muted:#6B7280;
+      --border:rgba(17,24,39,.10);
+      --shadow:0 10px 30px rgba(2,22,55,.08);
+      --radius:16px;
+      --soft-blue:rgba(0,58,143,.06);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      color:var(--text);
+      background:linear-gradient(180deg,#EAF1FF 0%, var(--bg) 40%, #F7FAFF 100%);
+    }
+
+    .topbar{
+      position:sticky;
+      top:0;
+      z-index:30;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:14px 18px;
+      background:rgba(0,58,143,.94);
+      backdrop-filter:blur(8px);
+      border-bottom:1px solid rgba(255,255,255,.15);
+    }
+    .brand{display:flex;align-items:center;gap:12px;min-width:240px}
+    .brand img{
+      height:32px;
+      width:auto;
+      border-radius:8px;
+      filter:drop-shadow(0 6px 12px rgba(0,0,0,.12));
+    }
+    .brand .title{display:flex;flex-direction:column;line-height:1.1;color:#fff}
+    .brand .title strong{font-size:14px;letter-spacing:.2px}
+    .brand .title span{font-size:12px;opacity:.88}
+
+    .top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .btn{
+      appearance:none;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      color:#fff;
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:13px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      text-decoration:none;
+      transition:transform .12s ease, background .12s ease, border-color .12s ease;
+      white-space:nowrap;
+    }
+    .btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.24)}
+    .btn.primary{
+      background:linear-gradient(135deg,var(--tbr-orange) 0%,#FFB565 100%);
+      border-color:rgba(255,255,255,.10);
+      color:#1A1A1A;
+    }
+
+    .wrap{
+      display:grid;
+      grid-template-columns:320px 1fr;
+      gap:18px;
+      padding:18px;
+      max-width:1280px;
+      margin:0 auto;
+    }
+    @media (max-width:980px){
+      .wrap{grid-template-columns:1fr}
+      .sidebar{position:relative;top:0}
+    }
+
+    .sidebar{
+      position:sticky;
+      top:74px;
+      align-self:start;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .sidebar .head{
+      padding:14px 16px;
+      border-bottom:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%);
+    }
+    .sidebar .head .h{
+      margin:0;
+      font-weight:800;
+      font-size:14px;
+      color:var(--xw-blue);
+    }
+    .sidebar .head .s{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+    .nav{padding:10px 10px 14px;display:flex;flex-direction:column;gap:8px}
+    .nav a{
+      text-decoration:none;
+      color:var(--text);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      background:#fff;
+      transition:transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .nav a:hover{transform:translateY(-1px);border-color:rgba(0,58,143,.20);box-shadow:0 10px 22px rgba(0,58,143,.08)}
+    .badge{
+      min-width:26px;height:26px;border-radius:9px;display:grid;place-items:center;
+      font-weight:800;font-size:12px;color:#fff;background:var(--xw-blue);
+    }
+    .nav .meta{display:flex;flex-direction:column;gap:3px}
+    .nav .meta strong{font-size:13px}
+    .nav .meta span{font-size:12px;color:var(--muted);line-height:1.35}
+
+    .content{display:flex;flex-direction:column;gap:14px}
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    section.card{scroll-margin-top:88px}
+    .card-head{
+      padding:16px 18px;
+      border-bottom:1px solid var(--border);
+      background:linear-gradient(90deg, rgba(0,58,143,.08) 0%, rgba(242,140,40,.08) 100%);
+      display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+    }
+    .card-head h2{margin:0;font-size:16px;color:var(--xw-blue);letter-spacing:.2px}
+    .card-head p{margin:6px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
+    .chip{
+      border:1px solid rgba(0,58,143,.18);
+      background:rgba(0,58,143,.06);
+      color:var(--xw-blue);
+      padding:8px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:700;
+      white-space:nowrap;
+      height:fit-content;
+    }
+    .body{padding:16px 18px 18px}
+
+    .hero{
+      display:grid;
+      grid-template-columns:1.1fr .9fr;
+      gap:16px;
+      align-items:center;
+    }
+    @media (max-width:900px){.hero{grid-template-columns:1fr}}
+    .lead{font-size:13px;color:var(--muted);line-height:1.7;margin:0 0 12px}
+
+    .mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+    @media (max-width:760px){.mini-grid{grid-template-columns:1fr}}
+    .mini{
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:#fff;
+      padding:12px;
+    }
+    .mini strong{display:block;font-size:13px;color:var(--xw-blue);margin-bottom:6px}
+    .mini span{display:block;font-size:12px;color:var(--muted);line-height:1.5}
+
+    .steps{display:flex;flex-direction:column;gap:10px}
+    .step{
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+      display:grid;
+      grid-template-columns:34px 1fr;
+      gap:10px;
+    }
+    .step .n{
+      width:34px;height:34px;border-radius:12px;display:grid;place-items:center;
+      font-weight:900;color:#fff;background:linear-gradient(135deg,var(--xw-blue) 0%, var(--xw-blue-2) 100%);
+    }
+    .step .t{font-weight:700;margin:0;font-size:13px}
+    .step .d{margin:6px 0 0;color:var(--muted);font-size:12.5px;line-height:1.6}
+
+    .callout{
+      margin-top:12px;
+      border:1px solid rgba(242,140,40,.30);
+      background:rgba(242,140,40,.08);
+      border-radius:14px;
+      padding:12px;
+      color:#7A3E00;
+      font-size:12.5px;
+      line-height:1.55;
+    }
+
+    .list{margin:0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.7}
+    .list li+li{margin-top:3px}
+
+    .pill-row{display:flex;flex-wrap:wrap;gap:8px}
+    .pill{
+      padding:8px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:700;
+      color:var(--xw-blue);
+      background:var(--soft-blue);
+      border:1px solid rgba(0,58,143,.12);
+    }
+
+    .table-like{
+      display:grid;
+      grid-template-columns:1.1fr 1.7fr;
+      border:1px solid var(--border);
+      border-radius:14px;
+      overflow:hidden;
+      margin-top:12px;
+    }
+    .table-like div{
+      padding:12px;
+      font-size:12.5px;
+      line-height:1.6;
+      border-bottom:1px solid var(--border);
+    }
+    .table-like div:nth-child(odd){background:#fbfcff;font-weight:700;color:var(--xw-blue);border-right:1px solid var(--border)}
+    .table-like div:last-child,.table-like div:nth-last-child(2){border-bottom:none}
+
+    .flowbox{
+      background:linear-gradient(180deg,#fbfdff 0%, #f6f9ff 100%);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:12px;
+      overflow:auto;
+    }
+    svg{max-width:100%;height:auto;display:block}
+    .footer{max-width:1280px;margin:0 auto 26px;padding:0 18px;color:var(--muted);font-size:12px;text-align:center}
+
+    @media (max-width:640px){
+      .topbar{padding:12px}
+      .brand{min-width:0}
+      .brand img{height:28px}
+      .brand .title strong{font-size:13px}
+      .brand .title span{font-size:11.5px}
+      .btn{padding:9px 10px;font-size:12.5px;border-radius:11px}
+      .wrap{padding:12px;gap:12px}
+      .card-head,.body{padding:14px}
+      .step{grid-template-columns:1fr}
+      .step .n{width:32px;height:32px;border-radius:11px}
+    }
+
+    @media print{
+      body{background:#fff}
+      .topbar,.sidebar,.top-actions{display:none !important}
+      .wrap{grid-template-columns:1fr;padding:0;max-width:none}
+      .card{box-shadow:none;border:1px solid #ddd}
+      .card-head{background:#f5f7ff}
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Terrindo icon" />
+      <div class="title">
+        <strong>Terrindo Bumi Raya · IRIS Radar</strong>
+        <span>IRIS Product Flow Manual – from RAW data to final operational products</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <a class="btn" href="{{ url_for('index') }}">Home</a>
+      <a class="btn" href="#flowchart">Flowchart</a>
+      <a class="btn" href="#examples">Examples</a>
+      <button class="btn primary" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <aside class="sidebar">
+      <div class="head">
+        <p class="h">Contents</p>
+        <p class="s">Ringkasan alur produk IRIS untuk menjelaskan bagaimana data radar mentah berkembang menjadi produk operasional seperti PPI, CAPPI, MAX, RAIN1, dan export format.</p>
+      </div>
+      <nav class="nav">
+        <a href="#overview"><div class="badge">0</div><div class="meta"><strong>Overview</strong><span>Konsep besar alur produk IRIS</span></div></a>
+        <a href="#flowchart"><div class="badge">1</div><div class="meta"><strong>Flowchart</strong><span>RAW → ingest → product → display/output</span></div></a>
+        <a href="#raw"><div class="badge">2</div><div class="meta"><strong>RAW Layer</strong><span>Posisi RAW dalam pipeline</span></div></a>
+        <a href="#scheduler"><div class="badge">3</div><div class="meta"><strong>Scheduler</strong><span>Task, product, dan output scheduling</span></div></a>
+        <a href="#examples"><div class="badge">4</div><div class="meta"><strong>Examples</strong><span>Contoh jalur PPI, CAPPI, MAX, rainfall</span></div></a>
+        <a href="#exports"><div class="badge">5</div><div class="meta"><strong>Exports</strong><span>Output file dan interoperabilitas</span></div></a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <section id="overview" class="card">
+        <div class="card-head">
+          <div>
+            <h2>0) Overview</h2>
+            <p>Halaman ini dibuat dengan style yang konsisten dengan <em>xweather_manual</em>, tetapi fokus pada alur data produk IRIS.</p>
+          </div>
+          <div class="chip">IRIS Workflow</div>
+        </div>
+        <div class="body">
+          <div class="hero">
+            <div>
+              <p class="lead">Secara sederhana, IRIS menghubungkan <strong>task radar</strong>, <strong>ingest data</strong>, <strong>RAW product</strong>, <strong>product configuration</strong>, <strong>product scheduler</strong>, lalu <strong>display / export / archive</strong>. Produk volume seperti CAPPI, MAX, TOPS, VIL, dan XSECT membutuhkan kumpulan elevasi dari volume scan, sedangkan beberapa produk lain bisa langsung berjalan dari task atau ingest yang sesuai.</p>
+              <div class="pill-row">
+                <span class="pill">Task-driven</span>
+                <span class="pill">RAW as transport layer</span>
+                <span class="pill">Scheduler-based generation</span>
+                <span class="pill">Display + archive + export</span>
+              </div>
+              <div class="mini-grid">
+                <div class="mini"><strong>Task</strong><span>Radar melakukan measurement task dan menyimpan data ke ingest files.</span></div>
+                <div class="mini"><strong>RAW</strong><span>RAW menyimpan parameter sinyal mentah radar dan bisa dipindah untuk product generation.</span></div>
+                <div class="mini"><strong>Product</strong><span>PPI, CAPPI, MAX, RAIN1, RAIN-N, SRI, TOPS, XSECT, dan lainnya dibangun dari task atau re-ingested RAW.</span></div>
+              </div>
+            </div>
+            <div class="flowbox">
+              <svg viewBox="0 0 860 360" xmlns="http://www.w3.org/2000/svg" aria-label="IRIS simplified pipeline">
+                <defs>
+                  <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#003A8F" />
+                    <stop offset="100%" stop-color="#0A4BBF" />
+                  </linearGradient>
+                  <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#F28C28" />
+                    <stop offset="100%" stop-color="#FFB565" />
+                  </linearGradient>
+                  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0b2353" flood-opacity="0.12"/>
+                  </filter>
+                </defs>
+                <rect x="16" y="80" rx="18" ry="18" width="140" height="70" fill="url(#g1)" filter="url(#shadow)"/>
+                <text x="86" y="109" text-anchor="middle" font-size="18" font-family="Inter" fill="#fff" font-weight="800">Radar Task</text>
+                <text x="86" y="131" text-anchor="middle" font-size="13" font-family="Inter" fill="#e6eefc">PPI / Volume / Hybrid</text>
+
+                <rect x="186" y="80" rx="18" ry="18" width="150" height="70" fill="#ffffff" stroke="#d9e2f0" filter="url(#shadow)"/>
+                <text x="261" y="109" text-anchor="middle" font-size="18" font-family="Inter" fill="#003A8F" font-weight="800">Ingest Files</text>
+                <text x="261" y="131" text-anchor="middle" font-size="13" font-family="Inter" fill="#6B7280">task output on disk</text>
+
+                <rect x="366" y="80" rx="18" ry="18" width="150" height="70" fill="#ffffff" stroke="#d9e2f0" filter="url(#shadow)"/>
+                <text x="441" y="109" text-anchor="middle" font-size="18" font-family="Inter" fill="#003A8F" font-weight="800">RAW Product</text>
+                <text x="441" y="131" text-anchor="middle" font-size="13" font-family="Inter" fill="#6B7280">transport / archive / reingest</text>
+
+                <rect x="546" y="80" rx="18" ry="18" width="150" height="70" fill="#ffffff" stroke="#d9e2f0" filter="url(#shadow)"/>
+                <text x="621" y="109" text-anchor="middle" font-size="18" font-family="Inter" fill="#003A8F" font-weight="800">Product Config</text>
+                <text x="621" y="131" text-anchor="middle" font-size="13" font-family="Inter" fill="#6B7280">PPI / CAPPI / MAX / ...</text>
+
+                <rect x="706" y="80" rx="18" ry="18" width="138" height="70" fill="url(#g2)" filter="url(#shadow)"/>
+                <text x="775" y="109" text-anchor="middle" font-size="18" font-family="Inter" fill="#1A1A1A" font-weight="800">Scheduler</text>
+                <text x="775" y="131" text-anchor="middle" font-size="13" font-family="Inter" fill="#3a2a14">run when data arrives</text>
+
+                <rect x="186" y="220" rx="18" ry="18" width="180" height="70" fill="#ffffff" stroke="#d9e2f0" filter="url(#shadow)"/>
+                <text x="276" y="249" text-anchor="middle" font-size="18" font-family="Inter" fill="#003A8F" font-weight="800">Derived Products</text>
+                <text x="276" y="271" text-anchor="middle" font-size="13" font-family="Inter" fill="#6B7280">PPI, CAPPI, MAX, RAIN1...</text>
+
+                <rect x="400" y="220" rx="18" ry="18" width="180" height="70" fill="#ffffff" stroke="#d9e2f0" filter="url(#shadow)"/>
+                <text x="490" y="249" text-anchor="middle" font-size="18" font-family="Inter" fill="#003A8F" font-weight="800">Display / QLW</text>
+                <text x="490" y="271" text-anchor="middle" font-size="13" font-family="Inter" fill="#6B7280">view, animate, inspect</text>
+
+                <rect x="614" y="220" rx="18" ry="18" width="180" height="70" fill="#ffffff" stroke="#d9e2f0" filter="url(#shadow)"/>
+                <text x="704" y="249" text-anchor="middle" font-size="18" font-family="Inter" fill="#003A8F" font-weight="800">Archive / Export</text>
+                <text x="704" y="271" text-anchor="middle" font-size="13" font-family="Inter" fill="#6B7280">HDF5, BUFR, NetCDF, etc.</text>
+
+                <g stroke="#4d6fb5" stroke-width="4" fill="none" stroke-linecap="round">
+                  <path d="M156 115 L186 115"/>
+                  <path d="M336 115 L366 115"/>
+                  <path d="M516 115 L546 115"/>
+                  <path d="M696 115 L706 115"/>
+                  <path d="M775 150 L775 185 L276 185 L276 220"/>
+                  <path d="M366 255 L400 255"/>
+                  <path d="M580 255 L614 255"/>
+                </g>
+                <g fill="#4d6fb5">
+                  <polygon points="186,115 176,109 176,121"/>
+                  <polygon points="366,115 356,109 356,121"/>
+                  <polygon points="546,115 536,109 536,121"/>
+                  <polygon points="706,115 696,109 696,121"/>
+                  <polygon points="276,220 270,210 282,210"/>
+                  <polygon points="400,255 390,249 390,261"/>
+                  <polygon points="614,255 604,249 604,261"/>
+                </g>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="flowchart" class="card">
+        <div class="card-head">
+          <div>
+            <h2>1) Flowchart – RAW Files to Final Product</h2>
+            <p>Versi operasional yang bisa langsung dipahami oleh engineer, forecaster, atau developer.</p>
+          </div>
+          <div class="chip">End-to-End</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step"><div class="n">1</div><div><p class="t">Radar runs a task</p><p class="d">Task dapat berupa PPI, full volume, sector, hybrid, atau task lain sesuai konfigurasi radar. Task inilah sumber awal seluruh produk.</p></div></div>
+            <div class="step"><div class="n">2</div><div><p class="t">Task writes ingest data</p><p class="d">IRIS menyimpan hasil task sebagai ingest files. Product configuration kemudian akan mengaitkan produk dengan task yang sesuai.</p></div></div>
+            <div class="step"><div class="n">3</div><div><p class="t">RAW product packages measurement data</p><p class="d">RAW menyimpan parameter mentah seperti Z, ZT, V, W, ZDR, dan lainnya dalam koordinat polar. RAW tidak ditampilkan langsung, tetapi penting untuk archive, transfer jaringan, dan re-processing.</p></div></div>
+            <div class="step"><div class="n">4</div><div><p class="t">Product configuration defines the derived product</p><p class="d">Di tahap ini dipilih jenis produk seperti PPI, CAPPI, MAX, TOPS, RAIN1, RAIN-N, XSECT, atau produk lain, berikut data type, range, smoother, projection, dan resolution.</p></div></div>
+            <div class="step"><div class="n">5</div><div><p class="t">Scheduler decides when product is generated</p><p class="d">Product Scheduler akan menjalankan produk saat data yang dibutuhkan tersedia. Untuk volume products, scheduler menunggu seluruh elevasi atau input terkait.</p></div></div>
+            <div class="step"><div class="n">6</div><div><p class="t">Generated product is displayed or exported</p><p class="d">Hasil akhir bisa ditampilkan di Quick Look Window, dikirim ke output device, diarsipkan, atau diekspor ke format lain seperti HDF5, BUFR, atau NetCDF tergantung pipeline yang dipakai.</p></div></div>
+          </div>
+          <div class="callout"><strong>Practical note:</strong> RAW sangat berguna bila product generation ingin dipindah ke mesin lain, atau ketika Anda ingin melakukan post-processing / analysis tanpa membebani radar host utama.</div>
+        </div>
+      </section>
+
+      <section id="raw" class="card">
+        <div class="card-head">
+          <div>
+            <h2>2) RAW Layer – Why it matters</h2>
+            <p>RAW bukan sekadar file arsip; ia adalah jembatan utama antara akuisisi dan reproduksi produk.</p>
+          </div>
+          <div class="chip">RAW</div>
+        </div>
+        <div class="body">
+          <ul class="list">
+            <li>RAW dibuat satu-per-satu dari ingest files.</li>
+            <li>RAW menyimpan parameter signal processor dalam koordinat polar.</li>
+            <li>RAW dapat dikirim ke komputer IRIS Analysis lain untuk membangun produk tanpa memproses semuanya di radar host.</li>
+            <li>Saat RAW diterima kembali atau diretrieve dari archive, ingest file baru dibuat sehingga product generation bisa berjalan lagi.</li>
+          </ul>
+          <div class="table-like">
+            <div>Best use case</div><div>Transfer volume radar dari host produksi ke analysis node untuk generate CAPPI, MAX, XSECT, atau produk eksperimen.</div>
+            <div>Operational benefit</div><div>Mengurangi beban CPU radar host, terutama bila product mix banyak atau resolusi tinggi.</div>
+            <div>Development benefit</div><div>Memungkinkan testing produk baru, export converter, atau validasi algoritma tanpa mengganggu sistem utama.</div>
+            <div>Important caveat</div><div>RAW sendiri tidak langsung “displayable”; ia harus di-reingest atau diubah menjadi produk akhir terlebih dahulu.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scheduler" class="card">
+        <div class="card-head">
+          <div>
+            <h2>3) Task + Product + Scheduler Relationship</h2>
+            <p>Bagian ini yang biasanya paling penting untuk debugging kenapa produk belum muncul.</p>
+          </div>
+          <div class="chip">Scheduling Logic</div>
+        </div>
+        <div class="body">
+          <div class="steps">
+            <div class="step"><div class="n">A</div><div><p class="t">Task association</p><p class="d">Setiap product dihubungkan ke task tertentu. Produk volume seperti CAPPI, MAX, TOPS, VIL, XSECT, VVP, dan WIND membutuhkan multiple elevation angles.</p></div></div>
+            <div class="step"><div class="n">B</div><div><p class="t">Matched resolution matters</p><p class="d">Bin spacing, jumlah bins, max range, dan output pixel resolution yang serasi akan memperbaiki performa dan tampilan produk.</p></div></div>
+            <div class="step"><div class="n">C</div><div><p class="t">Scheduler trigger</p><p class="d">Product Scheduler menjalankan produk ketika input yang dibutuhkan sudah tersedia. Bila data belum lengkap, product bisa menunggu atau tidak jadi dihasilkan sesuai aturan scheduler.</p></div></div>
+            <div class="step"><div class="n">D</div><div><p class="t">Output handling</p><p class="d">Setelah produk jadi, Output menu menentukan apakah hasilnya hanya tampil di display, dikirim ke device tertentu, atau disimpan ke archive / pipe converter.</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="examples" class="card">
+        <div class="card-head">
+          <div>
+            <h2>4) Typical Product Paths</h2>
+            <p>Contoh alur yang paling sering dipakai di operasional.</p>
+          </div>
+          <div class="chip">Examples</div>
+        </div>
+        <div class="body">
+          <div class="mini-grid">
+            <div class="mini">
+              <strong>PPI path</strong>
+              <span>Task PPI → ingest → PPI configuration → scheduler → PPI display/output.</span>
+            </div>
+            <div class="mini">
+              <strong>CAPPI path</strong>
+              <span>Volume task → ingest / RAW → CAPPI configuration → height interpolation → scheduler → CAPPI display.</span>
+            </div>
+            <div class="mini">
+              <strong>MAX path</strong>
+              <span>Volume task → multiple elevations → CAPPI-like internal layer construction → MAX horizontal + side panels.</span>
+            </div>
+            <div class="mini">
+              <strong>RAIN1 / RAIN-N</strong>
+              <span>Reflectivity / rain-rate inputs → accumulation logic → hourly or N-hour rainfall product.</span>
+            </div>
+            <div class="mini">
+              <strong>XSECT</strong>
+              <span>Volume scan → user-definable line → height cross-section product.</span>
+            </div>
+            <div class="mini">
+              <strong>Offline analysis</strong>
+              <span>RAW archive → reingest on IRIS Analysis → build products later for QA, testing, or R&amp;D.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="exports" class="card">
+        <div class="card-head">
+          <div>
+            <h2>5) Output, Archive, and Export Converters</h2>
+            <p>Setelah product final tersedia, langkah berikutnya adalah interoperability.</p>
+          </div>
+          <div class="chip">Outputs</div>
+        </div>
+        <div class="body">
+          <p class="lead">IRIS Utilities menyediakan output pipes untuk berbagai format. Dalam banyak implementasi, ini menjadi titik integrasi ke sistem eksternal, archive nasional, atau workflow riset.</p>
+          <ul class="list">
+            <li>RAW dapat diekspor ke NetCDF.</li>
+            <li>Produk Cartesian tertentu seperti CAPPI, TOPS, MAX, RAIN1, dan lainnya dapat dikonversi ke BUFR, HDF5, atau format lain tergantung pipe yang diaktifkan.</li>
+            <li>Pipeline export biasanya diletakkan setelah product generation, bukan menggantikan product generation itu sendiri.</li>
+          </ul>
+          <div class="callout"><strong>Recommendation:</strong> Untuk workload berat, gunakan strategi host produksi + analysis node. Radar host fokus ke akuisisi dan task kritikal, sementara analysis node fokus ke derived products, export, replay, dan eksperimen.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="footer">© 2026 Terrindo Bumi Raya · IRIS Product Flow Manual</div>
+</body>
+</html>
