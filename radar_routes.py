@@ -13,6 +13,7 @@ from io import BytesIO
 from typing import Any
 
 import matplotlib
+import h5py
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
@@ -707,6 +708,10 @@ def _safe_text(value: Any) -> str:
         text = m.group(1).strip()
     return text.strip().strip('\x00').strip()
 
+def _safe_string_attr(value: Any, default: str = '') -> bytes:
+    text = _safe_text(value) or default
+    return np.bytes_(text)
+
 def _normalize_task_name(task_name: str) -> str:
     task = _safe_text(task_name).upper().replace('\x00', '').strip()
     task = re.sub(r'\s+', '', task)
@@ -968,7 +973,7 @@ def _compute_filter_availability(radar, field_name: str) -> dict[str, Any]:
     return availability
 
 def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, Any], defaults: dict[str, Any]):
-    data = np.ma.filled(np.ma.array(data_in).copy(), np.nan).astype(float)
+    data = _safe_masked_to_float(np.ma.array(data_in).copy())
     warnings = []
     category = _moment_category(field_name)
     enable_standard = bool(filters.get('enable_standard_filter'))
@@ -1694,6 +1699,385 @@ def _render_cross_section_png_from_files(
 
 
 
+
+
+def _pyiris_fill_missing_rays_by_raycount(radar, target_rays: int | None = None):
+    fields = list(radar.fields.keys())
+    filled_fields = {f: [] for f in fields}
+    filled_azimuth = []
+    filled_elevation = []
+    filled_time = []
+    sweep_start = []
+    sweep_end = []
+    ray_idx = 0
+
+    for sweep in range(int(getattr(radar, 'nsweeps', 0) or 0)):
+        start = int(radar.sweep_start_ray_index['data'][sweep])
+        end = int(radar.sweep_end_ray_index['data'][sweep]) + 1
+        az = np.asarray(radar.azimuth['data'][start:end], dtype=float)
+        elev = np.asarray(radar.elevation['data'][start:end], dtype=float)
+        t = np.asarray(radar.time['data'][start:end], dtype=float)
+        if az.size == 0:
+            continue
+
+        target_rays_sweep = int(target_rays) if target_rays is not None else int(az.size)
+        n_missing = max(0, target_rays_sweep - int(az.size))
+        az_list = list(az)
+        elev_list = list(elev)
+        time_list = list(t)
+
+        field_lists = {}
+        for f in fields:
+            field_slice = _safe_masked_to_float(radar.fields[f]['data'][start:end])
+            if field_slice.ndim == 1:
+                field_slice = field_slice[:, np.newaxis]
+            field_lists[f] = [np.asarray(row, dtype=float) for row in field_slice]
+
+        for _ in range(n_missing):
+            current_az = np.asarray(az_list, dtype=float)
+            if current_az.size == 0:
+                break
+
+            az_extended = np.append(current_az, current_az[0] + 360.0)
+            gaps = np.diff(az_extended)
+            gap_idx = int(np.argmax(gaps))
+            next_idx = (gap_idx + 1) % len(current_az)
+
+            az1 = current_az[gap_idx]
+            az2 = current_az[next_idx]
+            gap_diff = (az2 - az1) % 360.0
+            new_az = (az1 + gap_diff / 2.0) % 360.0
+            insert_idx = gap_idx + 1
+
+            az_list.insert(insert_idx, float(new_az))
+            elev_list.insert(insert_idx, float(np.nanmedian(elev_list)) if elev_list else 0.0)
+            nearest_time = time_list[max(0, min(insert_idx - 1, len(time_list) - 1))] if time_list else 0.0
+            time_list.insert(insert_idx, float(nearest_time))
+
+            for f in fields:
+                rows = field_lists[f]
+                if not rows:
+                    continue
+                val1 = np.asarray(rows[gap_idx], dtype=float)
+                val2 = np.asarray(rows[next_idx], dtype=float)
+                interp_row = np.nanmean(np.vstack([val1, val2]), axis=0)
+                rows.insert(insert_idx, np.asarray(interp_row, dtype=float))
+
+        filled_azimuth.extend(az_list)
+        filled_elevation.extend(elev_list)
+        filled_time.extend(time_list)
+
+        for f in fields:
+            rows = field_lists[f]
+            if not rows:
+                continue
+            arr = np.vstack([np.asarray(row, dtype=float) for row in rows]).astype(np.float32)
+            filled_fields[f].append(np.ma.masked_invalid(arr))
+
+        sweep_start.append(ray_idx)
+        ray_idx += len(az_list)
+        sweep_end.append(ray_idx - 1)
+
+    new_radar = radar.deepcopy() if hasattr(radar, 'deepcopy') else __import__('copy').deepcopy(radar)
+    new_radar.azimuth['data'] = np.asarray(filled_azimuth, dtype=np.float32)
+    new_radar.elevation['data'] = np.asarray(filled_elevation, dtype=np.float32)
+    new_radar.time['data'] = np.asarray(filled_time, dtype=np.float64)
+    new_radar.sweep_start_ray_index['data'] = np.asarray(sweep_start, dtype=np.int32)
+    new_radar.sweep_end_ray_index['data'] = np.asarray(sweep_end, dtype=np.int32)
+    if hasattr(new_radar, 'rays_per_sweep') and isinstance(new_radar.rays_per_sweep, dict):
+        new_radar.rays_per_sweep['data'] = np.asarray([(e - s + 1) for s, e in zip(sweep_start, sweep_end)], dtype=np.int32)
+    for f in fields:
+        if filled_fields[f]:
+            new_radar.fields[f]['data'] = np.ma.vstack(filled_fields[f]).astype(np.float32)
+    return new_radar
+
+
+def _pyiris_rpm_check(radar):
+    new_radar = radar.deepcopy() if hasattr(radar, 'deepcopy') else __import__('copy').deepcopy(radar)
+    sweep_rpms = []
+    for sweep in range(int(getattr(new_radar, 'nsweeps', 0) or 0)):
+        start = int(new_radar.sweep_start_ray_index['data'][sweep])
+        end = int(new_radar.sweep_end_ray_index['data'][sweep]) + 1
+        time_sweep = np.asarray(new_radar.time['data'][start:end], dtype=float)
+        if time_sweep.size < 2:
+            continue
+        duration = float(time_sweep[-1] - time_sweep[0])
+        if duration > 0:
+            sweep_rpms.append(60.0 / duration)
+    if not sweep_rpms:
+        return new_radar
+    target_rpm = float(np.nanmin(sweep_rpms))
+    new_time_data = np.asarray(new_radar.time['data'], dtype=float).copy()
+    ray_ptr = 0
+    for sweep in range(int(getattr(new_radar, 'nsweeps', 0) or 0)):
+        start = int(new_radar.sweep_start_ray_index['data'][sweep])
+        end = int(new_radar.sweep_end_ray_index['data'][sweep]) + 1
+        nsweep_rays = max(1, end - start)
+        if nsweep_rays < 2:
+            continue
+        target_duration = 60.0 / max(target_rpm, 1e-6)
+        time_per_ray = target_duration / max(nsweep_rays - 1, 1)
+        sweep_time = np.arange(nsweep_rays, dtype=float) * time_per_ray
+        offset = 0.0 if sweep == 0 else (new_time_data[ray_ptr - 1] + time_per_ray)
+        new_time_data[ray_ptr:ray_ptr + nsweep_rays] = sweep_time + offset
+        ray_ptr += nsweep_rays
+    new_radar.time['data'] = new_time_data.astype(np.float64)
+    return new_radar
+
+
+def _pyiris_quantity_name(moment: str) -> bytes:
+    name = str(moment or '')
+    low = name.lower()
+    if 'dbt' in low:
+        return np.bytes_('TX' if 'dbte' in low else 'TH')
+    if 'dbz' in low:
+        if 'dbze' in low:
+            return np.bytes_('DBZX')
+        if 'dbzv' in low:
+            return np.bytes_('DBZV')
+        return np.bytes_('DBZH')
+    if 'vel' in low:
+        return np.bytes_('VRADDH' if 'velc' in low else 'VRADH')
+    if 'width' in low:
+        return np.bytes_('WRADH')
+    if 'zdr' in low:
+        return np.bytes_('ZDR')
+    if 'phidp' in low:
+        return np.bytes_('PHIDP')
+    if 'rhohv' in low:
+        return np.bytes_('RHOHV')
+    if 'kdp' in low:
+        return np.bytes_('KDP')
+    if 'sqi' in low:
+        return np.bytes_('SQIH')
+    if 'snr' in low:
+        return np.bytes_('SNRH')
+    if 'class' in low or 'hclass' in low:
+        return np.bytes_('CLASS')
+    return np.bytes_(name)
+
+
+def _safe_masked_to_float(data: Any, fill_value: float = np.nan) -> np.ndarray:
+    arr = np.ma.array(data, copy=False)
+    if np.ma.isMaskedArray(arr):
+        filled = arr.astype(np.float64).filled(fill_value)
+    else:
+        filled = np.asarray(arr, dtype=np.float64)
+    return np.asarray(filled, dtype=float)
+
+
+def _build_pyiris_hdf5_dataset(
+    filepaths,
+    filters=None,
+    target_rays: int | None = 360,
+    interpolate_missing: bool = False,
+    normalize_rpm: bool = False,
+):
+    filters = filters or {}
+    radar, warnings = _merge_radars(filepaths)
+
+    if interpolate_missing:
+        try:
+            radar = _pyiris_fill_missing_rays_by_raycount(radar, target_rays=target_rays)
+        except Exception as exc:
+            warnings.append(f'missing-ray interpolation skipped: {exc}')
+
+    if normalize_rpm:
+        try:
+            radar = _pyiris_rpm_check(radar)
+        except Exception as exc:
+            warnings.append(f'rpm normalization skipped: {exc}')
+
+    for fname in list(radar.fields.keys()):
+        try:
+            raw_data = radar.fields[fname]['data'].copy()
+            filtered_data, filter_warnings = _apply_pyiris_filters(radar, fname, raw_data, filters, load_pyiris_defaults())
+            warnings.extend(filter_warnings)
+            radar.fields[fname]['data'] = np.ma.masked_invalid(filtered_data)
+        except Exception as exc:
+            warnings.append(f'filter skipped for {fname}: {exc}')
+
+    try:
+        hclass_name = next((f for f in radar.fields.keys() if 'CLASS' in str(f).upper() or 'HCLASS' in str(f).upper()), None)
+        if hclass_name:
+            hclass_data = _safe_masked_to_float(radar.fields[hclass_name]['data'], fill_value=0).astype(np.int32)
+            radar.fields[hclass_name]['data'] = np.ma.masked_invalid(np.bitwise_and(hclass_data, ~(0b11111 << 3)))
+    except Exception:
+        pass
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.h5')
+    tmp.close()
+
+    moments_out = list(radar.fields.keys())
+    fixed_angle = np.asarray(getattr(radar, 'fixed_angle', {'data': []})['data'] if getattr(radar, 'fixed_angle', None) is not None else [], dtype=float)
+    altitude_data = np.asarray(getattr(radar, 'altitude', {'data': [0.0]})['data'] if getattr(radar, 'altitude', None) is not None else [0.0], dtype=float)
+    latitude = np.asarray(radar.latitude['data'], dtype=float)
+    longitude = np.asarray(radar.longitude['data'], dtype=float)
+    azimuth = np.asarray(radar.azimuth['data'], dtype=float)
+    elevation = np.asarray(radar.elevation['data'], dtype=float)
+    delta_time = np.asarray(radar.time['data'], dtype=float)
+    nrays_sweep = np.asarray(radar.rays_per_sweep['data'], dtype=int) if getattr(radar, 'rays_per_sweep', None) is not None else np.array([], dtype=int)
+    nbins = int(getattr(radar, 'ngates', 0) or 0)
+    nsweeps = int(getattr(radar, 'nsweeps', 0) or 0)
+    first_bin_range = np.asarray(radar.range.get('meters_to_center_of_first_gate', [0.0]), dtype=float)
+    range_step = np.asarray(radar.range.get('meters_between_gates', [0.0]), dtype=float)
+    a1gate = int(radar.range.get('a1gate', 0)) if isinstance(radar.range, dict) else 0
+
+    start_units = str(radar.time.get('units', 'seconds since 1970-01-01T00:00:00Z'))
+    try:
+        start_scan_time = datetime.strptime(start_units, 'seconds since %Y-%m-%dT%H:%M:%SZ')
+    except Exception:
+        try:
+            base = start_units.split('since', 1)[1].strip().replace('Z', '')
+            start_scan_time = datetime.fromisoformat(base)
+        except Exception:
+            start_scan_time = datetime.utcnow()
+
+    metadata = getattr(radar, 'metadata', {}) or {}
+    instrument_parameters = getattr(radar, 'instrument_parameters', {}) or {}
+    site_name = _safe_text(metadata.get('instrument_name')) or 'RADAR'
+    task_name = _safe_text(metadata.get('sigmet_task_name') or metadata.get('task_name') or 'PYIRIS') or 'PYIRIS'
+    polarization = _safe_text(metadata.get('polarization')) or 'unknown'
+    scan_type = 'SCAN' if nsweeps == 1 else 'PVOL'
+    wavelength = np.asarray(instrument_parameters.get('wavelength', {}).get('data', [0.0]), dtype=float)
+    nyquist = np.asarray(instrument_parameters.get('nyquist_velocity', {}).get('data', [0.0]), dtype=float)
+    prt_ratio = np.asarray(instrument_parameters.get('prt_ratio', {}).get('data', np.ones(max(1, azimuth.size))), dtype=float)
+    beamwidth_h = np.asarray(instrument_parameters.get('radar_beam_width_h', {}).get('data', [0.0]), dtype=float)
+    pulsewidth = np.asarray(instrument_parameters.get('pulse_width', {}).get('data', np.zeros(max(1, azimuth.size))), dtype=float)
+    prt = np.asarray(instrument_parameters.get('prt', {}).get('data', np.ones(max(1, azimuth.size))), dtype=float)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        prf = np.where(prt != 0, 1.0 / prt, 0.0)
+
+    azimuth_start = np.asarray(radar.azimuth.get('start', azimuth), dtype=float)
+    azimuth_stop = np.asarray(radar.azimuth.get('stop', azimuth), dtype=float)
+    elevation_start = np.asarray(radar.elevation.get('start', elevation), dtype=float)
+    elevation_stop = np.asarray(radar.elevation.get('stop', elevation), dtype=float)
+
+    dt = np.dtype([('key','int64',(64)),('value','int64',(32))])
+    hydrometeor_class = ['THRESHOLD','NON_MET','RAIN','WET_SNOW','SNOW','GRAUPEL','HAIL','GC/AP','BIO','PRECIPITATION','LARGE_DROPS','LIGHT_PRECIP','MODERATE_PRECIP','HEAVY_PRECIP','STATIFORM','CONVECTIVE','MELTING','NON_MELTING','AUX3','AUX4','AUX5','USER1','USER2','USER3','USER4','USER5']
+    legend = np.zeros((26,), dtype=dt)
+    for seq, h_class in enumerate(hydrometeor_class):
+        key_arr = np.zeros(64, dtype='int64')
+        val_arr = np.zeros(32, dtype='int64')
+        for i, c in enumerate(h_class[:64]):
+            key_arr[i] = ord(c)
+        for i, c in enumerate(str(seq)[:32]):
+            val_arr[i] = ord(c)
+        legend[seq] = (key_arr, val_arr)
+
+    offset_map = {}
+    gain_map = {}
+    for moment in moments_out:
+        data = _safe_masked_to_float(radar.fields[moment]['data'])
+        finite = data[np.isfinite(data)]
+        offset = float(np.nanmin(finite)) if finite.size else 0.0
+        low = str(moment).lower()
+        if any(token in low for token in ('rhohv', 'phidp', 'sqi', 'pmi')):
+            gain = abs(offset) if abs(offset) > 0 else 1.0
+        elif 'class' in low or 'hclass' in low:
+            gain = 1.0
+            offset = 0.0
+        else:
+            gain = 0.01
+        if not np.isfinite(gain) or gain == 0:
+            gain = 1.0
+        if not np.isfinite(offset):
+            offset = 0.0
+        offset_map[moment] = offset
+        gain_map[moment] = gain
+
+    with h5py.File(tmp.name, 'w') as hdf:
+        hdf.attrs['Conventions'] = np.bytes_('ODIM_H5/V2_2')
+        for sweep in range(nsweeps):
+            start_ray = int(radar.get_start(sweep))
+            end_ray = int(radar.get_end(sweep))
+            slice_ray = radar.get_slice(sweep)
+            ds_group = hdf.create_group(f'dataset{sweep+1}')
+            d = 1
+            for moment in moments_out:
+                moment_data = _safe_masked_to_float(radar.fields[moment]['data'][slice_ray])
+                order = np.argsort(np.asarray(azimuth_stop[slice_ray], dtype=float)) if np.asarray(azimuth_stop[slice_ray]).size else np.arange(moment_data.shape[0])
+                az_start = np.asarray(azimuth_start[slice_ray], dtype=float)[order] if np.asarray(azimuth_start[slice_ray]).size else np.asarray(azimuth[slice_ray], dtype=float)[order]
+                az_stop = np.asarray(azimuth_stop[slice_ray], dtype=float)[order] if np.asarray(azimuth_stop[slice_ray]).size else np.asarray(azimuth[slice_ray], dtype=float)[order]
+                ordered = moment_data[order]
+                encoded = np.where(np.isfinite(ordered), (ordered - offset_map[moment]) / gain_map[moment], 0.0)
+                encoded = np.clip(np.rint(encoded), 0, np.iinfo(np.uint16).max).astype(np.uint16)
+                main = ds_group.create_group(f'data{d}')
+                main.create_dataset('data', data=encoded, chunks=encoded.shape, compression='gzip')
+                data_dset = main['data']
+                data_dset.attrs['CLASS'] = np.bytes_('IMAGE')
+                data_dset.attrs['IMAGE_VERSION'] = np.bytes_('1.2')
+                if 'class' in str(moment).lower() or 'hclass' in str(moment).lower():
+                    main.create_dataset('legend', (26,), data=legend, dtype=dt)
+                what = main.create_group('what')
+                what.attrs['quantity'] = _pyiris_quantity_name(moment)
+                what.attrs['gain'] = np.double(gain_map[moment])
+                what.attrs['offset'] = np.double(offset_map[moment])
+                what.attrs['nodata'] = np.double(0.0)
+                what.attrs['undetect'] = np.double(0.0)
+                d += 1
+
+            ds_what = ds_group.create_group('what')
+            ds_what.attrs['product'] = np.bytes_('SCAN')
+            sweep_start_time = start_scan_time + timedelta(seconds=float(delta_time[start_ray]) if delta_time.size > start_ray else 0.0)
+            sweep_end_time = start_scan_time + timedelta(seconds=float(delta_time[end_ray]) if delta_time.size > end_ray else 0.0)
+            ds_what.attrs.create('startdate', sweep_start_time.strftime('%Y%m%d'), None, dtype='<S9')
+            ds_what.attrs.create('starttime', sweep_start_time.strftime('%H%M%S'), None, dtype='<S7')
+            ds_what.attrs.create('enddate', sweep_end_time.strftime('%Y%m%d'), None, dtype='<S9')
+            ds_what.attrs.create('endtime', sweep_end_time.strftime('%H%M%S'), None, dtype='<S7')
+
+            ds_how = ds_group.create_group('how')
+            scan_time = start_scan_time.timestamp() + (delta_time[slice_ray] if delta_time.size else np.array([], dtype=float))
+            duration = max((sweep_end_time - sweep_start_time).total_seconds(), 1.0)
+            rpm = np.single((360.0 / duration) / 6.0).round(decimals=1)
+            ds_how.attrs['scan_index'] = sweep + 1
+            ds_how.attrs['pulsewidth'] = np.double(float(pulsewidth[start_ray] * 1e6) if pulsewidth.size > start_ray else 0.0)
+            lowprf = float(prf[start_ray] / prt_ratio[start_ray]) if prf.size > start_ray and prt_ratio.size > start_ray and prt_ratio[start_ray] not in (0, np.nan) else 0.0
+            ds_how.attrs['lowprf'] = np.double(lowprf)
+            ds_how.attrs['highprf'] = np.double(float(prf[start_ray]) if prf.size > start_ray else 0.0)
+            ds_how.attrs['NI'] = np.double(float(nyquist[start_ray]) if nyquist.size > start_ray else 0.0)
+            ds_how.attrs['rpm'] = rpm
+            ds_how.attrs['astart'] = np.float64(azimuth_start[start_ray] if azimuth_start.size > start_ray else azimuth[start_ray])
+            ds_how.attrs['startazA'] = np.asarray(azimuth_start[slice_ray], dtype='float64') if azimuth_start.size else np.asarray(azimuth[slice_ray], dtype='float64')
+            ds_how.attrs['stopazA'] = np.asarray(azimuth_stop[slice_ray], dtype='float64') if azimuth_stop.size else np.asarray(azimuth[slice_ray], dtype='float64')
+            ds_how.attrs['startazT'] = np.asarray(scan_time, dtype='float64')
+            ds_how.attrs['stopazT'] = np.asarray(scan_time, dtype='float64')
+            ds_how.attrs['startelT'] = np.asarray(scan_time, dtype='float64')
+            ds_how.attrs['stopelT'] = np.asarray(scan_time, dtype='float64')
+            ds_how.attrs['startelA'] = np.asarray(elevation_start[slice_ray], dtype='float64') if elevation_start.size else np.asarray(elevation[slice_ray], dtype='float64')
+            ds_how.attrs['stopelA'] = np.asarray(elevation_stop[slice_ray], dtype='float64') if elevation_stop.size else np.asarray(elevation[slice_ray], dtype='float64')
+
+            ds_where = ds_group.create_group('where')
+            ds_where.attrs['elangle'] = np.single(np.round(float(fixed_angle[sweep]) if fixed_angle.size > sweep else float(np.nanmedian(elevation[slice_ray])) if elevation[slice_ray].size else 0.0, 1))
+            ds_where.attrs['nbins'] = np.int_(nbins)
+            ds_where.attrs['rstart'] = np.double(float(first_bin_range[0]) if first_bin_range.size else 0.0)
+            ds_where.attrs['rscale'] = np.double(float(range_step[0]) if range_step.size else 0.0)
+            ds_where.attrs['nrays'] = np.int_(int(np.nanmax(nrays_sweep)) if interpolate_missing and nrays_sweep.size else int(nrays_sweep[sweep]) if nrays_sweep.size > sweep else len(slice_ray))
+            ds_where.attrs['a1gate'] = np.int_(a1gate)
+
+        how = hdf.create_group('how')
+        how.attrs['task'] = _safe_string_attr(task_name, 'PYIRIS')
+        how.attrs['beamwidth'] = np.double(float(beamwidth_h[0]) if beamwidth_h.size else 0.0)
+        how.attrs['polarization'] = _safe_string_attr(polarization, 'unknown')
+        how.attrs['scan_count'] = np.int_(nsweeps)
+        how.attrs['wavelength'] = np.double(float(wavelength[0] / 100.0) if wavelength.size else 0.0)
+        how.attrs['azmethod'] = np.bytes_('AVERAGE')
+        how.attrs['binmethod'] = np.bytes_('AVERAGE')
+
+        what = hdf.create_group('what')
+        what.attrs['object'] = np.bytes_(scan_type)
+        what.attrs['version'] = np.bytes_('H5rad 2.2')
+        what.attrs['date'] = np.bytes_(start_scan_time.strftime('%Y%m%d'))
+        what.attrs['time'] = np.bytes_(start_scan_time.strftime('%H%M%S'))
+        what.attrs['source'] = np.bytes_(f'PLC:{site_name}')
+
+        where = hdf.create_group('where')
+        where.attrs['lon'] = np.double(float(longitude[0]) if longitude.size else 0.0)
+        where.attrs['lat'] = np.double(float(latitude[0]) if latitude.size else 0.0)
+        where.attrs['height'] = np.double(float(altitude_data[0]) if altitude_data.size else 0.0)
+
+    return tmp.name, warnings, radar
+
 def _build_export_dataset(
     filepaths,
     field,
@@ -2027,6 +2411,57 @@ def radar_export():
     if warnings:
         response.headers['X-Warnings'] = '; '.join(warnings)
     return response
+
+@radar_bp.route('/convert_hdf5')
+def radar_convert_hdf5():
+    group = request.args.get('group')
+    idx = int(request.args.get('frame', 0))
+    filters_arg = request.args.get('filters')
+    try:
+        filters = json.loads(filters_arg) if filters_arg else {}
+    except Exception:
+        filters = {}
+
+    interpolate_missing = str(request.args.get('interpolate_missing', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    normalize_rpm = str(request.args.get('normalize_rpm', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    try:
+        target_rays = int(request.args.get('target_rays', '360') or '360')
+    except Exception:
+        target_rays = 360
+    target_rays = max(1, target_rays)
+
+    if not radar_groups or group not in radar_groups:
+        return 'No radar files loaded', 404
+
+    frames = radar_groups[group]
+    idx = idx % len(frames)
+    frame_data = frames[idx]
+
+    export_path, warnings, radar = _build_pyiris_hdf5_dataset(
+        frame_data['files'],
+        filters=filters,
+        target_rays=target_rays,
+        interpolate_missing=interpolate_missing,
+        normalize_rpm=normalize_rpm,
+    )
+
+    task_name = _normalize_task_name(_safe_text(getattr(radar, 'metadata', {}).get('sigmet_task_name') or getattr(radar, 'metadata', {}).get('task_name') or group))
+    safe_time = str(frame_data.get('time') or 'frame').replace(':', '-').replace(' ', '_')
+    filename = f"{task_name}_{safe_time}_pyiris.h5"
+    response = send_file(export_path, as_attachment=True, download_name=filename)
+
+    @response.call_on_close
+    def _cleanup_tmp():
+        try:
+            os.remove(export_path)
+        except Exception:
+            pass
+
+    warnings = _unique_warning_messages(warnings)
+    if warnings:
+        response.headers['X-Warnings'] = '; '.join(warnings)
+    return response
+
 
 @radar_bp.route('/cross_section')
 def radar_cross_section():

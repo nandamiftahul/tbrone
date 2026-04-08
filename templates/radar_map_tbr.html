@@ -677,6 +677,27 @@
           <div class="smallText">Filters are applied when you click Apply Filter so rendering does not become heavy every time an input changes.</div>
         </div>
 
+        <div class="sectionLabel">Conversion</div>
+        <div class="item">
+          <div class="headRow">
+            <div>
+              <p class="name">pyIRIS HDF5 Conversion</p>
+              <p class="coord">Convert the active frame to pyIRIS-style ODIM HDF5. The current pyIRIS filter settings are used during export.</p>
+            </div>
+            <div class="tag">HDF5</div>
+          </div>
+          <label class="check"><input type="checkbox" id="convertInterpolateMissing"> Fill missing rays</label>
+          <label class="check"><input type="checkbox" id="convertNormalizeRpm"> Normalize RPM</label>
+          <div class="field">
+            <label for="convertTargetRays">Target rays per sweep</label>
+            <input type="number" id="convertTargetRays" min="1" step="1" value="360">
+          </div>
+          <div class="filterActions">
+            <button class="miniBtn" type="button" onclick="convertActiveFrameToHdf5()">Convert Active Frame</button>
+          </div>
+          <div class="smallText">This only adds conversion. Existing radar display, filters, products, and tools stay unchanged.</div>
+        </div>
+
         <div class="sectionLabel">Sweeps in Active Frame</div>
         <div class="item">
           <div class="headRow">
@@ -845,6 +866,7 @@
     const radarPrecomputeUrl = "{{ url_for('radar_bp.radar_precompute') }}";
     const radarSamplePointUrl = "{{ url_for('radar_bp.radar_sample_point') }}";
     const radarAccumulationSeriesUrl = "{{ url_for('radar_bp.radar_accumulation_series') }}";
+    const radarConvertHdf5Url = "{{ url_for('radar_bp.radar_convert_hdf5') }}";
     const hasGroups = {{ 'true' if groups else 'false' }};
     const pyirisDefaults = {{ pyiris_defaults | tojson }};
 
@@ -3399,8 +3421,12 @@ Frame: ${index + 1}/${total}`;
       });
     }
 
-    function setPyirisDefaults() {
+    function setPyirisDefaults(options = {}) {
+      const uiOnly = !!(options && options.uiOnly);
       filters = JSON.parse(JSON.stringify(pyirisDefaults || {}));
+
+      // User wants default startup and Reset Default to be visually and functionally unfiltered.
+      // Keep threshold values from pyIRIS defaults, but turn OFF every filter checkbox.
       filters.enable_standard_filter = false;
       filters.enable_speckle_filter = false;
       filters.active_LOG = false;
@@ -3411,7 +3437,9 @@ Frame: ${index + 1}/${total}`;
       filters.active_PHI = false;
       filters.active_SDZ = false;
       filters.active_MDZ = false;
+
       syncPyirisUIFromFilters();
+      if (!uiOnly) gatherFilterInputs();
     }
 
     function gatherFilterInputs() {
@@ -3454,24 +3482,109 @@ Frame: ${index + 1}/${total}`;
       loadRadar(true);
     }
 
-    function resetPyirisDefaults() {
-      applyImageQuality(imageQuality, false);
-    customCmapSpec = loadCustomCmapSpec();
-    updateCustomCmapUI();
-    setPyirisDefaults();
-      frame = 0;
-      showOverlay('Resetting filter…', 'Loading pyIRIS defaults', 45);
+    async function reloadCurrentRadarView(statusText) {
+      gatherFilterInputs();
+      updateWarningBox('');
+      if (statusText) setStatus(statusText);
+
+      // Force both 2D and 3D state to drop stale filtered render before rebuilding.
+      latestRadarVolumeData = null;
+      refresh3DOverlay();
+      if (radarLayer) {
+        try { map.removeLayer(radarLayer); } catch (err) {}
+        radarLayer = null;
+      }
+      latestRadarImageUrl = null;
+
+      await precomputeCurrentView(false);
       loadRadar(true);
+      if (currentMapMode === '3d') {
+        try { await loadRadar3D(group, frame, field); } catch (err) { console.error(err); }
+      }
     }
 
-    function disableAllFilters() {
+
+    async function convertActiveFrameToHdf5() {
+      if (!group) {
+        alert('No radar group loaded yet.');
+        return;
+      }
+      gatherFilterInputs();
+      const interpolateMissing = !!(document.getElementById('convertInterpolateMissing')?.checked);
+      const normalizeRpm = !!(document.getElementById('convertNormalizeRpm')?.checked);
+      const targetRaysRaw = document.getElementById('convertTargetRays')?.value;
+      let targetRays = parseInt(targetRaysRaw || '360', 10);
+      if (!Number.isFinite(targetRays) || targetRays < 1) targetRays = 360;
+
+      const params = new URLSearchParams({
+        group,
+        frame: String(frame),
+        filters: JSON.stringify(filters),
+        target_rays: String(targetRays)
+      });
+      if (interpolateMissing) params.set('interpolate_missing', '1');
+      if (normalizeRpm) params.set('normalize_rpm', '1');
+
+      showOverlay('Converting to HDF5…', `Building pyIRIS HDF5 for frame ${frame + 1}/${Math.max(total, 1)}`, 55);
+      setStatus(`Converting active frame ${frame + 1}/${Math.max(total, 1)} to HDF5...`);
+      updateWarningBox('');
+
+      try {
+        const res = await fetch(`${radarConvertHdf5Url}?${params.toString()}`);
+        if (!res.ok) {
+          let message = 'HDF5 conversion failed';
+          try {
+            const text = await res.text();
+            if (text) message = text;
+          } catch (err) {}
+          throw new Error(message);
+        }
+
+        const warnings = res.headers.get('X-Warnings') || '';
+        const disposition = res.headers.get('Content-Disposition') || '';
+        let filename = `radar_frame_${frame + 1}_pyiris.h5`;
+        const starMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+        const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+        if (starMatch && starMatch[1]) {
+          filename = decodeURIComponent(starMatch[1]);
+        } else if (plainMatch && plainMatch[1]) {
+          filename = plainMatch[1];
+        }
+
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = blobUrl;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+
+        updateWarningBox(warnings);
+        hideOverlay();
+        setStatus(`HDF5 downloaded: ${filename}`);
+      } catch (err) {
+        hideOverlay();
+        setStatus('HDF5 conversion failed');
+        alert(err?.message || 'HDF5 conversion failed');
+      }
+    }
+
+    async function resetPyirisDefaults() {
+      customCmapSpec = loadCustomCmapSpec();
+      updateCustomCmapUI();
       setPyirisDefaults();
-      filters.enable_standard_filter = false;
-      filters.enable_speckle_filter = false;
-      syncPyirisUIFromFilters();
+      frame = 0;
+      showOverlay('Resetting filter…', 'Restoring default values and unfiltered view', 45);
+      await reloadCurrentRadarView('Loading default unfiltered radar...');
+    }
+
+    async function disableAllFilters() {
+      setPyirisDefaults();
       frame = 0;
       showOverlay('Disabling filters…', 'Loading unfiltered radar', 45);
-      loadRadar(true);
+      await reloadCurrentRadarView('Loading unfiltered radar...');
     }
 
     function populateFrameSelect() {
@@ -3797,7 +3910,6 @@ function resetOverrides() {
       document.getElementById('sweepSelect').value = 'auto';
       selectedSweep = 'auto';
       timeWindowChanged();
-      loadRadar();
     }
 
     document.getElementById('scanWindow').addEventListener('change', function(){
