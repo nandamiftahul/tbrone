@@ -305,7 +305,7 @@
 
     .customCmapActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .customCmapMeta{margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(0,58,143,.05);border:1px solid rgba(0,58,143,.10);font-size:11px;color:var(--muted);line-height:1.4}
-    .customCmapPreview{height:12px;border-radius:999px;border:1px solid var(--border);margin-top:8px;background:linear-gradient(90deg,#00ffff 0%,#0000ff 12%,#028086 20%,#00ff00 30%,#ffff03 50%,#fa3a07 68%,#c400ff 100%)}
+    .customCmapPreview{height:12px;border-radius:999px;border:1px solid var(--border);margin-top:8px;background:linear-gradient(90deg,#00ffff 0%,#0000ff 12%,#028086 20%,#00ff00 30%,#ffff03 50%,#fa3a07 68%,#7f0000 100%)}
     .radar3dStylePanel{position:absolute;left:14px;bottom:14px;z-index:10020;display:none;width:260px;background:rgba(255,255,255,.96);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:12px;backdrop-filter:blur(8px)}
     .radar3dStylePanel .panelTitle{font-size:12px;font-weight:900;color:var(--xw-blue);margin-bottom:8px;text-transform:uppercase;letter-spacing:.35px}
     .radar3dStylePanel .panelSub{font-size:11px;color:var(--muted);line-height:1.4;margin-top:4px}
@@ -907,8 +907,8 @@
           { value: 50, color: '#FA3A07' },
           { value: 55, color: '#DE0000' },
           { value: 60, color: '#B00101' },
-          { value: 65, color: '#CD008D' },
-          { value: 70, color: '#C400FF' }
+          { value: 65, color: '#7F0000' },
+          { value: 70, color: '#4D0000' }
         ]
       };
     }
@@ -1355,9 +1355,25 @@
 
     function get3DValueRange() {
       const cfg = defaultConfigs[field] || {};
-      const lo = Number.isFinite(Number(vmin)) ? Number(vmin) : (Number.isFinite(Number(cfg.vmin)) ? Number(cfg.vmin) : -20);
-      const hi = Number.isFinite(Number(vmax)) ? Number(vmax) : (Number.isFinite(Number(cfg.vmax)) ? Number(cfg.vmax) : 70);
-      return { lo, hi: Math.max(lo + 1, hi) };
+      const volumeMin = Number(latestRadarVolumeData?.value_min);
+      const volumeMax = Number(latestRadarVolumeData?.value_max);
+
+      let lo = Number.isFinite(Number(vmin)) ? Number(vmin) : NaN;
+      let hi = Number.isFinite(Number(vmax)) ? Number(vmax) : NaN;
+
+      if (!Number.isFinite(lo) && Number.isFinite(volumeMin)) lo = volumeMin;
+      if (!Number.isFinite(hi) && Number.isFinite(volumeMax)) hi = volumeMax;
+
+      if (!Number.isFinite(lo) && Number.isFinite(Number(cfg.vmin))) lo = Number(cfg.vmin);
+      if (!Number.isFinite(hi) && Number.isFinite(Number(cfg.vmax))) hi = Number(cfg.vmax);
+
+      if (!Number.isFinite(lo)) lo = -20;
+      if (!Number.isFinite(hi)) hi = 70;
+
+      if (hi - lo < 1) {
+        hi = lo + 1;
+      }
+      return { lo, hi };
     }
 
     function clamp01(v) {
@@ -1535,20 +1551,87 @@
       ];
     }
 
+    function hexToRgb(hex) {
+      const clean = String(hex || '').trim().replace('#', '');
+      if (!/^[0-9A-Fa-f]{6}$/.test(clean)) return null;
+      return [
+        parseInt(clean.slice(0, 2), 16),
+        parseInt(clean.slice(2, 4), 16),
+        parseInt(clean.slice(4, 6), 16)
+      ];
+    }
+
+    function get3DPaletteStops() {
+      const active = getActiveCustomCmap();
+      const fallbackSpec = active || getDefaultBmkgPreset();
+      const normalized = normalizeCustomCmapSpec(fallbackSpec);
+      if (normalized && Array.isArray(normalized.stops) && normalized.stops.length >= 2) {
+        const values = normalized.stops.map(stop => Number(stop.value)).filter(v => Number.isFinite(v));
+        const minValue = values.length ? Math.min(...values) : 0;
+        const maxValue = values.length ? Math.max(...values) : 1;
+        const span = Math.max(1e-6, maxValue - minValue);
+        const stops = normalized.stops
+          .map(stop => {
+            let rgb = hexToRgb(stop.color);
+            const value = Number(stop.value);
+            if (!rgb || !Number.isFinite(value)) return null;
+
+            // Avoid purple/magenta dominance in 3D:
+            // when red and blue are both strong and green is weak, remap to deep red.
+            if (rgb[0] > 140 && rgb[2] > 120 && rgb[1] < 90) {
+              rgb = [Math.max(rgb[0], 160), Math.min(rgb[1], 25), Math.min(rgb[2], 30)];
+            }
+
+            return {
+              t: Math.max(0, Math.min(1, (value - minValue) / span)),
+              rgb
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.t - b.t);
+        if (stops.length >= 2) return stops;
+      }
+      return [
+        { t: 0.00, rgb: [0, 255, 255] },
+        { t: 0.12, rgb: [0, 0, 255] },
+        { t: 0.20, rgb: [2, 128, 134] },
+        { t: 0.30, rgb: [0, 255, 0] },
+        { t: 0.50, rgb: [255, 255, 3] },
+        { t: 0.68, rgb: [249, 162, 5] },
+        { t: 0.80, rgb: [250, 58, 7] },
+        { t: 0.90, rgb: [222, 0, 0] },
+        { t: 1.00, rgb: [176, 1, 1] }
+      ];
+    }
+
     function radarValueToColor(value, alpha = 210) {
       const { lo, hi } = get3DValueRange();
-      const t = (Number(value) - lo) / Math.max(1e-6, hi - lo);
-      const palette = [
-        [47, 128, 237],
-        [31, 211, 238],
-        [38, 196, 76],
-        [249, 214, 53],
-        [247, 141, 28],
-        [227, 68, 58],
-        [172, 92, 255]
-      ];
-      const rgb = interpolateColor(palette, t);
-      return [rgb[0], rgb[1], rgb[2], alpha];
+      const t = Math.max(0, Math.min(1, (Number(value) - lo) / Math.max(1e-6, hi - lo)));
+      const stops = get3DPaletteStops();
+
+      if (!stops.length) return [0, 255, 255, alpha];
+      if (t <= stops[0].t) return [stops[0].rgb[0], stops[0].rgb[1], stops[0].rgb[2], alpha];
+      if (t >= stops[stops.length - 1].t) {
+        const last = stops[stops.length - 1].rgb;
+        return [last[0], last[1], last[2], alpha];
+      }
+
+      for (let i = 0; i < stops.length - 1; i++) {
+        const a = stops[i];
+        const b = stops[i + 1];
+        if (t >= a.t && t <= b.t) {
+          const localT = (t - a.t) / Math.max(1e-6, b.t - a.t);
+          const rgb = [
+            Math.round(lerp(a.rgb[0], b.rgb[0], localT)),
+            Math.round(lerp(a.rgb[1], b.rgb[1], localT)),
+            Math.round(lerp(a.rgb[2], b.rgb[2], localT))
+          ];
+          return [rgb[0], rgb[1], rgb[2], alpha];
+        }
+      }
+
+      const fallback = stops[stops.length - 1].rgb;
+      return [fallback[0], fallback[1], fallback[2], alpha];
     }
 
     function buildRadarVolumeShellLayer(voxels) {
