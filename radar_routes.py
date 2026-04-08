@@ -2041,67 +2041,6 @@ def radar_cross_section():
     return response
 
 
-@radar_bp.route('/accumulation_series')
-def radar_accumulation_series():
-    group = request.args.get('group')
-    field = request.args.get('field')
-    requested_sweep = request.args.get('sweep')
-    requested_elevation = request.args.get('elevation')
-    try:
-        cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
-    except Exception:
-        cappi_height_km = 2.0
-    try:
-        lat = float(request.args.get('lat'))
-        lon = float(request.args.get('lon'))
-    except Exception:
-        return jsonify({'ok': False, 'error': 'Invalid coordinates'}), 400
-
-    filters_arg = request.args.get('filters')
-    try:
-        filters = json.loads(filters_arg) if filters_arg else {}
-    except Exception:
-        filters = {}
-    interpolate = str(request.args.get('interpolate', '')).strip().lower() in ('1', 'true', 'yes', 'on')
-    gap_fill = str(request.args.get('gap_fill', '')).strip().lower() in ('1', 'true', 'yes', 'on')
-    if gap_fill:
-        interpolate = True
-
-    if not radar_groups or group not in radar_groups:
-        return jsonify({'ok': False, 'error': 'No radar files loaded'}), 404
-
-    if not field or field not in available_fields:
-        if 'DBZ2' in available_fields:
-            field = 'DBZ2'
-        elif available_fields:
-            field = available_fields[0]
-        else:
-            return jsonify({'ok': False, 'error': 'No radar fields available'}), 404
-
-    try:
-        series = _sample_accumulation_series_by_group(
-            group,
-            field,
-            lat,
-            lon,
-            filters=filters,
-            requested_sweep=requested_sweep,
-            requested_elevation=requested_elevation,
-            cappi_height_km=cappi_height_km,
-        )
-        return jsonify({
-            'ok': True,
-            'group': group,
-            'field': field,
-            'product': 'ACC',
-            'unit': 'mm',
-            'accumulation_minutes': float(merge_window_minutes),
-            'lat': float(lat),
-            'lon': float(lon),
-            'series': series,
-        })
-    except Exception as exc:
-        return jsonify({'ok': False, 'error': str(exc)}), 500
 
 
 @radar_bp.route('/sample_point')
@@ -2339,7 +2278,6 @@ def radar_volume_data():
 
     frames = radar_groups[group]
     frame_data = frames[idx % len(frames)]
-
     radar, warnings = _merge_radars(frame_data['files'])
 
     if field not in radar.fields:
@@ -2364,30 +2302,29 @@ def radar_volume_data():
     if data.ndim != 2 or data.size == 0 or az.size == 0 or rng_km_full.size == 0:
         return jsonify({'ok': False, 'error': 'Radar volume is empty'}), 400
 
-    total_candidates = int(data.shape[0] * data.shape[1])
-    stride = int(np.ceil(np.sqrt(max(total_candidates, 1) / max_points)))
-    stride = max(1, stride)
-    if render_quality == 'low':
-        stride = max(stride, 4)
-    elif render_quality == 'medium':
-        stride = max(stride, 3)
-    elif render_quality == 'high':
-        stride = max(stride, 2)
+    qcfg = _quality_settings(render_quality)
+    base_stride = 1
+    if render_quality == 'medium':
+        base_stride = 1
+    elif render_quality == 'low':
+        base_stride = 2
+    az_stride = max(1, base_stride)
+    rng_stride = max(1, base_stride)
 
-    sample = data[::stride, ::stride]
-    az_sample = az[::stride]
-    elev_sample = elev[::stride]
-    rng_km = rng_km_full[::stride]
+    sample = data[::az_stride, ::rng_stride]
+    az_sample = az[::az_stride]
+    elev_sample = elev[::az_stride]
+    rng_km = rng_km_full[::rng_stride]
 
     cfg = default_configs.get(field, {})
+    finite_sample = sample[np.isfinite(sample)]
     base_min = float(cfg.get('vmin', -20.0))
     if 'DB' in str(field).upper():
-        min_value = max(-5.0, base_min)
+        threshold = max(-5.0, base_min)
     else:
-        finite_vals = sample[np.isfinite(sample)]
-        min_value = float(np.nanpercentile(finite_vals, 60)) if finite_vals.size else base_min
+        threshold = float(np.nanpercentile(finite_sample, 65)) if finite_sample.size else base_min
 
-    mask = np.isfinite(sample) & (sample >= min_value)
+    mask = np.isfinite(sample) & (sample >= threshold)
     if not np.any(mask):
         mask = np.isfinite(sample)
     if not np.any(mask):
@@ -2404,60 +2341,215 @@ def radar_volume_data():
     lon0 = float(radar.longitude['data'][0])
     alt0_m = float(np.asarray(radar.altitude['data']).ravel()[0]) if getattr(radar, 'altitude', None) is not None else 0.0
 
-    lat = lat0 + (y_km / 111.32)
-    lon = lon0 + (x_km / (111.32 * max(np.cos(np.deg2rad(lat0)), 1e-6)))
-    alt_m = alt0_m + (rr_km * 1000.0 * np.sin(elev_rad))
-
     values = sample[mask]
-    lat_vals = lat[mask]
-    lon_vals = lon[mask]
-    alt_vals = alt_m[mask]
+    x_vals = x_km[mask]
+    y_vals = y_km[mask]
+    z_vals_km = np.maximum(0.0, (alt0_m + (rr_km * 1000.0 * np.sin(elev_rad)))[mask] / 1000.0)
 
-    valid = np.isfinite(values) & np.isfinite(lat_vals) & np.isfinite(lon_vals) & np.isfinite(alt_vals)
+    valid = np.isfinite(values) & np.isfinite(x_vals) & np.isfinite(y_vals) & np.isfinite(z_vals_km)
     values = values[valid]
-    lat_vals = lat_vals[valid]
-    lon_vals = lon_vals[valid]
-    alt_vals = alt_vals[valid]
+    x_vals = x_vals[valid]
+    y_vals = y_vals[valid]
+    z_vals_km = z_vals_km[valid]
 
     if values.size == 0:
         return jsonify({'ok': False, 'error': 'No valid sampled voxels available'}), 400
 
-    if values.size > max_points:
-        keep_idx = np.linspace(0, values.size - 1, max_points).astype(int)
-        values = values[keep_idx]
-        lat_vals = lat_vals[keep_idx]
-        lon_vals = lon_vals[keep_idx]
-        alt_vals = alt_vals[keep_idx]
+    max_range_km = float(np.nanmax(rng_km_full)) if rng_km_full.size else 0.0
+    max_height_km = float(np.nanmax(z_vals_km)) if z_vals_km.size else 0.0
 
-    value_lo = float(np.nanmin(values))
-    value_hi = float(np.nanmax(values))
+    xy_step_km = {'low': 2.0, 'medium': 1.6, 'high': 1.2, 'ultra': 0.95}.get(render_quality, 1.2)
+    z_step_km = {'low': 0.90, 'medium': 0.72, 'high': 0.55, 'ultra': 0.42}.get(render_quality, 0.55)
+    if interpolate:
+        xy_step_km *= 0.78
+        z_step_km *= 0.82
+    if gap_fill:
+        xy_step_km *= 0.82
+        z_step_km *= 0.86
+
+    x_edges = np.arange(-max_range_km, max_range_km + xy_step_km, xy_step_km)
+    y_edges = np.arange(-max_range_km, max_range_km + xy_step_km, xy_step_km)
+    z_edges = np.arange(0.0, max(max_height_km + z_step_km, z_step_km * 2), z_step_km)
+    nx = max(1, len(x_edges) - 1)
+    ny = max(1, len(y_edges) - 1)
+    nz = max(1, len(z_edges) - 1)
+
+    ix = np.clip(np.searchsorted(x_edges, x_vals, side='right') - 1, 0, nx - 1)
+    iy = np.clip(np.searchsorted(y_edges, y_vals, side='right') - 1, 0, ny - 1)
+    iz = np.clip(np.searchsorted(z_edges, z_vals_km, side='right') - 1, 0, nz - 1)
+
+    grid_max = np.full((nz, ny, nx), np.nan, dtype=float)
+    grid_sum = np.zeros((nz, ny, nx), dtype=float)
+    grid_count = np.zeros((nz, ny, nx), dtype=float)
+
+    flat_idx = iz * (ny * nx) + iy * nx + ix
+    order = np.argsort(flat_idx)
+    flat_sorted = flat_idx[order]
+    values_sorted = values[order]
+    unique_bins, starts = np.unique(flat_sorted, return_index=True)
+    ends = np.r_[starts[1:], len(flat_sorted)]
+    for bin_idx, s, e in zip(unique_bins, starts, ends):
+        vals = values_sorted[s:e]
+        if vals.size == 0:
+            continue
+        z_i = int(bin_idx // (ny * nx))
+        rem = int(bin_idx % (ny * nx))
+        y_i = int(rem // nx)
+        x_i = int(rem % nx)
+        grid_max[z_i, y_i, x_i] = float(np.nanmax(vals))
+        grid_sum[z_i, y_i, x_i] = float(np.nansum(vals))
+        grid_count[z_i, y_i, x_i] = float(np.count_nonzero(np.isfinite(vals)))
+
+    grid_mean = np.where(grid_count > 0, grid_sum / np.maximum(grid_count, 1.0), np.nan)
+    base_grid = np.where(np.isfinite(grid_max), grid_max, grid_mean)
+
+    valid_grid = np.isfinite(base_grid)
+    if interpolate and np.any(valid_grid):
+        sigma_xy = 0.95 if gap_fill else 0.70
+        sigma_z = 0.85 if gap_fill else 0.60
+        work = np.where(valid_grid, base_grid, 0.0)
+        weights = valid_grid.astype(float)
+        work_s = gaussian_filter(work, sigma=(sigma_z, sigma_xy, sigma_xy))
+        weights_s = gaussian_filter(weights, sigma=(sigma_z, sigma_xy, sigma_xy))
+        with np.errstate(invalid='ignore', divide='ignore'):
+            smooth_grid = work_s / weights_s
+        if gap_fill:
+            support = weights_s > 0.015
+            base_grid = np.where(support, smooth_grid, np.nan)
+        else:
+            support = weights_s > 0.05
+            base_grid = np.where(valid_grid, np.where(np.isfinite(smooth_grid), smooth_grid, base_grid), np.where(support, smooth_grid, np.nan))
+
+    z_centers = (z_edges[:-1] + z_edges[1:]) / 2.0
+    y_centers = (y_edges[:-1] + y_edges[1:]) / 2.0
+    x_centers = (x_edges[:-1] + x_edges[1:]) / 2.0
+    zz, yy, xx = np.meshgrid(z_centers, y_centers, x_centers, indexing='ij')
+    rr = np.sqrt(xx * xx + yy * yy)
+    radial_mask = rr <= (max_range_km * 0.985)
+    base_grid = np.where(radial_mask, base_grid, np.nan)
+
+    finite_vals = base_grid[np.isfinite(base_grid)]
+    if finite_vals.size == 0:
+        return jsonify({'ok': False, 'error': 'No valid volumetric cells available'}), 400
+
+    value_lo = float(np.nanmin(finite_vals))
+    value_hi = float(np.nanmax(finite_vals))
     value_span = max(value_hi - value_lo, 1e-6)
+    keep_threshold = value_lo + (0.08 * value_span)
+    keep_mask = np.isfinite(base_grid) & (base_grid >= keep_threshold)
 
-    points = []
-    for la, lo, al, val in zip(lat_vals.tolist(), lon_vals.tolist(), alt_vals.tolist(), values.tolist()):
-        alpha = int(np.clip(80 + 175 * ((float(val) - value_lo) / value_span), 80, 255))
-        points.append({
-            'lat': round(float(la), 6),
-            'lon': round(float(lo), 6),
-            'alt_m': round(float(al), 1),
+    z_idx, y_idx, x_idx = np.where(keep_mask)
+    voxel_values = base_grid[keep_mask]
+    voxel_count = voxel_values.size
+    if voxel_count == 0:
+        return jsonify({'ok': False, 'error': 'No volumetric cells survived thresholding'}), 400
+
+    if voxel_count > max_points:
+        order = np.argsort(voxel_values)[-max_points:]
+        z_idx = z_idx[order]
+        y_idx = y_idx[order]
+        x_idx = x_idx[order]
+        voxel_values = voxel_values[order]
+
+    xy_radius_m = float(xy_step_km * 1000.0 * (0.62 if gap_fill else 0.56))
+    height_m = float(z_step_km * 1000.0)
+
+    voxels = []
+    for zi, yi, xi, val in zip(z_idx.tolist(), y_idx.tolist(), x_idx.tolist(), voxel_values.tolist()):
+        xk = float(x_centers[xi])
+        yk = float(y_centers[yi])
+        lat = lat0 + (yk / 111.32)
+        lon = lon0 + (xk / (111.32 * max(np.cos(np.deg2rad(lat0)), 1e-6)))
+        strength = float(np.clip((val - value_lo) / value_span, 0.0, 1.0))
+        voxels.append({
+            'lat': round(lat, 6),
+            'lon': round(lon, 6),
+            'base_m': round(float(z_edges[zi] * 1000.0), 1),
+            'height_m': round(height_m, 1),
+            'radius_m': round(xy_radius_m, 1),
             'value': round(float(val), 2),
-            'alpha': alpha,
+            'strength': round(strength, 4),
+            'mean_norm': round(strength, 4),
+            'isCore': bool(strength >= 0.60),
+            'isHot': bool(strength >= 0.82),
         })
 
     return jsonify({
         'ok': True,
         'field': field,
-        'points': points,
-        'point_count': len(points),
-        'stride': stride,
+        'points': [],
+        'voxels': voxels,
+        'point_count': len(voxels),
+        'stride': int(max(az_stride, rng_stride)),
         'center_lat': lat0,
         'center_lon': lon0,
-        'max_range_km': float(np.nanmax(rng_km_full)) if rng_km_full.size else 0.0,
-        'max_height_m': float(np.nanmax(alt_vals)) if alt_vals.size else alt0_m,
+        'max_range_km': max_range_km,
+        'max_height_m': float(np.nanmax(z_edges) * 1000.0) if z_edges.size else alt0_m,
         'value_min': value_lo,
         'value_max': value_hi,
         'warnings': warnings,
         'quality': render_quality,
         'interpolate': bool(interpolate),
         'gap_fill': bool(gap_fill),
+        'voxel_mode': True,
     })
+
+
+@radar_bp.route('/accumulation_series')
+def radar_accumulation_series():
+    group = request.args.get('group')
+    field = request.args.get('field')
+    requested_sweep = request.args.get('sweep')
+    requested_elevation = request.args.get('elevation')
+    try:
+        cappi_height_km = float(request.args.get('cappi_height_km', '2.0') or '2.0')
+    except Exception:
+        cappi_height_km = 2.0
+    try:
+        lat = float(request.args.get('lat'))
+        lon = float(request.args.get('lon'))
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Invalid coordinates'}), 400
+
+    filters_arg = request.args.get('filters')
+    try:
+        filters = json.loads(filters_arg) if filters_arg else {}
+    except Exception:
+        filters = {}
+
+    if not radar_groups or group not in radar_groups:
+        return jsonify({'ok': False, 'error': 'No radar files loaded'}), 404
+
+    if not field or field not in available_fields:
+        if 'DBZ2' in available_fields:
+            field = 'DBZ2'
+        elif available_fields:
+            field = available_fields[0]
+        else:
+            return jsonify({'ok': False, 'error': 'No radar fields available'}), 404
+
+    try:
+        series = _sample_accumulation_series_by_group(
+            group,
+            field,
+            lat,
+            lon,
+            filters=filters,
+            requested_sweep=requested_sweep,
+            requested_elevation=requested_elevation,
+            cappi_height_km=cappi_height_km,
+        )
+        return jsonify({
+            'ok': True,
+            'group': group,
+            'field': field,
+            'product': 'ACC',
+            'unit': 'mm',
+            'accumulation_minutes': float(merge_window_minutes),
+            'lat': float(lat),
+            'lon': float(lon),
+            'series': series,
+        })
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+

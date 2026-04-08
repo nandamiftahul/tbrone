@@ -1207,6 +1207,7 @@
 
 
 
+
     function get3DBaseStyle() {
       return {
         version: 8,
@@ -1225,34 +1226,131 @@
           }
         },
         layers: [
-          { id: 'satellite-base', type: 'raster', source: 'esri-world-imagery' },
-          { id: 'reference-overlay', type: 'raster', source: 'esri-reference', paint: { 'raster-opacity': 0.85 } }
+          {
+            id: 'satellite-base',
+            type: 'raster',
+            source: 'esri-world-imagery',
+            paint: {
+              'raster-opacity': 1.0,
+              'raster-brightness-min': 0.03,
+              'raster-brightness-max': 0.72,
+              'raster-saturation': -0.28,
+              'raster-contrast': 0.34
+            }
+          },
+          {
+            id: 'reference-overlay',
+            type: 'raster',
+            source: 'esri-reference',
+            paint: {
+              'raster-opacity': 0.55,
+              'raster-brightness-min': 0.18,
+              'raster-brightness-max': 0.85,
+              'raster-contrast': 0.18
+            }
+          }
         ]
       };
     }
 
     function get3DStyleProfile() {
       const profiles = {
-        mist: { sizeMul: 0.58, alphaMul: 0.60, opacityMul: 0.42, hotspotMul: 0.50, hotspotRadiusMul: 0.58, valueCut: 0.22 },
-        realistic: { sizeMul: 0.52, alphaMul: 0.72, opacityMul: 0.50, hotspotMul: 0.62, hotspotRadiusMul: 0.68, valueCut: 0.18 },
-        balanced: { sizeMul: 0.70, alphaMul: 0.86, opacityMul: 0.62, hotspotMul: 0.82, hotspotRadiusMul: 0.86, valueCut: 0.12 },
-        dense: { sizeMul: 0.88, alphaMul: 1.00, opacityMul: 0.74, hotspotMul: 1.00, hotspotRadiusMul: 1.00, valueCut: 0.08 }
+        mist: {
+          valueCut: 0.10,
+          horizKm: 1.55,
+          vertM: 650,
+          shellAlpha: 78,
+          bodyAlpha: 48,
+          coreAlpha: 132,
+          glowAlpha: 36,
+          capAlpha: 132,
+          shellRadiusMul: 1.45,
+          bodyRadiusMul: 1.18,
+          coreRadiusMul: 0.84,
+          glowRadiusMul: 2.2,
+          pointMul: 0.42,
+          frameHeightKft: 50,
+          baseOpacity: 0.82,
+          shellOpacity: 0.54,
+          coreOpacity: 0.72,
+          groundOpacity: 0.58
+        },
+        realistic: {
+          valueCut: 0.08,
+          horizKm: 1.28,
+          vertM: 560,
+          shellAlpha: 88,
+          bodyAlpha: 56,
+          coreAlpha: 148,
+          glowAlpha: 44,
+          capAlpha: 148,
+          shellRadiusMul: 1.58,
+          bodyRadiusMul: 1.26,
+          coreRadiusMul: 0.92,
+          glowRadiusMul: 2.5,
+          pointMul: 0.48,
+          frameHeightKft: 50,
+          baseOpacity: 0.88,
+          shellOpacity: 0.60,
+          coreOpacity: 0.82,
+          groundOpacity: 0.64
+        },
+        balanced: {
+          valueCut: 0.07,
+          horizKm: 1.18,
+          vertM: 520,
+          shellAlpha: 94,
+          bodyAlpha: 62,
+          coreAlpha: 156,
+          glowAlpha: 48,
+          capAlpha: 156,
+          shellRadiusMul: 1.66,
+          bodyRadiusMul: 1.30,
+          coreRadiusMul: 0.98,
+          glowRadiusMul: 2.65,
+          pointMul: 0.52,
+          frameHeightKft: 50,
+          baseOpacity: 0.90,
+          shellOpacity: 0.64,
+          coreOpacity: 0.86,
+          groundOpacity: 0.66
+        },
+        dense: {
+          valueCut: 0.06,
+          horizKm: 1.08,
+          vertM: 480,
+          shellAlpha: 100,
+          bodyAlpha: 70,
+          coreAlpha: 166,
+          glowAlpha: 56,
+          capAlpha: 164,
+          shellRadiusMul: 1.74,
+          bodyRadiusMul: 1.36,
+          coreRadiusMul: 1.02,
+          glowRadiusMul: 2.8,
+          pointMul: 0.58,
+          frameHeightKft: 50,
+          baseOpacity: 0.94,
+          shellOpacity: 0.70,
+          coreOpacity: 0.90,
+          groundOpacity: 0.68
+        }
       };
       return profiles[radar3DStylePreset] || profiles.realistic;
     }
 
     function get3DPointSize() {
-      const base = ({ low: 7, medium: 8.5, high: 10, ultra: 11.5 }[imageQuality] || 10);
+      const base = ({ low: 5.8, medium: 6.6, high: 7.2, ultra: 8.0 }[imageQuality] || 7.2);
       const profile = get3DStyleProfile();
-      return Math.max(1.4, base * profile.sizeMul * radar3DPointScale);
+      return Math.max(1.0, base * profile.pointMul * radar3DPointScale);
     }
 
     function get3DMaxPoints() {
-      return ({ low: 7000, medium: 12000, high: 18000, ultra: 26000 }[imageQuality] || 18000);
+      return ({ low: 9000, medium: 15000, high: 24000, ultra: 34000 }[imageQuality] || 24000);
     }
 
     function get3DVerticalExaggeration() {
-      return ({ low: 10, medium: 12, high: 14, ultra: 16 }[imageQuality] || 14);
+      return ({ low: 11, medium: 12.5, high: 14.5, ultra: 16.5 }[imageQuality] || 14.5);
     }
 
     function get3DValueRange() {
@@ -1262,22 +1360,80 @@
       return { lo, hi: Math.max(lo + 1, hi) };
     }
 
-    function get3DDisplayedPoints() {
-      if (!latestRadarVolumeData || !Array.isArray(latestRadarVolumeData.points)) return [];
-      const pts = latestRadarVolumeData.points;
-      if (!pts.length) return [];
-      const profile = get3DStyleProfile();
-      const minVal = Number(latestRadarVolumeData.value_min);
-      const maxVal = Number(latestRadarVolumeData.value_max);
-      const span = Math.max(1e-6, maxVal - minVal);
-      return pts.filter(p => {
-        const v = Number(p.value);
-        if (!Number.isFinite(v)) return false;
-        const norm = (v - minVal) / span;
-        const effectiveCut = radar3DInterpolation ? Math.max(0.0, profile.valueCut * 0.72) : profile.valueCut;
-        return norm >= effectiveCut;
-      });
+    function clamp01(v) {
+      return Math.max(0, Math.min(1, Number(v) || 0));
     }
+
+    function kmOffsetToLat(km) {
+      return Number(km) / 111.32;
+    }
+
+    function kmOffsetToLon(km, latRef) {
+      return Number(km) / (111.32 * Math.max(0.15, Math.cos((Number(latRef) || 0) * Math.PI / 180)));
+    }
+
+    function localKmFromLatLon(lat, lon) {
+      const lat0 = Number(latestRadarCenter?.[0] || 0);
+      const lon0 = Number(latestRadarCenter?.[1] || 0);
+      return {
+        x: (Number(lon) - lon0) * 111.32 * Math.max(0.15, Math.cos(lat0 * Math.PI / 180)),
+        y: (Number(lat) - lat0) * 111.32
+      };
+    }
+
+    function latLonFromLocalKm(xKm, yKm) {
+      const lat0 = Number(latestRadarCenter?.[0] || 0);
+      const lon0 = Number(latestRadarCenter?.[1] || 0);
+      return {
+        lat: lat0 + kmOffsetToLat(yKm),
+        lon: lon0 + kmOffsetToLon(xKm, lat0)
+      };
+    }
+
+    function get3DDisplayedPoints() {
+      if (!latestRadarVolumeData) return [];
+      if (Array.isArray(latestRadarVolumeData.voxels) && latestRadarVolumeData.voxels.length) {
+        return latestRadarVolumeData.voxels;
+      }
+      if (Array.isArray(latestRadarVolumeData.points) && latestRadarVolumeData.points.length) {
+        return latestRadarVolumeData.points;
+      }
+      return [];
+    }
+
+    function get3DFrameHeightM() {
+      const profile = get3DStyleProfile();
+      const explicit = Number(latestRadarVolumeData?.max_height_m);
+      const refHeight = Number.isFinite(explicit) && explicit > 1000 ? explicit : 15240;
+      return Math.max(refHeight, profile.frameHeightKft * 304.8);
+    }
+
+    function buildRadarVoxelCloud() {
+  if (!latestRadarVolumeData) return [];
+  const raw = Array.isArray(latestRadarVolumeData.voxels) ? latestRadarVolumeData.voxels : [];
+  if (!raw.length) return [];
+
+  const minVal = Number.isFinite(Number(latestRadarVolumeData.value_min)) ? Number(latestRadarVolumeData.value_min) : 0;
+  const maxVal = Number.isFinite(Number(latestRadarVolumeData.value_max)) ? Number(latestRadarVolumeData.value_max) : 1;
+  const span = Math.max(1e-6, maxVal - minVal);
+
+  return raw.map(v => {
+    const value = Number(v.value);
+    const norm = clamp01((value - minVal) / span);
+    return {
+      lat: Number(v.lat),
+      lon: Number(v.lon),
+      base_m: Number(v.base_m || 0),
+      height_m: Number(v.height_m || 250),
+      radius_m: Number(v.radius_m || 700),
+      value,
+      strength: Number.isFinite(Number(v.strength)) ? Number(v.strength) : norm,
+      mean_norm: Number.isFinite(Number(v.mean_norm)) ? Number(v.mean_norm) : norm,
+      isCore: !!v.isCore || norm >= 0.62,
+      isHot: !!v.isHot || norm >= 0.82
+    };
+  });
+}
 
     function update3DStylePanelUI() {
       const panel = document.getElementById('radar3dStylePanel');
@@ -1383,16 +1539,153 @@
       const { lo, hi } = get3DValueRange();
       const t = (Number(value) - lo) / Math.max(1e-6, hi - lo);
       const palette = [
-        [49, 130, 246],
-        [34, 211, 238],
-        [34, 197, 94],
-        [250, 204, 21],
-        [249, 115, 22],
-        [239, 68, 68],
-        [168, 85, 247]
+        [47, 128, 237],
+        [31, 211, 238],
+        [38, 196, 76],
+        [249, 214, 53],
+        [247, 141, 28],
+        [227, 68, 58],
+        [172, 92, 255]
       ];
       const rgb = interpolateColor(palette, t);
       return [rgb[0], rgb[1], rgb[2], alpha];
+    }
+
+    function buildRadarVolumeShellLayer(voxels) {
+      if (!voxels.length) return null;
+      const verticalEx = get3DVerticalExaggeration();
+      const profile = get3DStyleProfile();
+      return new deck.ColumnLayer({
+        id: 'radar-volume-shell',
+        data: voxels,
+        coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+        diskResolution: 14,
+        radiusUnits: 'meters',
+        getRadius: d => Math.max(380, d.radius_m * profile.shellRadiusMul * (0.92 + radar3DPointScale * 0.36)),
+        extruded: true,
+        stroked: false,
+        filled: true,
+        getPosition: d => [d.lon, d.lat, d.base_m * verticalEx],
+        getElevation: d => d.height_m * verticalEx,
+        getFillColor: d => radarValueToColor(d.value, profile.shellAlpha),
+        opacity: Math.max(0.18, Math.min(1, overlayOpacity * profile.shellOpacity)),
+        material: { ambient: 0.44, diffuse: 0.58, shininess: 12, specularColor: [255, 255, 255] },
+        parameters: { depthTest: true },
+        pickable: false,
+        transitions: { getElevation: 200, getPosition: 200 }
+      });
+    }
+
+    function buildRadarVolumeBodyLayer(voxels) {
+      if (!voxels.length) return null;
+      const verticalEx = get3DVerticalExaggeration();
+      const profile = get3DStyleProfile();
+      return new deck.ColumnLayer({
+        id: 'radar-volume-body',
+        data: voxels,
+        coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+        diskResolution: 8,
+        radiusUnits: 'meters',
+        getRadius: d => Math.max(280, d.radius_m * profile.bodyRadiusMul * (0.90 + radar3DPointScale * 0.28)),
+        extruded: true,
+        stroked: false,
+        filled: true,
+        getPosition: d => [d.lon, d.lat, d.base_m * verticalEx],
+        getElevation: d => d.height_m * verticalEx,
+        getFillColor: d => radarValueToColor(d.value, Math.round(profile.bodyAlpha + d.mean_norm * 26)),
+        opacity: Math.max(0.16, Math.min(1, overlayOpacity * profile.baseOpacity)),
+        material: { ambient: 0.48, diffuse: 0.62, shininess: 18, specularColor: [255, 255, 255] },
+        parameters: { depthTest: true },
+        pickable: true,
+        autoHighlight: false,
+        onHover: info => {
+          const obj = info && info.object;
+          if (map3dContainer) map3dContainer.style.cursor = obj ? 'pointer' : '';
+        },
+        onClick: info => {
+          const obj = info && info.object;
+          if (!obj) return;
+          requestPointSample({ lat: obj.lat, lng: obj.lon });
+        },
+        transitions: { getElevation: 220, getPosition: 220 }
+      });
+    }
+
+    function buildRadarVolumeCoreLayer(voxels) {
+      const core = (voxels || []).filter(v => v.isCore || v.isHot);
+      if (!core.length) return null;
+      const verticalEx = get3DVerticalExaggeration();
+      const profile = get3DStyleProfile();
+      return new deck.ColumnLayer({
+        id: 'radar-volume-core',
+        data: core,
+        coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+        diskResolution: 10,
+        radiusUnits: 'meters',
+        getRadius: d => Math.max(210, d.radius_m * profile.coreRadiusMul),
+        extruded: true,
+        stroked: false,
+        filled: true,
+        getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * 0.08) * verticalEx],
+        getElevation: d => Math.max(160, d.height_m * 0.84 * verticalEx),
+        getFillColor: d => radarValueToColor(d.value, profile.coreAlpha),
+        opacity: Math.max(0.18, Math.min(1, overlayOpacity * profile.coreOpacity)),
+        material: { ambient: 0.52, diffuse: 0.68, shininess: 22, specularColor: [255, 255, 255] },
+        parameters: { depthTest: true },
+        pickable: false,
+        transitions: { getElevation: 220, getPosition: 220 }
+      });
+    }
+
+    function buildRadarVolumeGlowLayer(voxels) {
+      if (!voxels.length) return null;
+      const glow = voxels.filter(v => v.mean_norm >= 0.18);
+      if (!glow.length) return null;
+      const verticalEx = get3DVerticalExaggeration();
+      const profile = get3DStyleProfile();
+      return new deck.ScatterplotLayer({
+        id: 'radar-volume-glow',
+        data: glow,
+        coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+        getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * 0.55) * verticalEx],
+        getRadius: d => Math.max(600, d.radius_m * profile.glowRadiusMul * (0.95 + d.mean_norm * 0.55)),
+        radiusUnits: 'meters',
+        stroked: false,
+        filled: true,
+        getFillColor: d => radarValueToColor(d.value, profile.glowAlpha),
+        opacity: Math.max(0.08, Math.min(1, overlayOpacity * 0.34)),
+        parameters: { depthTest: true },
+        pickable: false
+      });
+    }
+
+    function buildRadarVolumeCapLayer(voxels) {
+      if (!voxels.length) return null;
+      const verticalEx = get3DVerticalExaggeration();
+      const profile = get3DStyleProfile();
+      const caps = voxels.filter(v => v.mean_norm >= 0.22).map(v => ({
+        lon: v.lon,
+        lat: v.lat,
+        alt_m: v.base_m + v.height_m,
+        radius_m: v.radius_m,
+        value: v.value,
+        mean_norm: v.mean_norm
+      }));
+      if (!caps.length) return null;
+      return new deck.ScatterplotLayer({
+        id: 'radar-volume-cap',
+        data: caps,
+        coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+        getPosition: d => [d.lon, d.lat, d.alt_m * verticalEx],
+        getRadius: d => Math.max(200, d.radius_m * 0.72),
+        radiusUnits: 'meters',
+        stroked: false,
+        filled: true,
+        getFillColor: d => radarValueToColor(d.value, Math.round(profile.capAlpha * (0.82 + d.mean_norm * 0.18))),
+        opacity: Math.max(0.14, Math.min(1, overlayOpacity * 0.76)),
+        parameters: { depthTest: true },
+        pickable: false
+      });
     }
 
     function buildRadarVolumePointCloudLayer() {
@@ -1407,8 +1700,8 @@
         pointSize: get3DPointSize(),
         getPosition: d => [d.lon, d.lat, Math.max(0, Number(d.alt_m || 0)) * verticalEx],
         getNormal: () => [0, 0, 1],
-        getColor: d => radarValueToColor(d.value, Math.max(55, Math.min(210, (70 + Number(d.alpha || 0)) * profile.alphaMul))),
-        opacity: Math.max(0.10, Math.min(1, overlayOpacity * profile.opacityMul)),
+        getColor: d => radarValueToColor(d.value, Math.max(40, Math.min(160, 35 + Math.round((Number(d.alpha || 0)) * 0.52)))),
+        opacity: Math.max(0.08, Math.min(1, overlayOpacity * 0.42)),
         parameters: { depthTest: true },
         pickable: true,
         onHover: info => {
@@ -1423,68 +1716,111 @@
       });
     }
 
-    function buildRadarVolumeHotspotLayer() {
-      const displayPoints = get3DDisplayedPoints();
-      if (!displayPoints.length) return null;
-      const values = displayPoints.map(p => Number(p.value)).filter(v => Number.isFinite(v));
-      if (!values.length) return null;
-      const sorted = values.slice().sort((a, b) => a - b);
-      const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95)));
-      const threshold = sorted[idx];
-      const verticalEx = get3DVerticalExaggeration();
-      const profile = get3DStyleProfile();
-      const hot = displayPoints.filter(p => Number.isFinite(Number(p.value)) && Number(p.value) >= threshold).slice(0, 2600);
-      if (!hot.length) return null;
-      return new deck.ScatterplotLayer({
-        id: 'radar-volume-hotspots',
-        data: hot,
+    function buildRadarFramePaths() {
+      const maxRange = Math.max(20, Number(latestRadarRadiusKm || 120) * 0.84);
+      const halfW = maxRange * 0.96;
+      const halfD = maxRange * 0.58;
+      const zTop = get3DFrameHeightM() * get3DVerticalExaggeration();
+      const zBase = 0;
+      const corners = {
+        a: latLonFromLocalKm(-halfW, -halfD),
+        b: latLonFromLocalKm(halfW, -halfD),
+        c: latLonFromLocalKm(halfW, halfD),
+        d: latLonFromLocalKm(-halfW, halfD)
+      };
+      const base = [
+        [corners.a.lon, corners.a.lat, zBase],
+        [corners.b.lon, corners.b.lat, zBase],
+        [corners.c.lon, corners.c.lat, zBase],
+        [corners.d.lon, corners.d.lat, zBase],
+        [corners.a.lon, corners.a.lat, zBase]
+      ];
+      const top = [
+        [corners.a.lon, corners.a.lat, zTop],
+        [corners.b.lon, corners.b.lat, zTop],
+        [corners.c.lon, corners.c.lat, zTop],
+        [corners.d.lon, corners.d.lat, zTop],
+        [corners.a.lon, corners.a.lat, zTop]
+      ];
+      const verticals = [
+        [[corners.a.lon, corners.a.lat, zBase], [corners.a.lon, corners.a.lat, zTop]],
+        [[corners.b.lon, corners.b.lat, zBase], [corners.b.lon, corners.b.lat, zTop]],
+        [[corners.c.lon, corners.c.lat, zBase], [corners.c.lon, corners.c.lat, zTop]],
+        [[corners.d.lon, corners.d.lat, zBase], [corners.d.lon, corners.d.lat, zTop]]
+      ];
+      return [{ path: base }, { path: top }, ...verticals.map(path => ({ path }))];
+    }
+
+    function buildRadarFrameLayer() {
+      const paths = buildRadarFramePaths();
+      return new deck.PathLayer({
+        id: 'radar-volume-frame',
+        data: paths,
         coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
-        getPosition: d => [d.lon, d.lat, Math.max(0, Number(d.alt_m || 0)) * verticalEx],
-        getRadius: d => (130 + Math.max(0, Number(d.value) - threshold) * 13) * profile.hotspotRadiusMul,
-        radiusUnits: 'meters',
-        stroked: false,
-        filled: true,
-        getFillColor: d => radarValueToColor(d.value, 150),
-        opacity: Math.max(0.06, Math.min(1, overlayOpacity * 0.32 * profile.hotspotMul)),
+        getPath: d => d.path,
+        getColor: [242, 242, 242, 235],
+        widthUnits: 'pixels',
+        getWidth: 2,
+        jointRounded: false,
+        capRounded: false,
         parameters: { depthTest: true },
         pickable: false
       });
     }
 
-    function build3DRadarLayers() {
-      const layers = [];
-      if (latestRadarImageUrl && latestRadarBounds) {
-        const sw = latestRadarBounds[0];
-        const ne = latestRadarBounds[1];
-        layers.push(
-          new deck.BitmapLayer({
-            id: 'radar-bitmap-ground',
-            image: latestRadarImageUrl,
-            bounds: [sw[1], sw[0], ne[1], ne[0]],
-            opacity: Math.max(0.08, Math.min(0.42, overlayOpacity * 0.42)),
-            desaturate: 0,
-            transparentColor: [0, 0, 0, 0],
-            parameters: { depthTest: false }
-          })
-        );
+    function buildRadarFrameLabelLayer() {
+      const maxRange = Math.max(20, Number(latestRadarRadiusKm || 120) * 0.84);
+      const halfW = maxRange * 0.98;
+      const halfD = maxRange * 0.62;
+      const labels = [];
+      for (let kft = 10; kft <= 50; kft += 10) {
+        const z = kft * 304.8 * get3DVerticalExaggeration();
+        const left = latLonFromLocalKm(-halfW - 4.2, -halfD + 1.2);
+        const right = latLonFromLocalKm(halfW + 4.0, halfD - 1.2);
+        labels.push({ lon: left.lon, lat: left.lat, z, text: `${kft} kft`, angle: 0 });
+        labels.push({ lon: right.lon, lat: right.lat, z, text: `${kft} kft`, angle: 0 });
       }
+      const south = latLonFromLocalKm(0, -halfD - 6.4);
+      labels.push({ lon: south.lon, lat: south.lat, z: 0, text: 'SOUTH', angle: 0, size: 32 });
+      return new deck.TextLayer({
+        id: 'radar-volume-frame-labels',
+        data: labels,
+        coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+        getPosition: d => [d.lon, d.lat, d.z],
+        getText: d => d.text,
+        getColor: [245, 245, 245, 245],
+        getSize: d => d.size || 18,
+        sizeUnits: 'meters',
+        getAngle: d => d.angle || 0,
+        getTextAnchor: d => d.text === 'SOUTH' ? 'middle' : 'middle',
+        getAlignmentBaseline: 'center',
+        billboard: true,
+        fontFamily: 'Inter, Arial, sans-serif',
+        fontWeight: 800,
+        outlineWidth: 1.5,
+        outlineColor: [20, 20, 20, 220],
+        background: false,
+        pickable: false
+      });
+    }
 
-      const mastHeight = Math.max(220, latestRadarRadiusKm * 6);
-      layers.push(
+    function buildRadarSiteReferenceLayers() {
+      const mastHeight = Math.max(260, latestRadarRadiusKm * 7);
+      return [
         new deck.ColumnLayer({
           id: 'radar-site-mast',
           data: [{ position: [latestRadarCenter[1], latestRadarCenter[0]], elevation: mastHeight }],
           coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
-          diskResolution: 18,
-          radius: 150,
+          diskResolution: 20,
+          radius: 160,
           extruded: true,
           getPosition: d => d.position,
-          getFillColor: [242, 140, 40, 215],
+          getFillColor: [242, 140, 40, 228],
           getLineColor: [255, 255, 255, 180],
           lineWidthUnits: 'pixels',
           getLineWidth: 1,
           getElevation: d => d.elevation,
-          material: { ambient: 0.35, diffuse: 0.6, shininess: 12, specularColor: [255,255,255] },
+          material: { ambient: 0.4, diffuse: 0.62, shininess: 16, specularColor: [255,255,255] },
           pickable: false
         }),
         new deck.ScatterplotLayer({
@@ -1492,7 +1828,7 @@
           data: [{ position: [latestRadarCenter[1], latestRadarCenter[0]] }],
           coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
           getPosition: d => d.position,
-          getRadius: Math.max(4000, latestRadarRadiusKm * 350),
+          getRadius: Math.max(4500, latestRadarRadiusKm * 360),
           radiusUnits: 'meters',
           stroked: true,
           filled: false,
@@ -1506,24 +1842,169 @@
           data: [{ position: [latestRadarCenter[1], latestRadarCenter[0]] }],
           coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
           getPosition: d => d.position,
-          getRadius: Math.max(5000, latestRadarRadiusKm * 1000),
+          getRadius: Math.max(5000, latestRadarRadiusKm * 980),
           radiusUnits: 'meters',
           stroked: true,
           filled: false,
-          getLineColor: [255, 255, 255, 110],
+          getLineColor: [255, 255, 255, 120],
           lineWidthUnits: 'pixels',
-          getLineWidth: 1.2,
+          getLineWidth: 1.4,
           pickable: false
         })
-      );
-
-      const pointCloudLayer = buildRadarVolumePointCloudLayer();
-      const hotspotLayer = buildRadarVolumeHotspotLayer();
-      if (pointCloudLayer) layers.push(pointCloudLayer);
-      if (hotspotLayer) layers.push(hotspotLayer);
-      return layers;
+      ];
     }
 
+function build3DRadarLayers() {
+  const layers = [];
+  const verticalEx = get3DVerticalExaggeration();
+
+  if (latestRadarImageUrl && latestRadarBounds) {
+    const sw = latestRadarBounds[0];
+    const ne = latestRadarBounds[1];
+    layers.push(new deck.BitmapLayer({
+      id: 'radar-ground',
+      image: latestRadarImageUrl,
+      bounds: [sw[1], sw[0], ne[1], ne[0]],
+      opacity: 0.76,
+      parameters: { depthTest: false }
+    }));
+  }
+
+  layers.push(...buildRadarSiteReferenceLayers());
+  layers.push(buildRadarFrameLayer());
+  layers.push(buildRadarFrameLabelLayer());
+
+  const voxels = buildRadarVoxelCloud();
+  if (!voxels.length) return layers;
+
+  const shellData = voxels.filter(v => v.mean_norm >= 0.10);
+  const bodyData = voxels.filter(v => v.mean_norm >= 0.16);
+  const coreData = voxels.filter(v => v.mean_norm >= 0.52);
+  const topData = voxels.filter(v => v.mean_norm >= 0.18).map(v => ({
+    lat: v.lat,
+    lon: v.lon,
+    alt_m: v.base_m + v.height_m,
+    radius_m: v.radius_m,
+    value: v.value,
+    mean_norm: v.mean_norm
+  }));
+
+  // soft volumetric shells to avoid the "sticks" look
+  const shellSlices = radar3DGapFill ? 8 : (radar3DInterpolation ? 6 : 4);
+  for (let i = 0; i < shellSlices; i++) {
+    const t = (i + 0.15) / shellSlices;
+    layers.push(new deck.ScatterplotLayer({
+      id: `radar-shell-slice-${i}`,
+      data: shellData,
+      coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+      getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * t) * verticalEx],
+      getRadius: d => d.radius_m * (radar3DGapFill ? (2.4 + t * 2.8) : (1.8 + t * 2.0)),
+      radiusUnits: 'meters',
+      stroked: false,
+      filled: true,
+      getFillColor: d => {
+        const c = radarValueToColor(d.value, 255);
+        const alpha = radar3DGapFill ? 30 : 22;
+        return [c[0], c[1], c[2], Math.round(alpha * (1.0 - t * 0.55))];
+      },
+      opacity: radar3DGapFill ? 0.34 : 0.24,
+      parameters: { depthTest: true, blend: true },
+      pickable: false
+    }));
+  }
+
+  layers.push(new deck.ColumnLayer({
+    id: 'radar-volume-body',
+    data: bodyData,
+    coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+    diskResolution: 18,
+    radiusUnits: 'meters',
+    extruded: true,
+    stroked: false,
+    filled: true,
+    getPosition: d => [d.lon, d.lat, d.base_m * verticalEx],
+    getElevation: d => d.height_m * verticalEx,
+    getRadius: d => d.radius_m * (radar3DGapFill ? 1.55 : 1.28),
+    getFillColor: d => {
+      const c = radarValueToColor(d.value, 255);
+      return [c[0], c[1], c[2], radar3DGapFill ? 138 : 116];
+    },
+    opacity: radar3DGapFill ? 0.68 : 0.56,
+    material: { ambient: 0.60, diffuse: 0.82, shininess: 22, specularColor: [255,255,255] },
+    parameters: { depthTest: true },
+    pickable: true,
+    autoHighlight: false,
+    onHover: info => {
+      const obj = info && info.object;
+      if (map3dContainer) map3dContainer.style.cursor = obj ? 'pointer' : '';
+    },
+    onClick: info => {
+      const obj = info && info.object;
+      if (!obj) return;
+      requestPointSample({ lat: obj.lat, lng: obj.lon });
+    }
+  }));
+
+  layers.push(new deck.ColumnLayer({
+    id: 'radar-volume-core',
+    data: coreData,
+    coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+    diskResolution: 16,
+    radiusUnits: 'meters',
+    extruded: true,
+    stroked: false,
+    filled: true,
+    getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * 0.04) * verticalEx],
+    getElevation: d => d.height_m * verticalEx * 0.92,
+    getRadius: d => d.radius_m * 0.95,
+    getFillColor: d => {
+      const c = radarValueToColor(d.value, 255);
+      return [c[0], c[1], c[2], 190];
+    },
+    opacity: 0.84,
+    material: { ambient: 0.66, diffuse: 0.88, shininess: 30, specularColor: [255,255,255] },
+    parameters: { depthTest: true },
+    pickable: false
+  }));
+
+  layers.push(new deck.ScatterplotLayer({
+    id: 'radar-volume-cap',
+    data: topData,
+    coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+    getPosition: d => [d.lon, d.lat, d.alt_m * verticalEx],
+    getRadius: d => d.radius_m * 0.88,
+    radiusUnits: 'meters',
+    stroked: false,
+    filled: true,
+    getFillColor: d => {
+      const c = radarValueToColor(d.value, 255);
+      return [c[0], c[1], c[2], 84];
+    },
+    opacity: 0.48,
+    parameters: { depthTest: true, blend: true },
+    pickable: false
+  }));
+
+  layers.push(new deck.ScatterplotLayer({
+    id: 'radar-volume-glow',
+    data: shellData,
+    coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+    getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * 0.58) * verticalEx],
+    getRadius: d => d.radius_m * (radar3DGapFill ? 4.8 : 3.8),
+    radiusUnits: 'meters',
+    stroked: false,
+    filled: true,
+    getFillColor: d => {
+      const c = radarValueToColor(d.value, 255);
+      return [c[0], c[1], c[2], radar3DGapFill ? 26 : 18];
+    },
+    opacity: radar3DGapFill ? 0.20 : 0.13,
+    parameters: { depthTest: true, blend: true },
+    pickable: false
+  }));
+
+  return layers;
+}
     function refresh3DOverlay() {
       if (!deckOverlay) return;
       deckOverlay.setProps({ layers: build3DRadarLayers() });
@@ -1550,22 +2031,22 @@
             type: 'hillshade',
             source: 'terrain-dem',
             paint: {
-              'hillshade-shadow-color': '#0f172a',
-              'hillshade-highlight-color': '#ffffff',
-              'hillshade-accent-color': '#94a3b8'
+              'hillshade-shadow-color': '#05070c',
+              'hillshade-highlight-color': '#f8fafc',
+              'hillshade-accent-color': '#475569'
             }
           });
         }
       } catch (err) {}
 
-      try { map3d.setTerrain({ source: 'terrain-dem', exaggeration: 1.28 }); } catch (err) {}
+      try { map3d.setTerrain({ source: 'terrain-dem', exaggeration: 1.18 }); } catch (err) {}
       try {
         map3d.setFog({
-          color: 'rgb(198, 214, 236)',
-          'high-color': 'rgb(36, 92, 181)',
-          'horizon-blend': 0.12,
-          'space-color': 'rgb(7, 20, 46)',
-          'star-intensity': 0.05
+          color: 'rgb(8, 10, 16)',
+          'high-color': 'rgb(20, 30, 52)',
+          'horizon-blend': 0.06,
+          'space-color': 'rgb(3, 5, 11)',
+          'star-intensity': 0.02
         });
       } catch (err) {}
       try {
@@ -1575,8 +2056,8 @@
             type: 'sky',
             paint: {
               'sky-type': 'atmosphere',
-              'sky-atmosphere-sun': [0.0, 0.0],
-              'sky-atmosphere-sun-intensity': 12
+              'sky-atmosphere-sun': [0.0, 8.0],
+              'sky-atmosphere-sun-intensity': 2
             }
           });
         }
@@ -1591,7 +2072,7 @@
         center: [latestRadarCenter[1], latestRadarCenter[0]],
         zoom: 7,
         pitch: 72,
-        bearing: -35,
+        bearing: -28,
         antialias: true,
         maxPitch: 85,
         minZoom: 2,
@@ -1624,7 +2105,7 @@
       if (!map3d) return;
       const c = map.getCenter();
       try {
-        map3d.jumpTo({ center: [c.lng, c.lat], zoom: Math.max(2, map.getZoom() - 0.2), bearing: map3d.getBearing(), pitch: map3d.getPitch() || 72 });
+        map3d.jumpTo({ center: [c.lng, c.lat], zoom: Math.max(2, map.getZoom() - 0.35), bearing: map3d.getBearing(), pitch: map3d.getPitch() || 66 });
       } catch (err) {}
     }
 
@@ -1642,10 +2123,9 @@
         map3d.fitBounds([
           [latestRadarBounds[0][1], latestRadarBounds[0][0]],
           [latestRadarBounds[1][1], latestRadarBounds[1][0]]
-        ], { padding: 40, duration: 700, bearing: -35, pitch: 72 });
+        ], { padding: 46, duration: 700, bearing: -28, pitch: 72 });
       } catch (err) {}
     }
-
     function setMapMode(mode) {
       if (mode === currentMapMode) return;
       const toggleBtn = document.getElementById('btnToggleMapMode');
@@ -1663,7 +2143,7 @@
         currentMapMode = '3d';
         update3DStylePanelUI();
         if (toggleBtn) toggleBtn.textContent = '2D Map';
-        setStatus('3D radar mode active · drag to pan, right drag to rotate, scroll to zoom');
+        setStatus('3D radar mode active · volumetric view enabled · drag to pan, right drag to rotate, scroll to zoom');
         update3DStylePanelUI();
       } else {
         sync2DViewTo3D();
