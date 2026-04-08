@@ -313,7 +313,7 @@
     .radar3dStylePanel .panelRow label{font-size:11px;font-weight:800;color:var(--text)}
     .radar3dStylePanel .panelRow select,.radar3dStylePanel .panelRow input[type=range]{width:100%}
     .radar3dStylePanel .panelActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    .radar3dStylePanel .rangeValue{font-size:11px;color:var(--xw-blue);font-weight:800;text-align:right}.radar3dStylePanel .panelChecks{display:grid;gap:8px;margin-top:8px}.radar3dStylePanel .panelCheck{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text)}.radar3dStylePanel .panelCheck input{margin:0}
+    .radar3dStylePanel .rangeValue{font-size:11px;color:var(--xw-blue);font-weight:800;text-align:right}
     .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:5000;padding:18px}
     .modalCard{width:min(760px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;border:1px solid var(--border);box-shadow:0 20px 60px rgba(2,22,55,.22);padding:18px}
     .modalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
@@ -735,12 +735,12 @@
 
       <div class="radar3dStylePanel" id="radar3dStylePanel">
         <div class="panelTitle">3D Radar Style</div>
-        <div class="panelSub">Bottom-left panel so it stays away from map navigation. You can also smooth the 3D volume with interpolation and optional gap filling.</div>
+        <div class="panelSub">Bottom-left panel so it stays away from map navigation. Focused only on 3D style and dot size for a cleaner, lighter volumetric view.</div>
         <div class="panelRow">
           <label for="radar3dStylePreset">3D style</label>
           <select id="radar3dStylePreset">
             <option value="mist">Mist · smaller and softer</option>
-            <option value="realistic">Realistic · fine weather volume</option>
+            <option value="realistic">Realistic · operational volume</option>
             <option value="balanced">Balanced · default</option>
             <option value="dense">Dense · stronger core</option>
           </select>
@@ -750,11 +750,13 @@
           <input id="radar3dPointScale" type="range" min="20" max="100" step="1">
           <div class="rangeValue" id="radar3dPointScaleValue">55%</div>
         </div>
-        <div class="panelChecks">
-          <label class="panelCheck"><input id="radar3dInterpolate" type="checkbox"> Interpolation</label>
-          <label class="panelCheck"><input id="radar3dGapFill" type="checkbox"> Gap filling</label>
+        <div class="panelRow">
+          <label class="check" style="font-weight:800">
+            <input id="radar3dShowHeightGuides" type="checkbox">
+            Show height guide lines & labels
+          </label>
         </div>
-        <div class="panelActions">
+<div class="panelActions">
           <button class="miniBtn" id="radar3dApplyBtn" type="button">Apply</button>
           <button class="miniBtn" id="radar3dResetBtn" type="button">Reset</button>
         </div>
@@ -851,10 +853,9 @@
     let timer;
     let overlayOpacity = 0.6;
     let imageQuality = localStorage.getItem('radarImageQuality') || 'high';
-    let radar3DStylePreset = localStorage.getItem('radar3DStylePreset') || 'realistic';
+    let radar3DStylePreset = localStorage.getItem('radar3DStylePreset') || 'balanced';
     let radar3DPointScale = Math.max(0.2, Math.min(1.0, Number(localStorage.getItem('radar3DPointScale') || 0.42)));
-    let radar3DInterpolation = localStorage.getItem('radar3DInterpolation') === '1';
-    let radar3DGapFill = localStorage.getItem('radar3DGapFill') === '1';
+    let radar3DShowHeightGuides = localStorage.getItem('radar3DShowHeightGuides') !== '0';
     let cmap = '', vmin = '', vmax = '';
     const customCmapStorageKey = 'radarCustomCmapSpec';
     let customCmapSpec = null;
@@ -1256,87 +1257,87 @@
     function get3DStyleProfile() {
       const profiles = {
         mist: {
-          valueCut: 0.10,
-          horizKm: 1.55,
-          vertM: 650,
-          shellAlpha: 78,
-          bodyAlpha: 48,
-          coreAlpha: 132,
-          glowAlpha: 36,
-          capAlpha: 132,
-          shellRadiusMul: 1.45,
-          bodyRadiusMul: 1.18,
-          coreRadiusMul: 0.84,
-          glowRadiusMul: 2.2,
-          pointMul: 0.42,
+          valueCut: 0.14,
+          shellAlpha: 54,
+          bodyAlpha: 42,
+          coreAlpha: 118,
+          glowAlpha: 22,
+          capAlpha: 84,
+          shellRadiusMul: 1.34,
+          bodyRadiusMul: 1.06,
+          coreRadiusMul: 0.78,
+          glowRadiusMul: 1.95,
+          pointMul: 0.38,
           frameHeightKft: 50,
-          baseOpacity: 0.82,
-          shellOpacity: 0.54,
-          coreOpacity: 0.72,
-          groundOpacity: 0.58
+          baseOpacity: 0.62,
+          shellOpacity: 0.32,
+          coreOpacity: 0.58,
+          groundOpacity: 0.72,
+          shellSlices: 2,
+          shellSpreadMul: 1.25
         },
         realistic: {
-          valueCut: 0.08,
-          horizKm: 1.28,
-          vertM: 560,
-          shellAlpha: 88,
-          bodyAlpha: 56,
-          coreAlpha: 148,
-          glowAlpha: 44,
-          capAlpha: 148,
-          shellRadiusMul: 1.58,
-          bodyRadiusMul: 1.26,
-          coreRadiusMul: 0.92,
-          glowRadiusMul: 2.5,
-          pointMul: 0.48,
+          valueCut: 0.11,
+          shellAlpha: 62,
+          bodyAlpha: 52,
+          coreAlpha: 132,
+          glowAlpha: 28,
+          capAlpha: 96,
+          shellRadiusMul: 1.42,
+          bodyRadiusMul: 1.14,
+          coreRadiusMul: 0.84,
+          glowRadiusMul: 2.15,
+          pointMul: 0.44,
           frameHeightKft: 50,
-          baseOpacity: 0.88,
-          shellOpacity: 0.60,
-          coreOpacity: 0.82,
-          groundOpacity: 0.64
+          baseOpacity: 0.72,
+          shellOpacity: 0.40,
+          coreOpacity: 0.68,
+          groundOpacity: 0.76,
+          shellSlices: 3,
+          shellSpreadMul: 1.55
         },
         balanced: {
-          valueCut: 0.07,
-          horizKm: 1.18,
-          vertM: 520,
-          shellAlpha: 94,
-          bodyAlpha: 62,
-          coreAlpha: 156,
-          glowAlpha: 48,
-          capAlpha: 156,
-          shellRadiusMul: 1.66,
-          bodyRadiusMul: 1.30,
-          coreRadiusMul: 0.98,
-          glowRadiusMul: 2.65,
-          pointMul: 0.52,
+          valueCut: 0.09,
+          shellAlpha: 70,
+          bodyAlpha: 60,
+          coreAlpha: 144,
+          glowAlpha: 34,
+          capAlpha: 108,
+          shellRadiusMul: 1.50,
+          bodyRadiusMul: 1.20,
+          coreRadiusMul: 0.90,
+          glowRadiusMul: 2.30,
+          pointMul: 0.50,
           frameHeightKft: 50,
-          baseOpacity: 0.90,
-          shellOpacity: 0.64,
-          coreOpacity: 0.86,
-          groundOpacity: 0.66
+          baseOpacity: 0.80,
+          shellOpacity: 0.48,
+          coreOpacity: 0.76,
+          groundOpacity: 0.82,
+          shellSlices: 3,
+          shellSpreadMul: 1.75
         },
         dense: {
-          valueCut: 0.06,
-          horizKm: 1.08,
-          vertM: 480,
-          shellAlpha: 100,
-          bodyAlpha: 70,
-          coreAlpha: 166,
-          glowAlpha: 56,
-          capAlpha: 164,
-          shellRadiusMul: 1.74,
-          bodyRadiusMul: 1.36,
-          coreRadiusMul: 1.02,
-          glowRadiusMul: 2.8,
-          pointMul: 0.58,
+          valueCut: 0.07,
+          shellAlpha: 78,
+          bodyAlpha: 68,
+          coreAlpha: 156,
+          glowAlpha: 40,
+          capAlpha: 116,
+          shellRadiusMul: 1.58,
+          bodyRadiusMul: 1.28,
+          coreRadiusMul: 0.96,
+          glowRadiusMul: 2.48,
+          pointMul: 0.56,
           frameHeightKft: 50,
-          baseOpacity: 0.94,
-          shellOpacity: 0.70,
-          coreOpacity: 0.90,
-          groundOpacity: 0.68
+          baseOpacity: 0.88,
+          shellOpacity: 0.56,
+          coreOpacity: 0.84,
+          groundOpacity: 0.84,
+          shellSlices: 4,
+          shellSpreadMul: 1.95
         }
       };
-      return profiles[radar3DStylePreset] || profiles.realistic;
+      return profiles[radar3DStylePreset] || profiles.balanced;
     }
 
     function get3DPointSize() {
@@ -1440,22 +1441,18 @@
       const preset = document.getElementById('radar3dStylePreset');
       const slider = document.getElementById('radar3dPointScale');
       const label = document.getElementById('radar3dPointScaleValue');
-      const interpolateChk = document.getElementById('radar3dInterpolate');
-      const gapFillChk = document.getElementById('radar3dGapFill');
+      const heightGuidesChk = document.getElementById('radar3dShowHeightGuides');
       if (panel) panel.style.display = currentMapMode === '3d' ? 'block' : 'none';
       if (preset) preset.value = radar3DStylePreset;
       if (slider) slider.value = String(Math.round(radar3DPointScale * 100));
       if (label) label.textContent = `${Math.round(radar3DPointScale * 100)}%`;
-      if (interpolateChk) interpolateChk.checked = !!radar3DInterpolation;
-      if (gapFillChk) gapFillChk.checked = !!radar3DGapFill;
-      if (gapFillChk) gapFillChk.disabled = !radar3DInterpolation;
+      if (heightGuidesChk) heightGuidesChk.checked = !!radar3DShowHeightGuides;
     }
 
     function apply3DStyleSettings(rerender = false) {
       localStorage.setItem('radar3DStylePreset', radar3DStylePreset);
       localStorage.setItem('radar3DPointScale', String(radar3DPointScale));
-      localStorage.setItem('radar3DInterpolation', radar3DInterpolation ? '1' : '0');
-      localStorage.setItem('radar3DGapFill', radar3DGapFill ? '1' : '0');
+      localStorage.setItem('radar3DShowHeightGuides', radar3DShowHeightGuides ? '1' : '0');
       update3DStylePanelUI();
       refresh3DOverlay();
       if (rerender && currentMapMode === '3d') loadRadar3D(group, frame, field);
@@ -1464,11 +1461,10 @@
     function init3DStylePanel() {
       const preset = document.getElementById('radar3dStylePreset');
       const slider = document.getElementById('radar3dPointScale');
-      const interpolateChk = document.getElementById('radar3dInterpolate');
-      const gapFillChk = document.getElementById('radar3dGapFill');
       const applyBtn = document.getElementById('radar3dApplyBtn');
       const resetBtn = document.getElementById('radar3dResetBtn');
       const label = document.getElementById('radar3dPointScaleValue');
+      const heightGuidesChk = document.getElementById('radar3dShowHeightGuides');
       if (slider && !slider.dataset.bound) {
         slider.addEventListener('input', () => {
           radar3DPointScale = Math.max(0.2, Math.min(1.0, Number(slider.value) / 100));
@@ -1479,26 +1475,17 @@
       }
       if (preset && !preset.dataset.bound) {
         preset.addEventListener('change', () => {
-          radar3DStylePreset = preset.value || 'realistic';
+          radar3DStylePreset = preset.value || 'balanced';
           refresh3DOverlay();
         });
         preset.dataset.bound = '1';
       }
-      if (interpolateChk && !interpolateChk.dataset.bound) {
-        interpolateChk.addEventListener('change', () => {
-          radar3DInterpolation = !!interpolateChk.checked;
-          if (!radar3DInterpolation) radar3DGapFill = false;
-          update3DStylePanelUI();
+      if (heightGuidesChk && !heightGuidesChk.dataset.bound) {
+        heightGuidesChk.addEventListener('change', () => {
+          radar3DShowHeightGuides = !!heightGuidesChk.checked;
+          refresh3DOverlay();
         });
-        interpolateChk.dataset.bound = '1';
-      }
-      if (gapFillChk && !gapFillChk.dataset.bound) {
-        gapFillChk.addEventListener('change', () => {
-          radar3DGapFill = !!gapFillChk.checked;
-          if (radar3DGapFill) radar3DInterpolation = true;
-          update3DStylePanelUI();
-        });
-        gapFillChk.dataset.bound = '1';
+        heightGuidesChk.dataset.bound = '1';
       }
       if (applyBtn && !applyBtn.dataset.bound) {
         applyBtn.addEventListener('click', () => apply3DStyleSettings(true));
@@ -1506,10 +1493,9 @@
       }
       if (resetBtn && !resetBtn.dataset.bound) {
         resetBtn.addEventListener('click', () => {
-          radar3DStylePreset = 'realistic';
+          radar3DStylePreset = 'balanced';
           radar3DPointScale = 0.42;
-          radar3DInterpolation = false;
-          radar3DGapFill = false;
+          radar3DShowHeightGuides = true;
           apply3DStyleSettings(true);
         });
         resetBtn.dataset.bound = '1';
@@ -1545,14 +1531,188 @@
       ];
     }
 
-    function get3DPaletteSpec() {
-      const active = getActiveCustomCmap();
-      const fallbackSpec = active || getDefaultBmkgPreset();
-      const normalized = normalizeCustomCmapSpec(fallbackSpec);
-      return (normalized && Array.isArray(normalized.stops) && normalized.stops.length >= 2)
-        ? normalized
-        : normalizeCustomCmapSpec(getDefaultBmkgPreset());
+
+function get2DSelectedPaletteSpec() {
+  const selected = (document.getElementById('cmap')?.value || '').trim();
+
+  const cmapPresets = {
+    turbo: {
+      name: 'turbo',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#30123B' },
+        { value: 10, color: '#4145AB' },
+        { value: 20, color: '#4675ED' },
+        { value: 30, color: '#39A2FC' },
+        { value: 40, color: '#1BCFD4' },
+        { value: 50, color: '#24E36B' },
+        { value: 60, color: '#A4FC3C' },
+        { value: 70, color: '#F2E52E' },
+        { value: 80, color: '#FB9A06' },
+        { value: 90, color: '#E84A1C' },
+        { value: 100, color: '#7A0403' }
+      ]
+    },
+
+    viridis: {
+      name: 'viridis',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#440154' },
+        { value: 25, color: '#3B528B' },
+        { value: 50, color: '#21918C' },
+        { value: 75, color: '#5EC962' },
+        { value: 100, color: '#FDE725' }
+      ]
+    },
+
+    plasma: {
+      name: 'plasma',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#0D0887' },
+        { value: 25, color: '#7E03A8' },
+        { value: 50, color: '#CC4778' },
+        { value: 75, color: '#F89540' },
+        { value: 100, color: '#F0F921' }
+      ]
+    },
+
+    inferno: {
+      name: 'inferno',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#000004' },
+        { value: 25, color: '#420A68' },
+        { value: 50, color: '#932667' },
+        { value: 75, color: '#DD513A' },
+        { value: 100, color: '#FDE725' }
+      ]
+    },
+
+    magma: {
+      name: 'magma',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#000004' },
+        { value: 25, color: '#3B0F70' },
+        { value: 50, color: '#8C2981' },
+        { value: 75, color: '#DE4968' },
+        { value: 100, color: '#FE9F6D' }
+      ]
+    },
+
+    cividis: {
+      name: 'cividis',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#00224E' },
+        { value: 25, color: '#35456C' },
+        { value: 50, color: '#666970' },
+        { value: 75, color: '#A98C5A' },
+        { value: 100, color: '#FDE737' }
+      ]
+    },
+
+    gray: {
+      name: 'gray',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#000000' },
+        { value: 100, color: '#FFFFFF' }
+      ]
+    },
+
+    jet: {
+      name: 'jet',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#00007F' },
+        { value: 25, color: '#0000FF' },
+        { value: 50, color: '#00FFFF' },
+        { value: 75, color: '#FFFF00' },
+        { value: 100, color: '#FF0000' },
+        { value: 100.1, color: '#7F0000' }
+      ]
+    },
+
+    seismic: {
+      name: 'seismic',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#00004D' },
+        { value: 25, color: '#0000FF' },
+        { value: 50, color: '#FFFFFF' },
+        { value: 75, color: '#FF0000' },
+        { value: 100, color: '#4D0000' }
+      ]
+    },
+
+    RdBu_r: {
+      name: 'RdBu_r',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#053061' },
+        { value: 25, color: '#2166AC' },
+        { value: 50, color: '#F7F7F7' },
+        { value: 75, color: '#B2182B' },
+        { value: 100, color: '#67001F' }
+      ]
+    },
+
+    coolwarm: {
+      name: 'coolwarm',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#3B4CC0' },
+        { value: 50, color: '#DDDCDC' },
+        { value: 100, color: '#B40426' }
+      ]
+    },
+
+    bwr: {
+      name: 'bwr',
+      mode: 'gradients',
+      stops: [
+        { value: 0, color: '#0000FF' },
+        { value: 50, color: '#FFFFFF' },
+        { value: 100, color: '#FF0000' }
+      ]
     }
+  };
+
+  let spec = cmapPresets[selected];
+  if (!spec) return null;
+
+  const range = get3DValueRange();
+  const lo = Number(range.lo);
+  const hi = Number(range.hi);
+  const span = Math.max(1e-6, hi - lo);
+
+  return normalizeCustomCmapSpec({
+    name: spec.name,
+    mode: spec.mode,
+    enabled: true,
+    stops: spec.stops.map(s => ({
+      value: lo + (Number(s.value) / 100) * span,
+      color: s.color
+    }))
+  });
+}
+
+function get3DPaletteSpec() {
+  const active = getActiveCustomCmap();
+  if (active) {
+    const normalizedActive = normalizeCustomCmapSpec(active);
+    if (normalizedActive) return normalizedActive;
+  }
+
+  const style2DSpec = get2DSelectedPaletteSpec();
+  if (style2DSpec) return style2DSpec;
+
+  const fallback = getDefaultBmkgPreset();
+  return normalizeCustomCmapSpec(fallback);
+}
 
     function radarValueToColor(value, alpha = 210) {
       const spec = get3DPaletteSpec();
@@ -1823,6 +1983,95 @@ function buildRadarVolumeShellLayer(voxels) {
       });
     }
 
+    function buildRadarHeightGuideLayer() {
+      const maxRange = Math.max(20, Number(latestRadarRadiusKm || 120) * 0.84);
+      const halfW = maxRange * 0.96;
+      const halfD = maxRange * 0.58;
+      const paths = [];
+      for (let kft = 10; kft <= 50; kft += 10) {
+        const z = kft * 304.8 * get3DVerticalExaggeration();
+        const corners = [
+          latLonFromLocalKm(-halfW, -halfD),
+          latLonFromLocalKm(halfW, -halfD),
+          latLonFromLocalKm(halfW, halfD),
+          latLonFromLocalKm(-halfW, halfD)
+        ];
+        const midLeft = latLonFromLocalKm(-halfW, 0);
+        const midRight = latLonFromLocalKm(halfW, 0);
+        const midFront = latLonFromLocalKm(0, halfD);
+        const midBack = latLonFromLocalKm(0, -halfD);
+        paths.push({
+          kft,
+          path: [
+            [corners[0].lon, corners[0].lat, z],
+            [corners[1].lon, corners[1].lat, z],
+            [corners[2].lon, corners[2].lat, z],
+            [corners[3].lon, corners[3].lat, z],
+            [corners[0].lon, corners[0].lat, z]
+          ]
+        });
+        paths.push({
+          kft,
+          path: [
+            [midLeft.lon, midLeft.lat, z],
+            [midRight.lon, midRight.lat, z]
+          ]
+        });
+        paths.push({
+          kft,
+          path: [
+            [midBack.lon, midBack.lat, z],
+            [midFront.lon, midFront.lat, z]
+          ]
+        });
+      }
+      return new deck.PathLayer({
+        id: 'radar-height-guides',
+        data: paths,
+        coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+        getPath: d => d.path,
+        getColor: d => d.kft === 50 ? [255, 255, 255, 235] : [255, 255, 255, 205],
+        widthUnits: 'pixels',
+        getWidth: d => d.kft === 50 ? 3.6 : 2.6,
+        jointRounded: true,
+        capRounded: true,
+        parameters: { depthTest: false },
+        pickable: false
+      });
+    }
+
+    function buildRadarHeightGuideLabelLayer() {
+      const maxRange = Math.max(20, Number(latestRadarRadiusKm || 120) * 0.84);
+      const halfW = maxRange * 0.96;
+      const halfD = maxRange * 0.58;
+      const labels = [];
+      for (let kft = 10; kft <= 50; kft += 10) {
+        const z = kft * 304.8 * get3DVerticalExaggeration();
+        const frontMid = latLonFromLocalKm(0, halfD - 2.2);
+        labels.push({ lon: frontMid.lon, lat: frontMid.lat, z, text: `${kft} kft`, size: kft === 50 ? 24 : 22 });
+      }
+      return new deck.TextLayer({
+        id: 'radar-height-guide-labels',
+        data: labels,
+        coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+        getPosition: d => [d.lon, d.lat, d.z + 140],
+        getText: d => d.text,
+        getColor: [255, 255, 255, 255],
+        getSize: d => d.size || 22,
+        sizeUnits: 'pixels',
+        getTextAnchor: 'middle',
+        getAlignmentBaseline: 'center',
+        billboard: true,
+        fontFamily: 'Inter, Arial, sans-serif',
+        fontWeight: 900,
+        outlineWidth: 3,
+        outlineColor: [0, 0, 0, 255],
+        background: false,
+        parameters: { depthTest: false },
+        pickable: false
+      });
+    }
+
     function buildRadarFrameLabelLayer() {
       const maxRange = Math.max(20, Number(latestRadarRadiusKm || 120) * 0.84);
       const halfW = maxRange * 0.98;
@@ -1912,6 +2161,7 @@ function buildRadarVolumeShellLayer(voxels) {
 function build3DRadarLayers() {
   const layers = [];
   const verticalEx = get3DVerticalExaggeration();
+  const profile = get3DStyleProfile();
 
   if (latestRadarImageUrl && latestRadarBounds) {
     const sw = latestRadarBounds[0];
@@ -1920,22 +2170,26 @@ function build3DRadarLayers() {
       id: 'radar-ground',
       image: latestRadarImageUrl,
       bounds: [sw[1], sw[0], ne[1], ne[0]],
-      opacity: 0.76,
+      opacity: Math.max(0.72, profile.groundOpacity),
       parameters: { depthTest: false }
     }));
   }
 
   layers.push(...buildRadarSiteReferenceLayers());
   layers.push(buildRadarFrameLayer());
+  if (radar3DShowHeightGuides) {
+    layers.push(buildRadarHeightGuideLayer());
+    layers.push(buildRadarHeightGuideLabelLayer());
+  }
   layers.push(buildRadarFrameLabelLayer());
 
   const voxels = buildRadarVoxelCloud();
   if (!voxels.length) return layers;
 
-  const shellData = voxels.filter(v => v.mean_norm >= 0.10);
-  const bodyData = voxels.filter(v => v.mean_norm >= 0.16);
-  const coreData = voxels.filter(v => v.mean_norm >= 0.52);
-  const topData = voxels.filter(v => v.mean_norm >= 0.18).map(v => ({
+  const shellData = voxels.filter(v => v.mean_norm >= profile.valueCut);
+  const bodyData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.04, 0.16));
+  const coreData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.36, 0.52));
+  const topData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.08, 0.20)).map(v => ({
     lat: v.lat,
     lon: v.lon,
     alt_m: v.base_m + v.height_m,
@@ -1944,25 +2198,23 @@ function build3DRadarLayers() {
     mean_norm: v.mean_norm
   }));
 
-  // soft volumetric shells to avoid the "sticks" look
-  const shellSlices = radar3DGapFill ? 8 : (radar3DInterpolation ? 6 : 4);
+  const shellSlices = Math.max(2, Number(profile.shellSlices) || 3);
   for (let i = 0; i < shellSlices; i++) {
-    const t = (i + 0.15) / shellSlices;
+    const t = (i + 0.22) / shellSlices;
     layers.push(new deck.ScatterplotLayer({
       id: `radar-shell-slice-${i}`,
       data: shellData,
       coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
       getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * t) * verticalEx],
-      getRadius: d => d.radius_m * (radar3DGapFill ? (2.4 + t * 2.8) : (1.8 + t * 2.0)),
+      getRadius: d => d.radius_m * (profile.shellSpreadMul + t * 1.05),
       radiusUnits: 'meters',
       stroked: false,
       filled: true,
       getFillColor: d => {
         const c = radarValueToColor(d.value, 255);
-        const alpha = radar3DGapFill ? 30 : 22;
-        return [c[0], c[1], c[2], Math.round(alpha * (1.0 - t * 0.55))];
+        return [c[0], c[1], c[2], Math.max(10, Math.round(profile.shellAlpha * (1.0 - t * 0.42)))];
       },
-      opacity: radar3DGapFill ? 0.34 : 0.24,
+      opacity: Math.max(0.10, Math.min(1, overlayOpacity * profile.shellOpacity)),
       parameters: { depthTest: true, blend: true },
       pickable: false
     }));
@@ -1972,20 +2224,20 @@ function build3DRadarLayers() {
     id: 'radar-volume-body',
     data: bodyData,
     coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
-    diskResolution: 18,
+    diskResolution: 16,
     radiusUnits: 'meters',
     extruded: true,
     stroked: false,
     filled: true,
     getPosition: d => [d.lon, d.lat, d.base_m * verticalEx],
     getElevation: d => d.height_m * verticalEx,
-    getRadius: d => d.radius_m * (radar3DGapFill ? 1.55 : 1.28),
+    getRadius: d => d.radius_m * profile.bodyRadiusMul,
     getFillColor: d => {
       const c = radarValueToColor(d.value, 255);
-      return [c[0], c[1], c[2], radar3DGapFill ? 138 : 116];
+      return [c[0], c[1], c[2], Math.round(profile.bodyAlpha + d.mean_norm * 18)];
     },
-    opacity: radar3DGapFill ? 0.68 : 0.56,
-    material: { ambient: 0.60, diffuse: 0.82, shininess: 22, specularColor: [255,255,255] },
+    opacity: Math.max(0.14, Math.min(1, overlayOpacity * profile.baseOpacity)),
+    material: { ambient: 0.56, diffuse: 0.78, shininess: 18, specularColor: [255,255,255] },
     parameters: { depthTest: true },
     pickable: true,
     autoHighlight: false,
@@ -2000,60 +2252,64 @@ function build3DRadarLayers() {
     }
   }));
 
-  layers.push(new deck.ColumnLayer({
-    id: 'radar-volume-core',
-    data: coreData,
-    coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
-    diskResolution: 16,
-    radiusUnits: 'meters',
-    extruded: true,
-    stroked: false,
-    filled: true,
-    getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * 0.04) * verticalEx],
-    getElevation: d => d.height_m * verticalEx * 0.92,
-    getRadius: d => d.radius_m * 0.95,
-    getFillColor: d => {
-      const c = radarValueToColor(d.value, 255);
-      return [c[0], c[1], c[2], 190];
-    },
-    opacity: 0.84,
-    material: { ambient: 0.66, diffuse: 0.88, shininess: 30, specularColor: [255,255,255] },
-    parameters: { depthTest: true },
-    pickable: false
-  }));
+  if (coreData.length) {
+    layers.push(new deck.ColumnLayer({
+      id: 'radar-volume-core',
+      data: coreData,
+      coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+      diskResolution: 14,
+      radiusUnits: 'meters',
+      extruded: true,
+      stroked: false,
+      filled: true,
+      getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * 0.05) * verticalEx],
+      getElevation: d => d.height_m * verticalEx * 0.88,
+      getRadius: d => d.radius_m * profile.coreRadiusMul,
+      getFillColor: d => {
+        const c = radarValueToColor(d.value, 255);
+        return [c[0], c[1], c[2], profile.coreAlpha];
+      },
+      opacity: Math.max(0.18, Math.min(1, overlayOpacity * profile.coreOpacity)),
+      material: { ambient: 0.62, diffuse: 0.86, shininess: 24, specularColor: [255,255,255] },
+      parameters: { depthTest: true },
+      pickable: false
+    }));
+  }
 
-  layers.push(new deck.ScatterplotLayer({
-    id: 'radar-volume-cap',
-    data: topData,
-    coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
-    getPosition: d => [d.lon, d.lat, d.alt_m * verticalEx],
-    getRadius: d => d.radius_m * 0.88,
-    radiusUnits: 'meters',
-    stroked: false,
-    filled: true,
-    getFillColor: d => {
-      const c = radarValueToColor(d.value, 255);
-      return [c[0], c[1], c[2], 84];
-    },
-    opacity: 0.48,
-    parameters: { depthTest: true, blend: true },
-    pickable: false
-  }));
+  if (topData.length) {
+    layers.push(new deck.ScatterplotLayer({
+      id: 'radar-volume-cap',
+      data: topData,
+      coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
+      getPosition: d => [d.lon, d.lat, d.alt_m * verticalEx],
+      getRadius: d => d.radius_m * 0.76,
+      radiusUnits: 'meters',
+      stroked: false,
+      filled: true,
+      getFillColor: d => {
+        const c = radarValueToColor(d.value, 255);
+        return [c[0], c[1], c[2], profile.capAlpha];
+      },
+      opacity: Math.max(0.10, Math.min(1, overlayOpacity * 0.52)),
+      parameters: { depthTest: true, blend: true },
+      pickable: false
+    }));
+  }
 
   layers.push(new deck.ScatterplotLayer({
     id: 'radar-volume-glow',
     data: shellData,
     coordinateSystem: deck.COORDINATE_SYSTEM.LNGLAT,
     getPosition: d => [d.lon, d.lat, (d.base_m + d.height_m * 0.58) * verticalEx],
-    getRadius: d => d.radius_m * (radar3DGapFill ? 4.8 : 3.8),
+    getRadius: d => d.radius_m * profile.glowRadiusMul,
     radiusUnits: 'meters',
     stroked: false,
     filled: true,
     getFillColor: d => {
       const c = radarValueToColor(d.value, 255);
-      return [c[0], c[1], c[2], radar3DGapFill ? 26 : 18];
+      return [c[0], c[1], c[2], profile.glowAlpha];
     },
-    opacity: radar3DGapFill ? 0.20 : 0.13,
+    opacity: Math.max(0.06, Math.min(1, overlayOpacity * 0.20)),
     parameters: { depthTest: true, blend: true },
     pickable: false
   }));
@@ -3428,17 +3684,26 @@ Frame: ${index + 1}/${total}`;
 
     function fitRadar(){ if (currentMapMode === '3d') { fitRadar3D(); return; } if (currentBounds) map.fitBounds(currentBounds); }
     function updateOpacity(val) { overlayOpacity = val / 100; if (radarLayer) radarLayer.setOpacity(overlayOpacity); refresh3DOverlay(); document.getElementById('opacityValue').innerText = val + '%'; }
-    function changeCmap() { cmap = document.getElementById('cmap').value; frame = 0; loadRadar(); }
-    function applyVminVmax() { vmin = document.getElementById('vmin').value; vmax = document.getElementById('vmax').value; frame = 0; loadRadar(); }
-    function resetOverrides() {
-      cmap = ''; vmin = ''; vmax = '';
-      document.getElementById('cmap').value = '';
-      document.getElementById('vmin').value = '';
-      document.getElementById('vmax').value = '';
-      frame = 0;
-      loadRadar();
-    }
 
+function changeCmap() {
+  cmap = document.getElementById('cmap').value;
+  frame = 0;
+  refresh3DOverlay();
+  loadRadar();
+}
+
+    function applyVminVmax() { vmin = document.getElementById('vmin').value; vmax = document.getElementById('vmax').value; frame = 0; loadRadar(); }
+function resetOverrides() {
+  cmap = '';
+  vmin = '';
+  vmax = '';
+  document.getElementById('cmap').value = '';
+  document.getElementById('vmin').value = '';
+  document.getElementById('vmax').value = '';
+  frame = 0;
+  refresh3DOverlay();
+  loadRadar();
+}
     function timeWindowChanged() {
       const sel = document.getElementById('timeWindow').value;
       const customBox = document.getElementById('customDaysInput');
@@ -3621,9 +3886,7 @@ async function loadRadar3D(group, frame, field) {
         field: String(field || ''),
         quality: String(imageQuality || 'high'),
         max_points: String(get3DMaxPoints()),
-        filters: JSON.stringify(filters || {}),
-        interpolate: radar3DInterpolation ? '1' : '0',
-        gap_fill: radar3DGapFill ? '1' : '0'
+        filters: JSON.stringify(filters || {})
     });
     try {
         const res = await fetch(`/radarviewer/volume_data?${params.toString()}`);
