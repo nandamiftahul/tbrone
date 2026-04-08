@@ -218,6 +218,88 @@ def _estimate_accumulation_from_rate(rain_rate_mmh: Any, accumulation_minutes: f
     acc = np.where(acc < 0, np.nan, acc)
     return acc
 
+def _build_cartesian_grid_for_product(radar, field: str, quality_cfg: dict[str, Any], rng_km: float, extra_z_levels: int = 0):
+    grid_limit_xy = rng_km * 1000.0
+    z_top = max(12000.0, float(getattr(radar, 'nsweeps', 1) or 1) * 1000.0)
+    grid = pyart.map.grid_from_radars(
+        (radar,),
+        grid_shape=(quality_cfg['vertical_levels'] + int(extra_z_levels), quality_cfg['max_cappi_grid'], quality_cfg['max_cappi_grid']),
+        grid_limits=((0.0, z_top), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
+        fields=[field],
+        weighting_function='Barnes2',
+    )
+    arr3 = np.ma.filled(grid.fields[field]['data'], np.nan).astype(float)
+    try:
+        z_levels = np.asarray(grid.z['data'], dtype=float)
+    except Exception:
+        z_levels = np.linspace(0.0, z_top, arr3.shape[0])
+    return grid, arr3, z_levels
+
+
+def _compute_vertical_derived_array(arr3: Any, z_levels: Any, product_used: str, threshold_dbz: float = 18.0):
+    arr3 = np.asarray(arr3, dtype=float)
+    z_levels = np.asarray(z_levels, dtype=float)
+    product_used = str(product_used or '').upper()
+    if arr3.ndim != 3:
+        return np.asarray(arr3, dtype=float), '', None, None
+
+    if z_levels.size != arr3.shape[0]:
+        z_levels = np.linspace(0.0, max(1000.0, float(arr3.shape[0] - 1) * 1000.0), arr3.shape[0])
+
+    mask = np.isfinite(arr3) & (arr3 >= threshold_dbz)
+    z3 = z_levels[:, None, None]
+
+    if product_used == 'ETOP':
+        top = np.nanmax(np.where(mask, z3, np.nan), axis=0) / 1000.0
+        return top, 'km', 0.0, max(12.0, float(np.nanmax(top)) if np.isfinite(np.nanmax(top)) else 12.0)
+
+    if product_used == 'EBASE':
+        base = np.nanmin(np.where(mask, z3, np.nan), axis=0) / 1000.0
+        return base, 'km', 0.0, max(12.0, float(np.nanmax(base)) if np.isfinite(np.nanmax(base)) else 12.0)
+
+    if product_used == 'ETHICK':
+        top = np.nanmax(np.where(mask, z3, np.nan), axis=0)
+        base = np.nanmin(np.where(mask, z3, np.nan), axis=0)
+        thick = (top - base) / 1000.0
+        thick = np.where(np.isfinite(top) & np.isfinite(base), thick, np.nan)
+        return thick, 'km', 0.0, max(12.0, float(np.nanmax(thick)) if np.isfinite(np.nanmax(thick)) else 12.0)
+
+    if product_used == 'LMEAN':
+        mean_dbz = np.nanmean(np.where(mask, arr3, np.nan), axis=0)
+        return mean_dbz, 'dBZ', 0.0, 70.0
+
+    if product_used == 'VIL':
+        z_lin = np.where(np.isfinite(arr3), np.power(10.0, arr3 / 10.0), np.nan)
+        term = np.power(np.maximum(z_lin, 0.0), 4.0 / 7.0)
+        if z_levels.size >= 2:
+            dz = np.diff(z_levels)
+            dz = np.r_[dz, dz[-1]]
+        else:
+            dz = np.array([1000.0])
+        vil = 3.44e-6 * np.nansum(term * dz[:, None, None], axis=0)
+        vil = np.where(np.any(mask, axis=0), vil, np.nan)
+        vmax = float(np.nanpercentile(vil[np.isfinite(vil)], 99)) if np.any(np.isfinite(vil)) else 10.0
+        return vil, 'kg/m²', 0.0, max(10.0, vmax)
+
+    return np.nanmax(arr3, axis=0), '', None, None
+
+
+def _sample_grid_value(grid, arr2: Any, radar, lat: float, lon: float):
+    arr2 = np.asarray(arr2, dtype=float)
+    x_km, y_km = _latlon_to_local_km(float(radar.latitude['data'][0]), float(radar.longitude['data'][0]), np.asarray([lat]), np.asarray([lon]))
+    x_m = float(x_km[0] * 1000.0)
+    y_m = float(y_km[0] * 1000.0)
+    gx = np.asarray(grid.x['data'], dtype=float)
+    gy = np.asarray(grid.y['data'], dtype=float)
+    if np.hypot(x_m, y_m) > float(np.nanmax(radar.range['data'])):
+        return {'ok': False, 'reason': 'outside_range'}
+    ix = int(np.argmin(np.abs(gx - x_m)))
+    iy = int(np.argmin(np.abs(gy - y_m)))
+    value = float(arr2[iy, ix]) if np.isfinite(arr2[iy, ix]) else float('nan')
+    if np.isfinite(value):
+        return {'ok': True, 'value': value, 'x_km': x_m / 1000.0, 'y_km': y_m / 1000.0}
+    return {'ok': False, 'reason': 'no_data'}
+
 
 def _sample_nearest_polar_value(radar, data2d, sweep_idx: int, lat: float, lon: float):
     lat0 = float(radar.latitude['data'][0])
@@ -437,6 +519,19 @@ def _sample_product_value_from_files(
                 sample = {'ok': False, 'reason': 'no_data'}
         unit = 'dBZ' if 'DB' in str(source_field).upper() else 'value'
         display_name = f'CAPPI {source_field}'
+    elif product_used in ('ETOP', 'EBASE', 'ETHICK', 'LMEAN', 'VIL'):
+        grid, arr3, z_levels = _build_cartesian_grid_for_product(radar, source_field, _quality_settings('medium'), float(radar.range['data'][-1]) / 1000.0, extra_z_levels=2)
+        arr2, derived_unit, _, _ = _compute_vertical_derived_array(arr3, z_levels, product_used)
+        sample = _sample_grid_value(grid, arr2, radar, lat, lon)
+        unit = derived_unit or ('dBZ' if 'DB' in str(source_field).upper() else 'value')
+        display_names = {
+            'ETOP': 'Echo Top',
+            'EBASE': 'Echo Base',
+            'ETHICK': 'Echo Thickness',
+            'LMEAN': 'Layer Mean Reflectivity',
+            'VIL': 'VIL',
+        }
+        display_name = display_names.get(product_used, product_used)
     else:
         sample = _sample_nearest_polar_value(radar, product_data, selected_sweep_idx, lat, lon)
 
@@ -1085,7 +1180,7 @@ def _render_radar_png_from_files(
     fig, ax = plt.subplots(figsize=(quality_cfg['figsize'], quality_cfg['figsize']))
     extent = None
 
-    if product_used in ('MAX', 'CAPPI', 'SRI', 'ACC'):
+    if product_used in ('MAX', 'CAPPI', 'SRI', 'ACC', 'ETOP', 'EBASE', 'ETHICK', 'LMEAN', 'VIL'):
         try:
             grid_limit_xy = rng_km * 1000.0
             if product_used == 'MAX':
@@ -1160,45 +1255,43 @@ def _render_radar_png_from_files(
                 d = rng_km / 111.0
                 extent = [lat0 - d, lon0 - d, lat0 + d, lon0 + d]
             else:
-                # CAPPI estimated from vertically interpolated gridded volume,
-                # then masked to radar range so the plot keeps a circular footprint.
-                cappi_h = float(cappi_height_km) * 1000.0
-                z_top = max(12000.0, float(getattr(radar, 'nsweeps', 1) or 1) * 1000.0)
-                grid = pyart.map.grid_from_radars(
-                    (radar,),
-                    grid_shape=(quality_cfg['vertical_levels'], quality_cfg['max_cappi_grid'], quality_cfg['max_cappi_grid']),
-                    grid_limits=((0.0, z_top), (-grid_limit_xy, grid_limit_xy), (-grid_limit_xy, grid_limit_xy)),
-                    fields=[field],
-                    weighting_function='Barnes2',
-                )
-                arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
+                grid, arr3, z_levels = _build_cartesian_grid_for_product(radar, field, quality_cfg, rng_km, extra_z_levels=2)
 
-                try:
-                    z_levels = np.asarray(grid.z['data'], dtype=float)
-                except Exception:
-                    z_levels = np.linspace(0.0, z_top, arr3.shape[0])
-
-                if arr3.ndim != 3 or arr3.shape[0] < 2:
-                    arr2 = np.squeeze(arr3)
-                else:
-                    target = float(np.clip(cappi_h, z_levels.min(), z_levels.max()))
-                    hi = int(np.searchsorted(z_levels, target, side='left'))
-                    hi = max(1, min(hi, len(z_levels) - 1))
-                    lo = hi - 1
-
-                    z0 = float(z_levels[lo])
-                    z1 = float(z_levels[hi])
-                    a0 = arr3[lo]
-                    a1 = arr3[hi]
-
-                    if z1 <= z0:
-                        arr2 = a0
+                if product_used == 'CAPPI':
+                    cappi_h = float(cappi_height_km) * 1000.0
+                    if arr3.ndim != 3 or arr3.shape[0] < 2:
+                        arr2 = np.squeeze(arr3)
                     else:
-                        w = (target - z0) / (z1 - z0)
-                        arr2 = (1.0 - w) * a0 + w * a1
+                        target = float(np.clip(cappi_h, z_levels.min(), z_levels.max()))
+                        hi = int(np.searchsorted(z_levels, target, side='left'))
+                        hi = max(1, min(hi, len(z_levels) - 1))
+                        lo = hi - 1
 
-                    arr2 = _fill_nan_nearest_2d(arr2)
-                    arr2 = np.asarray(arr2, dtype=float)
+                        z0 = float(z_levels[lo])
+                        z1 = float(z_levels[hi])
+                        a0 = arr3[lo]
+                        a1 = arr3[hi]
+
+                        if z1 <= z0:
+                            arr2 = a0
+                        else:
+                            w = (target - z0) / (z1 - z0)
+                            arr2 = (1.0 - w) * a0 + w * a1
+
+                        arr2 = _fill_nan_nearest_2d(arr2)
+                        arr2 = np.asarray(arr2, dtype=float)
+                else:
+                    arr2, derived_unit, auto_vmin, auto_vmax = _compute_vertical_derived_array(arr3, z_levels, product_used)
+                    if vmin_override is None and auto_vmin is not None:
+                        vmin_override = auto_vmin
+                    if vmax_override is None and auto_vmax is not None:
+                        vmax_override = auto_vmax
+                    if not cmap_override and not custom_cmap and product_used in ('ETOP', 'EBASE', 'ETHICK', 'VIL'):
+                        cmap_obj = plt.get_cmap('turbo').copy()
+                        try:
+                            cmap_obj.set_bad(alpha=0.0)
+                        except Exception:
+                            pass
 
                 ny, nx = arr2.shape
                 x = np.linspace(-rng_km, rng_km, nx)
@@ -1661,6 +1754,10 @@ def _build_export_dataset(
         )
         arr3 = np.ma.filled(grid.fields[field]['data'], np.nan)
         grid.fields[field]['data'] = np.ma.masked_invalid(np.nanmax(arr3, axis=0, keepdims=True))
+    elif product_used in ('ETOP', 'EBASE', 'ETHICK', 'LMEAN', 'VIL'):
+        grid, arr3, z_levels = _build_cartesian_grid_for_product(radar, field, {'vertical_levels': 12, 'max_cappi_grid': 400}, rng_km, extra_z_levels=2)
+        arr2, _, _, _ = _compute_vertical_derived_array(arr3, z_levels, product_used)
+        grid.fields[field]['data'] = np.ma.masked_invalid(np.asarray(arr2, dtype=float)[np.newaxis, :, :])
     else:
         cappi_h = float(cappi_height_km) * 1000.0
         half = 250.0
