@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HF Radar Viewer · Terrindo Bumi Raya</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+  <style>
+    :root{--xw-blue:#003A8F;--tbr-orange:#F28C28;--bg:#F4F7FB;--card:#FFFFFF;--text:#1F2937;--muted:#6B7280;--border:rgba(17,24,39,.10);--shadow:0 10px 30px rgba(2,22,55,.08);--radius:16px}
+    *{box-sizing:border-box} html,body{height:100%} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:linear-gradient(180deg,#EAF1FF 0%,var(--bg) 40%,#F7FAFF 100%);overflow:hidden}
+    .topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:12px 18px;gap:10px;background:rgba(0,58,143,.94);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.15)}
+    .brand{display:flex;align-items:center;gap:12px;min-width:0}.brand img{height:30px;width:auto;border-radius:8px}.brand .title{display:flex;flex-direction:column;line-height:1.1;color:#fff;min-width:0}.brand .title strong{font-size:14px;font-weight:800}.brand .title span{font-size:12px;opacity:.85}
+    .top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.btn{appearance:none;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.10);color:#fff;padding:9px 12px;border-radius:12px;cursor:pointer;font-weight:600;font-size:13px;text-decoration:none}.btn.primary{background:linear-gradient(135deg,var(--tbr-orange) 0%,#FFB565 100%);border-color:rgba(255,255,255,.10);color:#1A1A1A}
+    .shell{height:calc(100vh - 67px);display:grid;grid-template-columns:340px minmax(0,1fr);gap:12px;padding:12px}.sidebar,.mapCard{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;position:relative}.sidebar{display:flex;flex-direction:column;min-height:0}.head{padding:14px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(0,58,143,.06) 0%, rgba(0,58,143,0) 100%)}.head .h{margin:0;font-weight:900;font-size:14px;color:var(--xw-blue)}
+    .toolbarRow{padding:10px 14px 0;display:flex;gap:8px;flex-wrap:wrap}.miniBtn{appearance:none;border:1px solid var(--border);background:#fff;color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer;font-size:12px;font-weight:700}.search{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px}.list{padding:10px;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:8px}.sectionLabel{font-size:11px;font-weight:900;letter-spacing:.4px;color:var(--xw-blue);padding:10px 4px 2px;text-transform:uppercase}
+    .item{border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:10px}.headRow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.name{margin:0;font-weight:800;font-size:13px;line-height:1.35}.coord{margin:4px 0 0;font-size:12px;color:var(--muted);line-height:1.45}.tag{font-size:11px;font-weight:800;padding:7px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.26);color:#1d4ed8;white-space:nowrap}.tag.ok{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.26);color:#047857}
+    .field{display:grid;gap:6px}.field label{font-size:12px;font-weight:800;color:var(--text)} .field select,.field input{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:rgba(17,24,39,.04);color:var(--text);outline:none;font:inherit}.check{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text)}.smallText{font-size:11px;color:var(--muted)}
+    #map,#map3d{position:absolute;inset:0;min-height:400px}.statusPill{position:absolute;top:14px;right:14px;z-index:9999;background:rgba(255,255,255,.94);border:1px solid var(--border);border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;box-shadow:var(--shadow);max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .warningBox{position:absolute;top:62px;right:14px;z-index:9998;background:#fff7ed;color:#9a3412;border:1px solid rgba(251,146,60,.35);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow);max-width:360px;font-size:12px;line-height:1.45;display:none}
+    .legend{position:absolute;left:14px;bottom:14px;z-index:9999;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow);font-size:12px;backdrop-filter:blur(8px);min-width:250px}
+    .infoPanel{position:absolute;right:14px;bottom:14px;z-index:9999;background:rgba(255,255,255,.94);border:1px solid var(--border);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);min-width:220px;width:320px;max-width:340px;backdrop-filter:blur(8px)}.infoTitle{font-size:12px;font-weight:900;color:var(--xw-blue);margin-bottom:4px}.infoName{font-size:13px;font-weight:800;margin-bottom:6px}.infoValue{font-size:22px;font-weight:900;color:var(--tbr-orange);line-height:1.1}.infoSub{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.35}
+    .timelineCard{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;z-index:9999;width:520px;background:rgba(255,255,255,.95);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:8px 10px;backdrop-filter:blur(8px)} .timelineTop{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.timelineControls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.timelineBar{position:relative;height:7px;background:#eef2f7;border-radius:999px;width:100%;margin:6px 0 4px;overflow:hidden;border:1px solid rgba(17,24,39,.06)} #markers div{position:absolute;width:6px;height:6px;border-radius:50%;top:50%;transform:translate(-50%,-50%);cursor:pointer;box-shadow:0 0 0 1px #fff} .timelineTimes{display:flex;justify-content:space-between;gap:10px;font-size:9px;color:var(--muted)}
+    
+    #customDaysInput{display:none}
+    .customCmapActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .customCmapMeta{margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(0,58,143,.05);border:1px solid rgba(0,58,143,.10);font-size:11px;color:var(--muted);line-height:1.4}
+    .customCmapPreview{height:12px;border-radius:999px;border:1px solid var(--border);margin-top:8px;background:linear-gradient(90deg,#00ffff 0%,#0000ff 12%,#028086 20%,#00ff00 30%,#ffff03 50%,#fa3a07 68%,#c400ff 100%)}
+    .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:5000;padding:18px}
+    .modalCard{width:min(760px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;border:1px solid var(--border);box-shadow:0 20px 60px rgba(2,22,55,.22);padding:18px}
+    .modalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+    .modalTitle{font-size:18px;font-weight:900;color:var(--xw-blue);margin:0}
+    .modalSub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
+    .modalClose{appearance:none;border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 10px;font-weight:800;cursor:pointer}
+    .cmapEditorTop{display:grid;grid-template-columns:1fr 180px;gap:12px;align-items:end;margin-bottom:12px}
+    .cmapPreviewLarge{height:18px;border-radius:999px;border:1px solid var(--border);background:#eef2f7;margin:10px 0 14px}
+    .cmapStops{display:flex;flex-direction:column;gap:8px}
+    .cmapStopRow{display:grid;grid-template-columns:120px 120px 1fr auto;gap:8px;align-items:center}
+    .cmapStopRow input,.cmapStopRow select{width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:#fff;font:inherit}
+    .cmapStopRow input[type="color"]{padding:2px;height:40px}
+    .dangerBtn{appearance:none;border:1px solid rgba(220,38,38,.18);background:#fff5f5;color:#b91c1c;border-radius:10px;padding:9px 12px;font-weight:800;cursor:pointer}
+    .modalFooter{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}
+    .modalFooterLeft,.modalFooterRight{display:flex;gap:8px;flex-wrap:wrap}
+    
+    .hfLegendBox{
+      position:absolute;
+      left:14px;
+      bottom:76px;              /* tepat di atas basemap layer chooser */
+      z-index:10000;
+      background:rgba(255,255,255,.96);
+      border:1px solid rgba(17,24,39,.18);
+      border-radius:10px;
+      box-shadow:var(--shadow);
+      padding:8px 10px 10px;
+      min-width:350px;
+      max-width:390px;
+      backdrop-filter:blur(8px);
+    }
+    .hfLegendScale{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .hfLegendTopTicks{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      font-size:10px;
+      color:#111827;
+      padding:0 2px;
+    }
+    .hfLegendBar{
+      height:18px;
+      border:1px solid rgba(17,24,39,.25);
+      background:linear-gradient(
+        90deg,
+        #1d4ed8 0%,
+        #2563eb 12%,
+        #38bdf8 24%,
+        #22d3ee 36%,
+        #34d399 48%,
+        #84cc16 60%,
+        #fde047 72%,
+        #fb923c 84%,
+        #f97316 92%,
+        #ea580c 100%
+      );
+    }
+    .hfLegendBottomTicks{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      font-size:10px;
+      color:#111827;
+      padding:0 2px;
+    }
+    .hfLegendTitle{
+      text-align:center;
+      font-size:12px;
+      font-weight:700;
+      color:#111827;
+      margin-top:2px;
+    }
+
+    @media (max-width:1100px){body{overflow:auto}.shell{grid-template-columns:1fr;height:auto}.mapCard{height:70vh;min-height:520px}}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="HF Radar icon" />
+      <div class="title">
+        <strong>Terrindo Bumi Raya · HF Radar Viewer</strong>
+        <span>Ocean sensing NetCDF viewer with playback, QC Data filter, and 3D grid display</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <form action="{{ url_for('hfradar_bp.hfradar_home') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+        <input type="file" id="radarfiles" name="radarfiles" multiple hidden accept=".nc,.nc4,.cdf">
+        <button type="button" class="btn" id="btnUpload">Upload NetCDF</button>
+      </form>
+      <button class="btn" id="btnFitRadar">Fit Data</button>
+      <button class="btn" id="btnToggleMapMode">3D Map</button>
+      <button class="btn" id="btnPrevTop">Prev</button>
+      <button class="btn" id="btnPlayTop">Play</button>
+      <button class="btn" id="btnNextTop">Next</button>
+      <button class="btn primary" type="button" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="head"><p class="h">HF Radar Controls</p></div>
+      <div class="toolbarRow">
+        <button class="miniBtn" id="btnSidebarPlay">Play / Pause</button>
+        <button class="miniBtn" id="btnSidebarReset">Reset</button>
+      </div>
+      <div class="search"><input id="quickInfo" value="{{ groups|length }} dataset group available" readonly /></div>
+      <div class="list">
+        <div class="sectionLabel">HF Radar Source</div>
+        <div class="item">
+          <div class="headRow"><div><p class="name">Ocean Sensing Dataset</p><p class="coord">Upload one or more NetCDF wave products. Each time step becomes one playback frame.</p></div><div class="tag {% if groups %}ok{% endif %}">{{ 'Loaded' if groups else 'No Data' }}</div></div>
+          <div class="field"><label for="group">Group</label><select id="group" onchange="changeGroup()">{% for g in groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}</select></div>
+          <div class="field"><label for="frameSelect">Frame datetime</label><select id="frameSelect" onchange="changeFrameSelect()"></select></div>
+          <div class="field"><label for="field">Parameter</label><select id="field" onchange="changeField()">{% for f in fields %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select></div>
+        </div>
+
+        <div class="sectionLabel">Display</div>
+        <div class="item">
+          <div class="headRow"><div><p class="name">Parameter Styling</p><p class="coord">Set opacity, colormap, interpolation, smoothing, and manual value range for the current HF radar parameter.</p></div><div class="tag">Display</div></div>
+          <div class="field"><label for="opacitySlider">Opacity <small><span id="opacityValue">70%</span></small></label><input type="range" id="opacitySlider" min="0" max="100" value="70" /></div>
+          <div class="field"><label for="cmap">Colormap</label><select id="cmap"><option value="">Auto</option><option value="turbo">turbo</option><option value="viridis">viridis</option><option value="plasma">plasma</option><option value="magma">magma</option><option value="gray">gray</option><option value="twilight_shifted">twilight_shifted</option></select></div>
+          <div class="field"><label for="interpStrength">Interpolation <small><span id="interpValue">0%</span></small></label><input type="range" id="interpStrength" min="0" max="100" value="0" /></div>
+          <div class="smallText">Interpolation fills and blends the HF radar grid. Set 0% to keep the original gridded pixels.</div>
+          <div class="field"><label for="smoothingStrength">Smoothing <small><span id="smoothValue">0%</span></small></label><input type="range" id="smoothingStrength" min="0" max="100" value="0" /></div>
+          <div class="smallText">Smoothing softens transitions after interpolation. Set 0% to keep edges sharper.</div>
+          <div class="field"><label for="vmin">vmin</label><input type="number" id="vmin" /></div>
+          <div class="field"><label for="vmax">vmax</label><input type="number" id="vmax" /></div>
+          <div class="toolbarRow" style="padding:0;"><button class="miniBtn" type="button" onclick="resetOverrides()">Reset Auto</button></div>
+          <div class="customCmapActions">
+            <button class="miniBtn" type="button" onclick="openCustomCmapModal()">Custom Colormap</button>
+            <button class="miniBtn" type="button" onclick="toggleCustomCmap()" id="toggleCustomCmapBtn">Enable Custom</button>
+          </div>
+          <div class="customCmapMeta" id="customCmapMeta">Custom colormap is not active yet.</div>
+          <div class="customCmapPreview" id="customCmapPreview"></div>
+        </div>
+
+        <div class="sectionLabel">QC Data Filter</div>
+        <div class="item">
+          <div class="headRow"><div><p class="name">QC Data</p><p class="coord">Adjust QC like an operational filter panel using quality flag, GDOP geometry, and physical range checks for the HF radar wave product.</p></div><div class="tag">QC</div></div>
+          <label class="check"><input type="checkbox" id="qcEnabled"> Enable QC Data filter</label>
+          <div class="field"><label for="qcPreset">QC Preset</label><select id="qcPreset">
+            <option value="off">Off</option><option value="loose">Loose</option><option value="normal" selected>Normal</option><option value="strict">Strict</option><option value="custom">Custom</option>
+          </select></div>
+          <label class="check"><input type="checkbox" id="qcUseQual"> Use qual minimum</label>
+          <div class="field"><label for="qualMin">qual min</label><input type="number" id="qualMin" step="0.1" value="2"></div>
+          <label class="check"><input type="checkbox" id="qcUseGdopXY"> Use GDOP X/Y maximum</label>
+          <div class="field"><label for="gdopxMax">gdopx max</label><input type="number" id="gdopxMax" step="0.1" value="3.5"></div>
+          <div class="field"><label for="gdopyMax">gdopy max</label><input type="number" id="gdopyMax" step="0.1" value="3.5"></div>
+          <label class="check"><input type="checkbox" id="qcUseGdopCombined"> Use combined GDOP max</label>
+          <div class="field"><label for="gdopCombinedMax">combined GDOP max</label><input type="number" id="gdopCombinedMax" step="0.1" value="4.5"></div>
+          <label class="check"><input type="checkbox" id="qcUseHsRange"> Use Hs range</label>
+          <div class="field"><label for="hsMin">Hs min</label><input type="number" id="hsMin" step="0.1" value="0"></div>
+          <div class="field"><label for="hsMax">Hs max</label><input type="number" id="hsMax" step="0.1" value="8"></div>
+          <label class="check"><input type="checkbox" id="qcUseTmeanRange"> Use Tmean range</label>
+          <div class="field"><label for="tmeanMin">Tmean min</label><input type="number" id="tmeanMin" step="0.1" value="1"></div>
+          <div class="field"><label for="tmeanMax">Tmean max</label><input type="number" id="tmeanMax" step="0.1" value="20"></div>
+          <label class="check"><input type="checkbox" id="qcUseTenergyRange"> Use Tenergy range</label>
+          <div class="field"><label for="tenergyMin">Tenergy min</label><input type="number" id="tenergyMin" step="0.1" value="1"></div>
+          <div class="field"><label for="tenergyMax">Tenergy max</label><input type="number" id="tenergyMax" step="0.1" value="22"></div>
+          <label class="check"><input type="checkbox" id="qcUseWdirValid"> Use Wdir validity 0–360</label>
+          
+        </div>
+
+        <div class="sectionLabel">Multi Parameter Display</div>
+        <div class="item">
+          <div class="headRow"><div><p class="name">Overlay Parameter</p><p class="coord">Display one extra parameter on the same basemap. Best for <b>Hs + Wdir</b> together, where Wdir is drawn as vector arrows above the main raster.</p></div><div class="tag">Multi</div></div>
+          <label class="check"><input type="checkbox" id="secondaryEnabled"> Enable additional parameter</label>
+          <div class="field"><label for="secondaryField">Additional parameter</label><select id="secondaryField"><option value="">None</option>{% for f in fields %}<option value="{{ f }}">{{ f }}</option>{% endfor %}</select></div>
+          <div class="smallText">If the additional parameter is <b>Wdir</b>, the map shows direction arrows. For other parameters, an extra semi-transparent raster overlay is added.</div>
+        </div>
+
+        
+        <div class="sectionLabel">Timeline</div>
+        <div class="item">
+          <div class="headRow"><div><p class="name">Playback Window</p><p class="coord">Use this to narrow the marker time range on the timeline.</p></div><div class="tag">Time</div></div>
+          <div class="field">
+            <label for="timeWindow">Time Window</label>
+            <select id="timeWindow" onchange="timeWindowChanged()">
+              <option value="1800">30 min</option>
+              <option value="3600">60 min</option>
+              <option value="86400">1 day</option>
+              <option value="172800">2 days</option>
+              <option value="345600">4 days</option>
+              <option value="604800">1 week</option>
+              <option value="2592000">1 month</option>
+              <option value="31536000">1 year</option>
+              <option value="custom">Custom (days)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="customDaysInput">Custom days</label>
+            <input type="number" id="customDaysInput" value="0" min="1" onchange="renderTimeline()" />
+          </div>
+          <div class="toolbarRow" style="padding:0;"><button class="miniBtn" type="button" onclick="toggleTimeline()" id="toggleBtn">Hide Timeline</button></div>
+        </div>
+
+<div class="sectionLabel">Frame Summary</div>
+        <div class="item">
+          <div class="field"><label>Frame source file</label><input id="fileCountText" value="0 file" readonly /></div>
+          <div class="field"><label>Available parameters</label><input id="paramList" value="No data yet" readonly /></div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="mapCard">
+      <div id="map"></div>
+      <div id="map3d" style="display:none;"></div>
+      <div class="hfLegendBox" id="hfLegendBox">
+        <div class="hfLegendScale">
+          <div class="hfLegendTopTicks">
+            <span></span>
+            <span>0.50</span>
+            <span>1.00</span>
+            <span>1.50</span>
+            <span>2.00</span>
+            <span>2.50</span>
+            <span>3.00</span>
+            <span>3.50</span>
+            <span></span>
+          </div>
+          <div class="hfLegendBar" id="hfLegendBar"></div>
+          <div class="hfLegendTitle" id="hfLegendTitle">Significant Waveheight (m)</div>
+        </div>
+      </div>
+      <div class="statusPill" id="statusPill">Waiting for HF radar data...</div>
+      <div class="warningBox" id="warningBox"></div>
+      <div class="infoPanel">
+        <div class="infoTitle">HF Radar Playback Info</div>
+        <div class="infoName" id="infoName">No dataset selected yet</div>
+        <div class="infoValue" id="frameText">1/1</div>
+        <div class="infoSub"><span id="timestamp">--:--</span><br><span id="infoExtent">Extent is not available yet.</span></div>
+      </div>
+      <div class="infoPanel" id="inspectPanel" style="left:auto;right:14px;bottom:176px;min-width:250px;width:320px;z-index:9999">
+        <div class="infoTitle">Point Inspector</div>
+        <div class="infoName" id="inspectName">Click the map to inspect grid values</div>
+        <div class="infoValue" id="inspectValue" style="font-size:20px">--</div>
+        <div class="infoSub" id="inspectSub">Lat/Lon, parameter value, and qual will appear here.</div>
+      </div>
+      <div class="timelineCard" id="timelineCard">
+        <div class="timelineTop"><div style="font-size:12px;font-weight:800;color:var(--xw-blue);">Playback Timeline</div><div class="timelineControls"><button class="miniBtn" type="button" onclick="prev()">⏮</button><button class="miniBtn" type="button" onclick="togglePlay()" id="playBtn">▶</button><button class="miniBtn" type="button" onclick="next()">⏭</button></div></div>
+        <div class="timelineBar" id="timelineBar"><div id="markers"></div></div>
+        <div class="timelineTimes"><span id="minTime">--</span><span id="maxTime">--</span></div>
+      </div>
+    </section>
+  </div>
+
+<script>
+const defaultConfigs = {{ default_configs | tojson }};
+const qcPresets = {{ qc_presets | tojson }};
+const overlayUrl = "{{ url_for('hfradar_bp.hfradar_overlay') }}";
+const volumeDataUrl = "{{ url_for('hfradar_bp.hfradar_volume_data') }}";
+const samplePointUrl = "{{ url_for('hfradar_bp.hfradar_sample_point') }}";
+const vectorDataUrl = "{{ url_for('hfradar_bp.hfradar_vector_data') }}";
+const times = {{ times | tojson }};
+const epochs = {{ epochs | tojson }};
+const bounds = {{ bounds | tojson }};
+const customCmapStorageKey = 'hfradarCustomCmapSpec';
+let radarLayer = null, currentBounds = null, frame = 0, total = 1, playing = false, timer = null, overlayOpacity = 0.7;
+let customCmapSpec = null;
+let interpolationStrength = Number(localStorage.getItem('hfradarInterpolationStrength') || 0);
+let smoothingStrength = Number(localStorage.getItem('hfradarSmoothingStrength') || 0);
+let secondaryField = localStorage.getItem('hfradarSecondaryField') || '';
+let secondaryEnabled = localStorage.getItem('hfradarSecondaryEnabled') === '1';
+let secondaryRasterLayer = null, secondaryVectorLayer = null;
+let group = document.getElementById('group')?.value || '';
+let field = document.getElementById('field')?.value || '';
+let imageQuality = localStorage.getItem('radarImageQuality') || 'high';
+let currentMapMode = '2d';
+let latestRadarImageUrl = null, latestRadarBounds = null, latestRadarCenter = [{{ extent[0][0] }}, {{ extent[0][1] }}], latestRadarRadiusKm = 120;
+let latestRadarVolumeData = null, pending3DRequestId = 0, map3d = null, deckOverlay = null;
+
+const map = L.map('map', {zoomControl:true}).setView([{{ extent[0][0] }}, {{ extent[0][1] }}], 7);
+const baseLayers = {
+  "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }),
+  "Terrain": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri & contributors' }),
+  "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri & contributors' })
+};
+baseLayers['OpenStreetMap'].addTo(map);
+L.control.layers(baseLayers, null, { position: 'bottomleft' }).addTo(map);
+
+function getDefaultBmkgPreset() {
+  return {
+    enabled: true,
+    name: 'BMKG_CMAP',
+    mode: 'ranges',
+    stops: [
+      { value: 10, color: '#00FFFF' }, { value: 15, color: '#0000FF' }, { value: 20, color: '#028086' },
+      { value: 25, color: '#00FF00' }, { value: 30, color: '#00B200' }, { value: 35, color: '#81CC00' },
+      { value: 40, color: '#FFFF03' }, { value: 45, color: '#F9A205' }, { value: 50, color: '#FA3A07' },
+      { value: 55, color: '#DE0000' }, { value: 60, color: '#B00101' }, { value: 65, color: '#CD008D' },
+      { value: 70, color: '#C400FF' }
+    ]
+  };
+}
+function normalizeCustomCmapSpec(spec) {
+  if (!spec || typeof spec !== 'object') return null;
+  const stops = Array.isArray(spec.stops) ? spec.stops.map(stop => ({
+    value: Number(stop.value),
+    color: String(stop.color || '').trim().toUpperCase().startsWith('#') ? String(stop.color || '').trim().toUpperCase() : '#' + String(stop.color || '').trim().toUpperCase()
+  })).filter(stop => Number.isFinite(stop.value) && /^#[0-9A-F]{6}$/i.test(stop.color)) : [];
+  if (stops.length < 2) return null;
+  stops.sort((a, b) => a.value - b.value);
+  return { enabled: !!spec.enabled, name: String(spec.name || 'Custom CMAP').trim() || 'Custom CMAP', mode: String(spec.mode || 'gradients').toLowerCase() === 'ranges' ? 'ranges' : 'gradients', stops };
+}
+function loadCustomCmapSpec() {
+  try {
+    const raw = localStorage.getItem(customCmapStorageKey);
+    if (!raw) return null;
+    return normalizeCustomCmapSpec(JSON.parse(raw));
+  } catch (err) { return null; }
+}
+function saveCustomCmapSpec(spec) {
+  customCmapSpec = normalizeCustomCmapSpec(spec);
+  if (customCmapSpec) localStorage.setItem(customCmapStorageKey, JSON.stringify(customCmapSpec));
+  updateCustomCmapUI();
+  updateStaticWaveLegend();
+}
+function getActiveCustomCmap() { return (customCmapSpec && customCmapSpec.enabled) ? customCmapSpec : null; }
+function buildGradientCss(spec) {
+  const normalized = normalizeCustomCmapSpec(spec);
+  if (!normalized) return 'linear-gradient(90deg,#e5e7eb,#cbd5e1)';
+  const stops = normalized.stops;
+  const min = stops[0].value;
+  const max = stops[stops.length - 1].value;
+  if (normalized.mode === 'ranges') {
+    const pieces = stops.map((stop, idx) => {
+      const start = idx === 0 ? 0 : ((stops[idx - 1].value - min) / Math.max(max - min, 1)) * 100;
+      const end = ((stop.value - min) / Math.max(max - min, 1)) * 100;
+      return `${stop.color} ${Math.max(0, start)}%, ${stop.color} ${Math.min(100, end)}%`;
+    });
+    return `linear-gradient(90deg, ${pieces.join(', ')})`;
+  }
+  const pieces = stops.map(stop => `${stop.color} ${((stop.value - min) / Math.max(max - min, 1)) * 100}%`);
+  return `linear-gradient(90deg, ${pieces.join(', ')})`;
+}
+function updateCustomCmapUI() {
+  const meta = document.getElementById('customCmapMeta');
+  const preview = document.getElementById('customCmapPreview');
+  const toggleBtn = document.getElementById('toggleCustomCmapBtn');
+  const active = getActiveCustomCmap();
+  const spec = customCmapSpec;
+  if (!meta || !preview || !toggleBtn) return;
+  if (!spec) {
+    meta.textContent = 'Custom colormap is not active yet.';
+    preview.style.background = 'linear-gradient(90deg,#e5e7eb,#cbd5e1)';
+    toggleBtn.textContent = 'Enable Custom';
+    return;
+  }
+  preview.style.background = buildGradientCss(spec);
+  meta.textContent = `${spec.name} · ${spec.mode === 'ranges' ? 'Ranges' : 'Gradients'} · ${spec.stops.length} colors${active ? ' · active' : ' · saved'}`;
+  toggleBtn.textContent = active ? 'Disable Custom' : 'Enable Custom';
+}
+function toggleCustomCmap() {
+  if (!customCmapSpec) { openCustomCmapModal(); return; }
+  customCmapSpec.enabled = !customCmapSpec.enabled;
+  saveCustomCmapSpec(customCmapSpec);
+  frame = 0;
+  loadRadar();
+}
+function disableCustomCmap(closeModal=false) {
+  if (customCmapSpec) {
+    customCmapSpec.enabled = false;
+    saveCustomCmapSpec(customCmapSpec);
+  }
+  if (closeModal) closeCustomCmapModal();
+  frame = 0;
+  loadRadar();
+}
+function openCustomCmapModal() {
+  const modal = document.getElementById('customCmapModal');
+  if (!customCmapSpec) customCmapSpec = getDefaultBmkgPreset();
+  document.getElementById('customCmapName').value = customCmapSpec.name || 'Custom CMAP';
+  document.getElementById('customCmapMode').value = customCmapSpec.mode || 'gradients';
+  renderCustomCmapEditor();
+  modal.style.display = 'flex';
+}
+function closeCustomCmapModal() { document.getElementById('customCmapModal').style.display = 'none'; }
+function getEditorSpec() {
+  const rows = [...document.querySelectorAll('.cmapStopRow')];
+  const stops = rows.map(row => ({
+    value: Number(row.querySelector('.cmapValueInput').value),
+    color: row.querySelector('.cmapColorInput').value.toUpperCase()
+  })).filter(stop => Number.isFinite(stop.value) && stop.color);
+  return normalizeCustomCmapSpec({
+    enabled: true,
+    name: document.getElementById('customCmapName').value || 'Custom CMAP',
+    mode: document.getElementById('customCmapMode').value || 'gradients',
+    stops
+  });
+}
+function renderCustomCmapEditor() {
+  const wrap = document.getElementById('customCmapStops');
+  const spec = normalizeCustomCmapSpec(customCmapSpec) || getDefaultBmkgPreset();
+  customCmapSpec = spec;
+  wrap.innerHTML = '';
+  spec.stops.forEach((stop, idx) => {
+    const row = document.createElement('div');
+    row.className = 'cmapStopRow';
+    row.innerHTML = `<input class="cmapValueInput" type="number" step="0.1" value="${stop.value}">
+      <input class="cmapColorInput" type="color" value="${stop.color}">
+      <input class="cmapHexInput" type="text" value="${stop.color}" maxlength="7">
+      <button type="button" class="dangerBtn" ${spec.stops.length <= 2 ? 'disabled' : ''}>Delete</button>`;
+    const colorInput = row.querySelector('.cmapColorInput');
+    const hexInput = row.querySelector('.cmapHexInput');
+    const deleteBtn = row.querySelector('.dangerBtn');
+    colorInput.addEventListener('input', () => { hexInput.value = colorInput.value.toUpperCase(); updateEditorPreview(); });
+    hexInput.addEventListener('input', () => { const val = hexInput.value.trim(); if (/^#[0-9A-Fa-f]{6}$/.test(val)) colorInput.value = val; updateEditorPreview(); });
+    row.querySelector('.cmapValueInput').addEventListener('input', updateEditorPreview);
+    deleteBtn.addEventListener('click', () => { if (document.querySelectorAll('.cmapStopRow').length <= 2) return; row.remove(); updateEditorPreview(); });
+    wrap.appendChild(row);
+  });
+  updateEditorPreview();
+}
+function updateEditorPreview() {
+  const spec = getEditorSpec() || getDefaultBmkgPreset();
+  document.getElementById('customCmapPreviewLarge').style.background = buildGradientCss(spec);
+}
+function addCustomCmapStop() {
+  const spec = getEditorSpec() || getDefaultBmkgPreset();
+  const last = spec.stops[spec.stops.length - 1];
+  spec.stops.push({ value: Number(last.value) + 5, color: last.color });
+  customCmapSpec = spec;
+  renderCustomCmapEditor();
+}
+function loadPresetBmkgCmap() {
+  customCmapSpec = getDefaultBmkgPreset();
+  document.getElementById('customCmapName').value = customCmapSpec.name;
+  document.getElementById('customCmapMode').value = customCmapSpec.mode;
+  renderCustomCmapEditor();
+}
+function resetCustomCmapEditorDefaults() { customCmapSpec = getDefaultBmkgPreset(); renderCustomCmapEditor(); }
+function saveCustomCmapFromEditor() {
+  const spec = getEditorSpec();
+  if (!spec) { alert('At least 2 valid value-color rows are required.'); return; }
+  spec.enabled = true;
+  saveCustomCmapSpec(spec);
+  closeCustomCmapModal();
+  frame = 0;
+  loadRadar();
+}
+function getActiveCustomCmapParam() {
+  const active = getActiveCustomCmap();
+  return active ? JSON.stringify(active) : '';
+}
+function hexToRgb(hex) {
+  const clean = String(hex || '').trim().replace('#', '');
+  if (!/^[0-9A-Fa-f]{6}$/.test(clean)) return null;
+  return [parseInt(clean.slice(0,2),16), parseInt(clean.slice(2,4),16), parseInt(clean.slice(4,6),16)];
+}
+function getJsPaletteSpec() {
+  const active = getActiveCustomCmap();
+  if (active) return normalizeCustomCmapSpec(active);
+  return null;
+}
+
+
+function getQcDefaultsForPreset(preset){ return qcPresets[preset] || qcPresets.normal || qcPresets.off || {}; }
+function setQcFormFromPreset(preset){
+  const cfg = getQcDefaultsForPreset(preset);
+  if(qs('qcEnabled')) qs('qcEnabled').checked = !!cfg.enabled;
+  if(qs('qcUseQual')) qs('qcUseQual').checked = !!cfg.use_qual;
+  if(qs('qualMin')) qs('qualMin').value = cfg.qual_min ?? 2;
+  if(qs('qcUseGdopXY')) qs('qcUseGdopXY').checked = !!cfg.use_gdop_xy;
+  if(qs('gdopxMax')) qs('gdopxMax').value = cfg.gdopx_max ?? 3.5;
+  if(qs('gdopyMax')) qs('gdopyMax').value = cfg.gdopy_max ?? 3.5;
+  if(qs('qcUseGdopCombined')) qs('qcUseGdopCombined').checked = !!cfg.use_gdop_combined;
+  if(qs('gdopCombinedMax')) qs('gdopCombinedMax').value = cfg.gdop_combined_max ?? 4.5;
+  if(qs('qcUseHsRange')) qs('qcUseHsRange').checked = !!cfg.use_hs_range;
+  if(qs('hsMin')) qs('hsMin').value = cfg.hs_min ?? 0;
+  if(qs('hsMax')) qs('hsMax').value = cfg.hs_max ?? 8;
+  if(qs('qcUseTmeanRange')) qs('qcUseTmeanRange').checked = !!cfg.use_tmean_range;
+  if(qs('tmeanMin')) qs('tmeanMin').value = cfg.tmean_min ?? 1;
+  if(qs('tmeanMax')) qs('tmeanMax').value = cfg.tmean_max ?? 20;
+  if(qs('qcUseTenergyRange')) qs('qcUseTenergyRange').checked = !!cfg.use_tenergy_range;
+  if(qs('tenergyMin')) qs('tenergyMin').value = cfg.tenergy_min ?? 1;
+  if(qs('tenergyMax')) qs('tenergyMax').value = cfg.tenergy_max ?? 22;
+  if(qs('qcUseWdirValid')) qs('qcUseWdirValid').checked = !!cfg.use_wdir_valid;
+}
+function getQcParams(){
+  const params = new URLSearchParams();
+  const preset = qs('qcPreset')?.value || 'off';
+  params.set('qc_preset', preset);
+  if(qs('qcEnabled')?.checked) params.set('qc_enabled','1');
+  const mapFields = [
+    ['qcUseQual','use_qual'],['qualMin','qual_min'],['qcUseGdopXY','use_gdop_xy'],['gdopxMax','gdopx_max'],['gdopyMax','gdopy_max'],
+    ['qcUseGdopCombined','use_gdop_combined'],['gdopCombinedMax','gdop_combined_max'],['qcUseHsRange','use_hs_range'],['hsMin','hs_min'],['hsMax','hs_max'],
+    ['qcUseTmeanRange','use_tmean_range'],['tmeanMin','tmean_min'],['tmeanMax','tmean_max'],['qcUseTenergyRange','use_tenergy_range'],['tenergyMin','tenergy_min'],['tenergyMax','tenergy_max'],
+    ['qcUseWdirValid','use_wdir_valid']
+  ];
+  mapFields.forEach(([id,key])=>{
+    const el = qs(id); if(!el) return;
+    if(el.type === 'checkbox') params.set(key, el.checked ? '1' : '0');
+    else if(el.value !== '') params.set(key, el.value);
+  });
+  return params;
+}
+function appendQcParams(params){ const qcp = getQcParams(); qcp.forEach((v,k)=>params.set(k,v)); }
+function qcSummaryText(){
+  if(!qs('qcEnabled')?.checked) return '';
+  const preset = qs('qcPreset')?.value || 'custom';
+  return ` · QC ${preset.toUpperCase()}`;
+}
+
+function setStatus(text){ document.getElementById('statusPill').textContent = text; }
+function qs(id){ return document.getElementById(id); }
+function updateWarningBox(rawWarnings){ const box=qs('warningBox'); const parts=String(rawWarnings||'').split(';').map(s=>s.trim()).filter(Boolean); if(parts.length){ box.style.display='block'; box.innerHTML='<strong>⚠ Issues detected</strong><br>'+parts.join('<br>'); } else { box.style.display='none'; box.innerHTML=''; } }
+function updateOpacity(v){ overlayOpacity = Number(v)/100; qs('opacityValue').textContent = `${v}%`; if(radarLayer) radarLayer.setOpacity(overlayOpacity); if(secondaryRasterLayer) secondaryRasterLayer.setOpacity(Math.min(0.55, overlayOpacity * 0.78)); if(deckOverlay) refresh3DOverlay(); }
+function updateInterpolation(v, reload=true){ interpolationStrength = Number(v) || 0; localStorage.setItem('hfradarInterpolationStrength', String(interpolationStrength)); if(qs('interpValue')) qs('interpValue').textContent = `${interpolationStrength}%`; if(reload) loadRadar(); }
+function updateSmoothing(v, reload=true){ smoothingStrength = Number(v) || 0; localStorage.setItem('hfradarSmoothingStrength', String(smoothingStrength)); if(qs('smoothValue')) qs('smoothValue').textContent = `${smoothingStrength}%`; if(reload) loadRadar(); }
+function updateSecondaryState(reload=true){
+  secondaryEnabled = !!qs('secondaryEnabled')?.checked;
+  secondaryField = qs('secondaryField')?.value || '';
+  localStorage.setItem('hfradarSecondaryEnabled', secondaryEnabled ? '1' : '0');
+  localStorage.setItem('hfradarSecondaryField', secondaryField);
+  if (!secondaryEnabled) {
+    clearSecondaryLayers();
+  }
+  if (reload) loadRadar();
+}
+function clearSecondaryVectorArtifacts(){
+  if (secondaryVectorLayer) {
+    try { map.removeLayer(secondaryVectorLayer); } catch(e) {}
+    secondaryVectorLayer = null;
+  }
+  map.eachLayer(layer => {
+    if (layer && layer._isHfSecondaryVector) {
+      try { map.removeLayer(layer); } catch(e) {}
+    }
+  });
+}
+function clearSecondaryLayers(){
+  if (secondaryRasterLayer) {
+    try { map.removeLayer(secondaryRasterLayer); } catch(e) {}
+    secondaryRasterLayer = null;
+  }
+  clearSecondaryVectorArtifacts();
+}
+function resetOverrides(){ qs('cmap').value=''; const cfg=defaultConfigs[field] || {}; qs('vmin').value = cfg.vmin ?? ''; qs('vmax').value = cfg.vmax ?? ''; updateStaticWaveLegend(); loadRadar(); }
+function buildArrowPolyline(lat, lon, angleDeg, lengthDeg){
+  const rad = (Number(angleDeg || 0) * Math.PI) / 180.0;
+  const dx = Math.sin(rad) * lengthDeg;
+  const dy = Math.cos(rad) * lengthDeg;
+  const end = [lat + dy, lon + dx];
+  const headLeft = [end[0] - dy * 0.25 - dx * 0.20, end[1] - dx * 0.25 + dy * 0.20];
+  const headRight = [end[0] - dy * 0.25 + dx * 0.20, end[1] - dx * 0.25 - dy * 0.20];
+  return [
+    L.polyline([[lat, lon], end], {color:'#0f172a', weight:1.5, opacity:0.82}),
+    L.polyline([headLeft, end, headRight], {color:'#0f172a', weight:1.5, opacity:0.82})
+  ];
+}
+function loadSecondaryOverlay(){
+  clearSecondaryLayers();
+  if(!secondaryEnabled || !secondaryField || secondaryField === field) return Promise.resolve();
+  const common = new URLSearchParams({ group, frame, quality: imageQuality });
+  appendQcParams(common);
+  if(interpolationStrength > 0) common.set('interp_strength', interpolationStrength);
+  if(smoothingStrength > 0) common.set('smoothing_strength', smoothingStrength);
+
+  if(secondaryField === 'Wdir'){
+    common.set('field', secondaryField);
+    return fetch(`${vectorDataUrl}?${common.toString()}`)
+      .then(r => r.json())
+      .then(data => {
+        clearSecondaryVectorArtifacts();
+
+        if(!secondaryEnabled || secondaryField !== 'Wdir') return;
+
+        const vectors = Array.isArray(data.vectors) ? data.vectors : [];
+        const layer = L.layerGroup();
+        layer._isHfSecondaryVector = true;
+
+        const latSpan = Math.abs((latestRadarBounds?.[1]?.[0] || 0) - (latestRadarBounds?.[0]?.[0] || 0));
+        const lonSpan = Math.abs((latestRadarBounds?.[1]?.[1] || 0) - (latestRadarBounds?.[0]?.[1] || 0));
+        const arrowLen = Math.max(0.008, Math.min(0.045, Math.max(latSpan, lonSpan) / 45));
+
+        vectors.forEach(v => {
+          buildArrowPolyline(Number(v.lat), Number(v.lon), Number(v.angle), arrowLen).forEach(seg => {
+            seg._isHfSecondaryVector = true;
+            layer.addLayer(seg);
+          });
+        });
+
+        secondaryVectorLayer = layer;
+        secondaryVectorLayer.addTo(map);
+      })
+      .catch(console.error);
+  }
+
+  common.set('field', secondaryField);
+  const cfg = defaultConfigs[secondaryField] || {};
+  if(cfg.vmin != null) common.set('vmin', cfg.vmin);
+  if(cfg.vmax != null) common.set('vmax', cfg.vmax);
+  const activeCustom = getActiveCustomCmapParam(); if(activeCustom) common.set('custom_cmap', activeCustom);
+  return fetch(`${overlayUrl}?${common.toString()}`)
+    .then(async res => {
+      if(!res.ok) throw new Error('Failed to render secondary overlay');
+      const blob = await res.blob();
+      const imgUrl = URL.createObjectURL(blob);
+      const bounds = JSON.parse(res.headers.get('X-Bounds') || 'null');
+      secondaryRasterLayer = L.imageOverlay(imgUrl, bounds, {opacity: Math.min(0.55, overlayOpacity * 0.78)}).addTo(map);
+    })
+    .catch(console.error);
+}
+function changeField(){
+  field = qs('field').value;
+  const cfg = defaultConfigs[field] || {};
+  qs('vmin').value = cfg.vmin ?? '';
+  qs('vmax').value = cfg.vmax ?? '';
+  updateStaticWaveLegend();
+  loadRadar();
+}
+function changeGroup(){ group = qs('group').value; frame = 0; buildFrameSelect(); loadRadar(); }
+function changeFrameSelect(){ frame = Number(qs('frameSelect').value || 0); loadRadar(); }
+function buildFrameSelect(){ const select = qs('frameSelect'); const arr = times[group] || []; total = Math.max(1, arr.length); select.innerHTML=''; arr.forEach((t, idx)=>{ const opt=document.createElement('option'); opt.value=idx; opt.textContent=t || `Frame ${idx+1}`; select.appendChild(opt); }); select.value = String(Math.min(frame, total-1)); qs('frameText').textContent = `${Math.min(frame+1,total)}/${total}`; renderTimeline(); }
+function timeWindowChanged(){ const sel = qs('timeWindow').value; const customBox = qs('customDaysInput'); if(customBox) customBox.style.display = (sel === 'custom') ? 'block' : 'none'; renderTimeline(); }
+function renderTimeline(){
+  const container = qs('markers');
+  if (!container) return;
+  container.innerHTML = '';
+  if (!epochs[group] || epochs[group].length === 0 || !bounds[group]) return;
+  let minT = bounds[group]['min'];
+  let maxT = bounds[group]['max'];
+  const sel = qs('timeWindow')?.value || '31536000';
+  if (sel === 'custom') {
+    const custom = parseInt(qs('customDaysInput')?.value || '0', 10);
+    if (!isNaN(custom) && custom > 0) minT = Math.max(maxT - custom * 86400, minT);
+  } else {
+    const win = parseInt(sel, 10);
+    if (!isNaN(win)) minT = Math.max(maxT - win, minT);
+  }
+  qs('minTime').innerText = new Date(minT * 1000).toISOString().replace('T', ' ').substring(0, 19);
+  qs('maxTime').innerText = new Date(maxT * 1000).toISOString().replace('T', ' ').substring(0, 19);
+  epochs[group].forEach((t, i) => {
+    if (!t || t < minT || t > maxT) return;
+    const pct = ((t - minT) / Math.max((maxT - minT), 1)) * 100;
+    const dot = document.createElement('div');
+    dot.style.left = pct + '%';
+    dot.style.background = (i === frame ? '#DC2626' : '#475569');
+    dot.title = times[group][i];
+    dot.onclick = () => { frame = i; if (qs('frameSelect')) qs('frameSelect').value=String(i); loadRadar(); };
+    container.appendChild(dot);
+  });
+}
+function toggleTimeline(){ const card = qs('timelineCard'); const btn = qs('toggleBtn'); if (!card || !btn) return; if (card.style.display === 'none') { card.style.display = 'block'; btn.innerText = 'Hide Timeline'; } else { card.style.display = 'none'; btn.innerText = 'Show Timeline'; } }
+function prev(){ frame = (frame - 1 + total) % total; qs('frameSelect').value=String(frame); loadRadar(); }
+function next(){ frame = (frame + 1) % total; qs('frameSelect').value=String(frame); loadRadar(); }
+function togglePlay(){ playing = !playing; qs('playBtn').textContent = playing ? '⏸' : '▶'; qs('btnPlayTop').textContent = playing ? 'Pause' : 'Play'; if(playing){ timer=setInterval(()=>next(),1000);} else { clearInterval(timer);} }
+function latLonFromBounds(bounds){ const sw=bounds[0], ne=bounds[1]; return [(sw[0]+ne[0])/2, (sw[1]+ne[1])/2]; }
+function getBaseLegendGradient(cmapName){
+  const gradients = {
+    turbo: 'linear-gradient(90deg,#30123b 0%,#4145ab 10%,#4675ed 20%,#39a2fc 30%,#1bcfd4 40%,#24eca6 50%,#61fc6c 60%,#a4fc3b 70%,#d1e834 78%,#f3c63a 86%,#fe9b2d 93%,#f36315 97%,#d93806 100%)',
+    viridis: 'linear-gradient(90deg,#440154 0%,#482878 20%,#3e4989 40%,#31688e 55%,#26828e 68%,#1f9e89 78%,#35b779 86%,#6ece58 93%,#b5de2b 97%,#fde725 100%)',
+    plasma: 'linear-gradient(90deg,#0d0887 0%,#46039f 18%,#7201a8 32%,#9c179e 46%,#bd3786 60%,#d8576b 73%,#ed7953 84%,#fb9f3a 93%,#fdca26 98%,#f0f921 100%)',
+    magma: 'linear-gradient(90deg,#000004 0%,#180f3d 15%,#440f76 32%,#721f81 46%,#9e2f7f 60%,#cd4071 74%,#f1605d 86%,#fd9668 94%,#feca8d 98%,#fcfdbf 100%)',
+    gray: 'linear-gradient(90deg,#000000 0%,#222222 20%,#555555 45%,#888888 65%,#bdbdbd 85%,#ffffff 100%)',
+    twilight_shifted: 'linear-gradient(90deg,#2f1436 0%,#413c85 18%,#2c7fb8 34%,#41b6c4 48%,#a1dab4 60%,#f1f1a9 74%,#fdae61 88%,#d7191c 100%)'
+  };
+  return gradients[cmapName] || gradients.turbo;
+}
+function updateStaticWaveLegend(){
+  const titleEl = qs('hfLegendTitle');
+  const barEl = qs('hfLegendBar');
+  const tickTop = document.querySelector('.hfLegendTopTicks');
+
+  if(!titleEl || !barEl || !tickTop) return;
+
+  if(field === 'Hs'){
+    titleEl.textContent = 'Significant Waveheight (m)';
+  } else if(field === 'Tmean'){
+    titleEl.textContent = 'Mean Wave Period (s)';
+  } else if(field === 'Tenergy'){
+    titleEl.textContent = 'Energy Wave Period (s)';
+  } else if(field === 'Wdir'){
+    titleEl.textContent = 'Wave Direction (deg)';
+  } else {
+    titleEl.textContent = (defaultConfigs[field]?.label || field);
+  }
+
+  const cfg = defaultConfigs[field] || {};
+  const vmin = Number(qs('vmin')?.value || cfg.vmin || 0);
+  const vmax = Number(qs('vmax')?.value || cfg.vmax || 1);
+
+  const activeCustom = getActiveCustomCmap();
+  if (activeCustom) {
+    barEl.style.background = buildGradientCss(activeCustom);
+  } else {
+    const cmapName = (qs('cmap')?.value || cfg.cmap || 'turbo').trim() || 'turbo';
+    barEl.style.background = getBaseLegendGradient(cmapName);
+  }
+
+  const n = 7;
+  const step = (vmax - vmin) / (n + 1 || 1);
+  let html = '<span></span>';
+  for(let i=1; i<=n; i++){
+    const val = vmin + step * i;
+    const txt = Number.isFinite(val) ? (Math.abs(val) >= 10 ? val.toFixed(1) : val.toFixed(2)) : '';
+    html += `<span>${txt}</span>`;
+  }
+  html += '<span></span>';
+  tickTop.innerHTML = html;
+}
+function loadRadar(){
+  if(!group || !field) { setStatus('Upload NetCDF data first'); return; }
+  const params = new URLSearchParams({ group, frame, field, quality: imageQuality });
+  appendQcParams(params);
+  const cmap = qs('cmap').value.trim(); const vmin = qs('vmin').value.trim(); const vmax = qs('vmax').value.trim();
+  if(cmap) params.set('cmap', cmap); if(vmin !== '') params.set('vmin', vmin); if(vmax !== '') params.set('vmax', vmax); if(qs('qcEnabled').checked) params.set('qc_enabled', '1'); if(interpolationStrength > 0) params.set('interp_strength', interpolationStrength); if(smoothingStrength > 0) params.set('smoothing_strength', smoothingStrength); const activeCustom = getActiveCustomCmapParam(); if(activeCustom) params.set('custom_cmap', activeCustom);
+  const url = `${overlayUrl}?${params.toString()}`;
+  fetch(url).then(async res => {
+    if(!res.ok) throw new Error('Failed to render overlay');
+    const blob = await res.blob();
+    const imgUrl = URL.createObjectURL(blob);
+    let bounds = JSON.parse(res.headers.get('X-Bounds') || 'null');
+    const time = res.headers.get('X-Time') || '--';
+    const fileName = res.headers.get('X-Filename') || 'dataset.nc';
+    const warnings = res.headers.get('X-Warnings') || '';
+    if(radarLayer) map.removeLayer(radarLayer);
+    radarLayer = L.imageOverlay(imgUrl, bounds, {opacity: overlayOpacity}).addTo(map);
+    currentBounds = bounds;
+    latestRadarImageUrl = imgUrl; latestRadarBounds = bounds; latestRadarCenter = latLonFromBounds(bounds); latestRadarRadiusKm = Math.max(10, map.distance(bounds[0], [bounds[0][0], bounds[1][1]])/2000);
+    qs('timestamp').textContent = time; qs('infoName').textContent = `${defaultConfigs[field]?.label || field}`; qs('infoExtent').textContent = `${fileName} · ${bounds[0][0].toFixed(3)}, ${bounds[0][1].toFixed(3)} to ${bounds[1][0].toFixed(3)}, ${bounds[1][1].toFixed(3)}`;
+    qs('fileCountText').value = fileName; qs('paramList').value = Object.keys(defaultConfigs).filter(k => (document.querySelector(`#field option[value="${k}"]`))).join(', ');
+        setStatus(`${field} · frame ${frame+1}/${total}${qcSummaryText()}${interpolationStrength > 0 ? ` · Interp ${interpolationStrength}%` : ''}${smoothingStrength > 0 ? ` · Smooth ${smoothingStrength}%` : ''}${secondaryEnabled && secondaryField && secondaryField !== field ? ` · + ${secondaryField}` : ''}`); buildFrameSelect(); updateWarningBox(warnings); loadSecondaryOverlay(); updateStaticWaveLegend();
+    if(currentMapMode === '3d') loadRadar3D();
+  }).catch(err => { console.error(err); setStatus('Failed to load HF radar overlay'); });
+}
+
+function fitRadar(){ if(currentBounds) map.fitBounds(currentBounds, {padding:[20,20]}); }
+function requestPointSample(latlng){
+  const params = new URLSearchParams({group, frame, field, lat:latlng.lat, lon:latlng.lng});
+  appendQcParams(params);
+  if(interpolationStrength > 0) params.set('interp_strength', interpolationStrength);
+  if(smoothingStrength > 0) params.set('smoothing_strength', smoothingStrength);
+  fetch(`${samplePointUrl}?${params.toString()}`).then(r=>r.json()).then(data=>{
+    qs('inspectName').textContent = data.field || field;
+    qs('inspectValue').textContent = data.value == null ? 'No Data' : `${Number(data.value).toFixed(2)} ${data.unit || ''}`;
+    const d=data.details||{};
+    qs('inspectSub').innerHTML = `Lat ${Number(data.lat).toFixed(5)} · Lon ${Number(data.lon).toFixed(5)}<br>qual: ${d.qual == null ? '-' : Number(d.qual).toFixed(2)} · QC Data: ${d.qc_enabled ? 'ON' : 'OFF'}`;
+    if(secondaryEnabled && secondaryField && secondaryField !== field){
+      const p2 = new URLSearchParams({group, frame, field: secondaryField, lat:latlng.lat, lon:latlng.lng});
+      appendQcParams(p2);
+      if(interpolationStrength > 0) p2.set('interp_strength', interpolationStrength);
+      if(smoothingStrength > 0) p2.set('smoothing_strength', smoothingStrength);
+      fetch(`${samplePointUrl}?${p2.toString()}`).then(r=>r.json()).then(extra=>{
+        const extraValue = extra.value == null ? 'No Data' : `${Number(extra.value).toFixed(2)} ${extra.unit || ''}`;
+        qs('inspectSub').innerHTML += `<br>${extra.field || secondaryField}: ${extraValue}`;
+      }).catch(console.error);
+    }
+  }).catch(console.error);
+}
+map.on('click', e => requestPointSample(e.latlng));
+
+function get3DBaseStyle(){ return {version:8,sources:{'esri-world-imagery':{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256}},layers:[{id:'satellite-base',type:'raster',source:'esri-world-imagery'}]}; }
+function radarValueToColor(value, alpha=180){
+  const spec = getJsPaletteSpec();
+  if (spec && Array.isArray(spec.stops) && spec.stops.length) {
+    const stops = [...spec.stops].sort((a,b)=>Number(a.value)-Number(b.value));
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return [48,18,59,alpha];
+    if (spec.mode === 'ranges') {
+      for (let i=0;i<stops.length;i++){
+        if (numeric <= Number(stops[i].value)) {
+          const rgb = hexToRgb(stops[i].color) || [48,18,59];
+          return [rgb[0],rgb[1],rgb[2],alpha];
+        }
+      }
+      const rgb = hexToRgb(stops[stops.length-1].color) || [244,140,40];
+      return [rgb[0],rgb[1],rgb[2],alpha];
+    }
+    if (numeric <= Number(stops[0].value)) {
+      const rgb = hexToRgb(stops[0].color) || [48,18,59];
+      return [rgb[0],rgb[1],rgb[2],alpha];
+    }
+    if (numeric >= Number(stops[stops.length-1].value)) {
+      const rgb = hexToRgb(stops[stops.length-1].color) || [244,140,40];
+      return [rgb[0],rgb[1],rgb[2],alpha];
+    }
+    for (let i=0;i<stops.length-1;i++){
+      const a = stops[i], b = stops[i+1], av = Number(a.value), bv = Number(b.value);
+      if (numeric >= av && numeric <= bv){
+        const t = (numeric-av) / Math.max(1e-6,bv-av);
+        const ra = hexToRgb(a.color) || [48,18,59];
+        const rb = hexToRgb(b.color) || [244,140,40];
+        return [
+          Math.round(ra[0] + (rb[0]-ra[0])*t),
+          Math.round(ra[1] + (rb[1]-ra[1])*t),
+          Math.round(ra[2] + (rb[2]-ra[2])*t),
+          alpha
+        ];
+      }
+    }
+  }
+  const cfg = defaultConfigs[field] || {};
+  const lo = Number(qs('vmin').value || cfg.vmin || 0);
+  const hi = Number(qs('vmax').value || cfg.vmax || 1);
+  const t = Math.max(0, Math.min(1, (Number(value) - lo) / Math.max(1e-6, hi - lo)));
+  return [
+    Math.round(48 + (244 - 48) * t),
+    Math.round(18 + (140 - 18) * (1 - Math.abs(t - 0.5) * 2)),
+    Math.round(59 + (3 - 59) * (1 - t)),
+    alpha
+  ];
+}
+function init3DMap(){ if(map3d) return; map3d = new maplibregl.Map({container:'map3d',style:get3DBaseStyle(),center:[latestRadarCenter[1],latestRadarCenter[0]],zoom:7,pitch:62,bearing:-24,antialias:true}); map3d.addControl(new maplibregl.NavigationControl(), 'top-left'); deckOverlay = new deck.MapboxOverlay({interleaved:true,layers:[]}); map3d.on('load', ()=> map3d.addControl(deckOverlay)); }
+function build3DLayers(){ if(!latestRadarVolumeData) return []; const verticalEx = 12.5; const voxels = latestRadarVolumeData.voxels || []; return [new deck.BitmapLayer({id:'ground',image:latestRadarImageUrl,bounds:[latestRadarBounds[0][1],latestRadarBounds[0][0],latestRadarBounds[1][1],latestRadarBounds[1][0]],opacity:0.78}), new deck.ColumnLayer({id:'hf-volume',data:voxels,coordinateSystem:deck.COORDINATE_SYSTEM.LNGLAT,diskResolution:14,radiusUnits:'meters',extruded:true,stroked:false,filled:true,getPosition:d=>[d.lon,d.lat,d.base_m*verticalEx],getElevation:d=>d.height_m*verticalEx,getRadius:d=>d.radius_m,getFillColor:d=>radarValueToColor(d.value, 140 + Math.round((d.mean_norm||0)*90)),opacity:0.72,pickable:true,onClick:info=>{ if(info?.object) requestPointSample({lat:info.object.lat,lng:info.object.lon}); }}), new deck.PointCloudLayer({id:'hf-points',data:latestRadarVolumeData.points||[],coordinateSystem:deck.COORDINATE_SYSTEM.LNGLAT,pointSize:3.4,getPosition:d=>[d.lon,d.lat,d.alt_m*verticalEx],getNormal:()=>[0,0,1],getColor:d=>radarValueToColor(d.value, d.alpha || 130),opacity:0.28,pickable:false})]; }
+function refresh3DOverlay(){ if(deckOverlay) deckOverlay.setProps({layers:build3DLayers()}); }
+function loadRadar3D(){ init3DMap(); const rid = ++pending3DRequestId; const params = new URLSearchParams({group, frame, field, quality: imageQuality}); appendQcParams(params); if(interpolationStrength > 0) params.set('interp_strength', interpolationStrength); if(smoothingStrength > 0) params.set('smoothing_strength', smoothingStrength); fetch(`${volumeDataUrl}?${params.toString()}`).then(r=>r.json()).then(data=>{ if(rid !== pending3DRequestId) return; latestRadarVolumeData = data; refresh3DOverlay(); if(map3d && latestRadarCenter) map3d.jumpTo({center:[latestRadarCenter[1], latestRadarCenter[0]], zoom:7, pitch:62, bearing:-24}); }).catch(console.error); }
+function toggleMapMode(){ currentMapMode = currentMapMode === '2d' ? '3d' : '2d'; qs('map').style.display = currentMapMode === '2d' ? 'block' : 'none'; qs('map3d').style.display = currentMapMode === '3d' ? 'block' : 'none'; qs('btnToggleMapMode').textContent = currentMapMode === '2d' ? '3D Map' : '2D Map'; if(currentMapMode === '3d') loadRadar3D(); }
+
+document.getElementById('btnUpload').onclick = ()=> qs('radarfiles').click();
+qs('radarfiles').addEventListener('change', ()=> qs('uploadForm').submit());
+qs('opacitySlider').addEventListener('input', e=>updateOpacity(e.target.value));
+qs('cmap').addEventListener('change', ()=>{ updateStaticWaveLegend(); loadRadar(); }); 
+['qcPreset','qcUseQual','qualMin','qcUseGdopXY','gdopxMax','gdopyMax','qcUseGdopCombined','gdopCombinedMax','qcUseHsRange','hsMin','hsMax','qcUseTmeanRange','tmeanMin','tmeanMax','qcUseTenergyRange','tenergyMin','tenergyMax','qcUseWdirValid'].forEach(id=>{ const el=qs(id); if(!el) return; const evt = (el.tagName==='SELECT' || el.type==='checkbox') ? 'change' : 'blur'; el.addEventListener(evt, ()=>{ if(id==='qcPreset' && qs('qcPreset').value !== 'custom'){ setQcFormFromPreset(qs('qcPreset').value); } loadRadar(); }); });
+ qs('interpStrength').addEventListener('input', e=>updateInterpolation(e.target.value, false)); qs('interpStrength').addEventListener('change', e=>updateInterpolation(e.target.value, true)); qs('smoothingStrength').addEventListener('input', e=>updateSmoothing(e.target.value, false)); qs('smoothingStrength').addEventListener('change', e=>updateSmoothing(e.target.value, true)); qs('secondaryEnabled').addEventListener('change', ()=>updateSecondaryState(true)); qs('secondaryField').addEventListener('change', ()=>updateSecondaryState(true)); qs('vmin').addEventListener('blur', ()=>{ updateStaticWaveLegend(); loadRadar(); }); qs('vmax').addEventListener('blur', ()=>{ updateStaticWaveLegend(); loadRadar(); }); qs('qcEnabled').addEventListener('change', loadRadar); qs('secondaryEnabled').addEventListener('change', ()=>updateSecondaryState(true)); qs('secondaryField').addEventListener('change', ()=>updateSecondaryState(true));
+qs('btnFitRadar').onclick = fitRadar; qs('btnToggleMapMode').onclick = toggleMapMode; qs('btnPrevTop').onclick = prev; qs('btnNextTop').onclick = next; qs('btnPlayTop').onclick = togglePlay; qs('btnSidebarPlay').onclick = togglePlay; qs('btnSidebarReset').onclick = ()=>{ frame=0; if(qs('qcPreset')) qs('qcPreset').value='normal'; setQcFormFromPreset('normal'); qs('qcEnabled').checked=false; interpolationStrength=0; smoothingStrength=0; secondaryEnabled=false; secondaryField=''; clearSecondaryLayers(); if(qs('interpStrength')) qs('interpStrength').value='0'; if(qs('smoothingStrength')) qs('smoothingStrength').value='0'; if(qs('secondaryEnabled')) qs('secondaryEnabled').checked=false; if(qs('secondaryField')) qs('secondaryField').value=''; updateInterpolation(0, false); updateSmoothing(0, false); updateSecondaryState(false); resetOverrides(); buildFrameSelect(); loadRadar(); };
+
+(function init(){ customCmapSpec = loadCustomCmapSpec(); updateCustomCmapUI(); updateStaticWaveLegend(); if(qs('qcPreset')){ qs('qcPreset').value='normal'; setQcFormFromPreset('normal'); } const cfg = defaultConfigs[field] || {}; if(qs('vmin')) qs('vmin').value = cfg.vmin ?? ''; if(qs('vmax')) qs('vmax').value = cfg.vmax ?? ''; if(qs('interpStrength')) qs('interpStrength').value = String(interpolationStrength); if(qs('smoothingStrength')) qs('smoothingStrength').value = String(smoothingStrength); if(qs('secondaryEnabled')) qs('secondaryEnabled').checked = secondaryEnabled; if(qs('secondaryField')) qs('secondaryField').value = secondaryField; updateInterpolation(interpolationStrength, false); updateSmoothing(smoothingStrength, false); updateSecondaryState(false); if(group){ buildFrameSelect(); loadRadar(); } })();
+</script>
+
+  <div class="modalOverlay" id="customCmapModal">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div>
+          <h3 class="modalTitle">Custom Colormap Editor</h3>
+          <div class="modalSub">Add value-color pairs. <b>Gradients</b> creates smooth transitions, while <b>Ranges</b> creates discrete color blocks.</div>
+        </div>
+        <button class="modalClose" type="button" onclick="closeCustomCmapModal()">✕</button>
+      </div>
+      <div class="cmapEditorTop">
+        <div class="field">
+          <label for="customCmapName">Name</label>
+          <input id="customCmapName" type="text" value="Custom CMAP">
+        </div>
+        <div class="field">
+          <label for="customCmapMode">Mode</label>
+          <select id="customCmapMode" onchange="renderCustomCmapEditor()">
+            <option value="gradients">Gradients</option>
+            <option value="ranges">Ranges</option>
+          </select>
+        </div>
+      </div>
+      <div class="cmapPreviewLarge" id="customCmapPreviewLarge"></div>
+      <div class="cmapStops" id="customCmapStops"></div>
+      <div class="modalFooter">
+        <div class="modalFooterLeft">
+          <button class="miniBtn" type="button" onclick="addCustomCmapStop()">Add row</button>
+          <button class="miniBtn" type="button" onclick="loadPresetBmkgCmap()">Load BMKG Preset</button>
+          <button class="miniBtn" type="button" onclick="resetCustomCmapEditorDefaults()">Reset Editor</button>
+        </div>
+        <div class="modalFooterRight">
+          <button class="dangerBtn" type="button" onclick="disableCustomCmap(true)">Disable</button>
+          <button class="miniBtn" type="button" onclick="closeCustomCmapModal()">Cancel</button>
+          <button class="btn primary" type="button" onclick="saveCustomCmapFromEditor()">Save & Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
