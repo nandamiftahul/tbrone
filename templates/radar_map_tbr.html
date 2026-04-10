@@ -588,9 +588,9 @@
           </div>
           <div class="customCmapActions">
             <button class="miniBtn" type="button" onclick="openCustomCmapModal()">Custom Colormap</button>
-            <button class="miniBtn" type="button" onclick="toggleCustomCmap()" id="toggleCustomCmapBtn">Enable Custom</button>
+            <button class="miniBtn" type="button" onclick="toggleCustomCmap()" id="toggleCustomCmapBtn">Custom Active</button>
           </div>
-          <div class="customCmapMeta" id="customCmapMeta">Custom colormap is not active yet.</div>
+          <div class="customCmapMeta" id="customCmapMeta">Custom colormap is active by default.</div>
           <div class="customCmapPreview" id="customCmapPreview"></div>
         </div>
 
@@ -677,6 +677,24 @@
           <div class="smallText">Filters are applied when you click Apply Filter so rendering does not become heavy every time an input changes.</div>
         </div>
 
+        <div class="sectionLabel">E Processing · pyIRIS</div>
+        <div class="item">
+          <div class="headRow">
+            <div>
+              <p class="name">ecorrection · ecomposite</p>
+              <p class="coord">Additional pyIRIS E-processing for viewer and HDF5 when the required fields are available.</p>
+            </div>
+            <div class="tag">E</div>
+          </div>
+          <label class="check"><input type="checkbox" id="enable_ecorrection"> Enable ecorrection</label>
+          <label class="check"><input type="checkbox" id="enable_ecomposite"> Enable ecomposite</label>
+          <div class="filterActions">
+            <button class="miniBtn" type="button" onclick="applyEProcessing()">Apply E Process</button>
+            <button class="miniBtn" type="button" onclick="resetEProcessingDefaults()">Reset Default</button>
+          </div>
+          <div class="smallText">These settings are applied to the current viewer and HDF5 export only when the required helper fields are available.</div>
+        </div>
+
         <div class="sectionLabel">Conversion</div>
         <div class="item">
           <div class="headRow">
@@ -696,6 +714,50 @@
             <button class="miniBtn" type="button" onclick="convertActiveFrameToHdf5()">Convert Active Frame</button>
           </div>
           <div class="smallText">This only adds conversion. Existing radar display, filters, products, and tools stay unchanged.</div>
+        </div>
+
+
+        <div class="sectionLabel">HDF5 Scheduler</div>
+        <div class="item">
+          <div class="headRow">
+            <div>
+              <p class="name">Automatic HDF5 Scheduler</p>
+              <p class="coord">Monitor an input folder, generate pyIRIS-style HDF5 into an output folder, and optionally delete source RAW files after conversion.</p>
+            </div>
+            <div class="tag">AUTO</div>
+          </div>
+          <label class="check"><input type="checkbox" id="hdf5SchedulerEnabled"> Enable scheduler</label>
+          <div class="row2">
+            <div class="field">
+              <label for="hdf5SchedulerInterval">Check interval (seconds)</label>
+              <input type="number" id="hdf5SchedulerInterval" min="5" step="1" value="60">
+            </div>
+            <div class="field">
+              <label for="hdf5SchedulerTargetRays">Target rays</label>
+              <input type="number" id="hdf5SchedulerTargetRays" min="1" step="1" value="360">
+            </div>
+          </div>
+          <div class="field">
+            <label for="hdf5SchedulerInputPath">Input path</label>
+            <input type="text" id="hdf5SchedulerInputPath" placeholder="/etc/pyiris/input">
+          </div>
+          <div class="field">
+            <label for="hdf5SchedulerOutputPath">Output path</label>
+            <input type="text" id="hdf5SchedulerOutputPath" placeholder="/etc/pyiris/output">
+          </div>
+          <label class="check"><input type="checkbox" id="hdf5SchedulerEnableFilter"> Enable filter in scheduler</label>
+          <label class="check"><input type="checkbox" id="hdf5SchedulerEnableEconvert"> Enable econvert in scheduler</label>
+          <label class="check"><input type="checkbox" id="hdf5SchedulerEnableEcomposite"> Enable ecomposite in scheduler</label>
+          <label class="check"><input type="checkbox" id="hdf5SchedulerInterpolateMissing"> Fill missing rays during scheduler conversion</label>
+          <label class="check"><input type="checkbox" id="hdf5SchedulerNormalizeRpm"> Normalize RPM during scheduler conversion</label>
+          <label class="check"><input type="checkbox" id="hdf5SchedulerDeleteInput"> Delete input RAW after successful convert</label>
+          <div class="filterActions">
+            <button class="miniBtn" type="button" onclick="applyCurrentFiltersToScheduler()">Apply Filter Parameter to Scheduler</button>
+            <button class="miniBtn" type="button" onclick="saveHdf5SchedulerSettings()">Save Scheduler</button>
+            <button class="miniBtn" type="button" onclick="loadHdf5SchedulerStatus(true)">Refresh Status</button>
+            <button class="miniBtn" type="button" onclick="runHdf5SchedulerNow()">Run Once</button>
+          </div>
+          <div class="smallText" id="hdf5SchedulerStatusText">Scheduler status has not been loaded yet.</div>
         </div>
 
         <div class="sectionLabel">Sweeps in Active Frame</div>
@@ -867,6 +929,9 @@
     const radarSamplePointUrl = "{{ url_for('radar_bp.radar_sample_point') }}";
     const radarAccumulationSeriesUrl = "{{ url_for('radar_bp.radar_accumulation_series') }}";
     const radarConvertHdf5Url = "{{ url_for('radar_bp.radar_convert_hdf5') }}";
+    const radarHdf5SchedulerStatusUrl = "{{ url_for('radar_bp.radar_scheduler_hdf5_status') }}";
+    const radarHdf5SchedulerSaveUrl = "{{ url_for('radar_bp.radar_scheduler_hdf5_save') }}";
+    const radarHdf5SchedulerRunOnceUrl = "{{ url_for('radar_bp.radar_scheduler_hdf5_run_once') }}";
     const hasGroups = {{ 'true' if groups else 'false' }};
     const pyirisDefaults = {{ pyiris_defaults | tojson }};
 
@@ -917,6 +982,148 @@
       smoothGap: 1.0
     };
 
+    let schedulerFilterProfile = {};
+
+
+
+    function schedulerStatusLine(snapshot) {
+      const settings = snapshot?.settings || {};
+      const state = snapshot?.state || {};
+      const parts = [];
+      parts.push(settings.enabled ? 'Scheduler enabled' : 'Scheduler disabled');
+      parts.push(`interval ${Number(settings.interval_seconds || 60)}s`);
+      parts.push(`scan ${Number(state.last_scan_count || 0)} file`);
+      parts.push(`processed ${Number(state.processed_count || 0)}`);
+      parts.push(`skipped ${Number(state.skipped_count || 0)}`);
+      if (state.current_file) parts.push(`working ${state.current_file}`);
+      if (state.last_output) parts.push(`last output ${state.last_output}`);
+      if (state.last_run) parts.push(`last run ${state.last_run}`);
+      if (state.last_error) parts.push(`note ${state.last_error}`);
+      return parts.join(' · ');
+    }
+
+    async function loadHdf5SchedulerStatus(showStatus = false) {
+      try {
+        const res = await fetch(radarHdf5SchedulerStatusUrl);
+        if (!res.ok) throw new Error('Failed to load scheduler status');
+        const payload = await res.json();
+        const settings = payload.settings || {};
+        document.getElementById('hdf5SchedulerEnabled').checked = !!settings.enabled;
+        document.getElementById('hdf5SchedulerInterval').value = Number(settings.interval_seconds || 60);
+        document.getElementById('hdf5SchedulerTargetRays').value = Number(settings.target_rays || 360);
+        document.getElementById('hdf5SchedulerInputPath').value = settings.input_path || '';
+        document.getElementById('hdf5SchedulerOutputPath').value = settings.output_path || '';
+        document.getElementById('hdf5SchedulerEnableFilter').checked = !!settings.enable_filter;
+        document.getElementById('hdf5SchedulerEnableEconvert').checked = !!settings.enable_econvert;
+        document.getElementById('hdf5SchedulerEnableEcomposite').checked = !!settings.enable_ecomposite;
+        document.getElementById('hdf5SchedulerInterpolateMissing').checked = !!settings.interpolate_missing;
+        document.getElementById('hdf5SchedulerNormalizeRpm').checked = !!settings.normalize_rpm;
+        document.getElementById('hdf5SchedulerDeleteInput').checked = !!settings.delete_input;
+        schedulerFilterProfile = (settings.scheduler_filters && typeof settings.scheduler_filters === 'object') ? settings.scheduler_filters : {};
+        document.getElementById('hdf5SchedulerStatusText').textContent = schedulerStatusLine(payload);
+        if (showStatus) setStatus(settings.enabled ? 'HDF5 scheduler settings refreshed.' : 'HDF5 scheduler is currently disabled.');
+      } catch (err) {
+        document.getElementById('hdf5SchedulerStatusText').textContent = `Scheduler status failed: ${err.message}`;
+        if (showStatus) setStatus('Failed to load HDF5 scheduler status.');
+      }
+    }
+
+    function gatherHdf5SchedulerSettings() {
+      let intervalSeconds = parseInt(document.getElementById('hdf5SchedulerInterval')?.value || '60', 10);
+      if (!Number.isFinite(intervalSeconds) || intervalSeconds < 5) intervalSeconds = 60;
+      let targetRays = parseInt(document.getElementById('hdf5SchedulerTargetRays')?.value || '360', 10);
+      if (!Number.isFinite(targetRays) || targetRays < 1) targetRays = 360;
+      return {
+        enabled: !!document.getElementById('hdf5SchedulerEnabled')?.checked,
+        interval_seconds: intervalSeconds,
+        target_rays: targetRays,
+        input_path: String(document.getElementById('hdf5SchedulerInputPath')?.value || '').trim(),
+        output_path: String(document.getElementById('hdf5SchedulerOutputPath')?.value || '').trim(),
+        enable_filter: !!document.getElementById('hdf5SchedulerEnableFilter')?.checked,
+        enable_econvert: !!document.getElementById('hdf5SchedulerEnableEconvert')?.checked,
+        enable_ecomposite: !!document.getElementById('hdf5SchedulerEnableEcomposite')?.checked,
+        interpolate_missing: !!document.getElementById('hdf5SchedulerInterpolateMissing')?.checked,
+        normalize_rpm: !!document.getElementById('hdf5SchedulerNormalizeRpm')?.checked,
+        delete_input: !!document.getElementById('hdf5SchedulerDeleteInput')?.checked,
+        scheduler_filters: (schedulerFilterProfile && typeof schedulerFilterProfile === 'object') ? schedulerFilterProfile : {},
+      };
+    }
+
+
+    function buildSchedulerFilterProfileFromCurrentUI() {
+      gatherFilterInputs();
+      return {
+        enable_standard_filter: !!filters.enable_standard_filter,
+        active_LOG: !!filters.active_LOG,
+        active_SQI: !!filters.active_SQI,
+        active_PMI: !!filters.active_PMI,
+        active_CSR: !!filters.active_CSR,
+        active_SNR: !!filters.active_SNR,
+        active_PHI: !!filters.active_PHI,
+        active_SDZ: !!filters.active_SDZ,
+        active_MDZ: !!filters.active_MDZ,
+        enable_speckle_filter: !!filters.enable_speckle_filter,
+        speckle_type: filters.speckle_type || 'mdfill',
+        window_size: filters.window_size || 3,
+        th_LOGZ: filters.th_LOGZ || '',
+        th_SQIV: filters.th_SQIV || '',
+        th_PMIV: filters.th_PMIV || '',
+        th_CSRZ: filters.th_CSRZ || '',
+        th_SNLGZ: filters.th_SNLGZ || '',
+        th_PHID1: filters.th_PHID1 || '',
+        th_PHID2: filters.th_PHID2 || '',
+        th_SDZ: filters.th_SDZ || '',
+        th_MDZ: filters.th_MDZ || '',
+        econverttype: 'H'
+      };
+    }
+
+    function applyCurrentFiltersToScheduler() {
+      schedulerFilterProfile = buildSchedulerFilterProfileFromCurrentUI();
+      const enableFilterEl = document.getElementById('hdf5SchedulerEnableFilter');
+      if (enableFilterEl) enableFilterEl.checked = true;
+      document.getElementById('hdf5SchedulerStatusText').textContent = 'Scheduler filter profile updated from the current filter panel. Click Save Scheduler to store it.';
+      setStatus('Scheduler filter profile copied from current filter panel.');
+    }
+
+    async function saveHdf5SchedulerSettings() {
+      const payload = gatherHdf5SchedulerSettings();
+      showOverlay('Saving HDF5 scheduler…', 'Updating automatic HDF5 monitor settings', 45);
+      try {
+        const res = await fetch(radarHdf5SchedulerSaveUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('Failed to save HDF5 scheduler settings');
+        const data = await res.json();
+        document.getElementById('hdf5SchedulerStatusText').textContent = schedulerStatusLine(data);
+        setStatus(payload.enabled ? 'HDF5 scheduler enabled and saved.' : 'HDF5 scheduler saved as disabled.');
+      } catch (err) {
+        document.getElementById('hdf5SchedulerStatusText').textContent = `Scheduler save failed: ${err.message}`;
+        setStatus('Failed to save HDF5 scheduler settings.');
+      } finally {
+        hideOverlay();
+      }
+    }
+
+    async function runHdf5SchedulerNow() {
+      showOverlay('Running HDF5 scheduler…', 'Scanning input folder and converting pending RAW files', 52);
+      try {
+        const res = await fetch(radarHdf5SchedulerRunOnceUrl, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to run HDF5 scheduler');
+        const data = await res.json();
+        document.getElementById('hdf5SchedulerStatusText').textContent = schedulerStatusLine(data.snapshot || {});
+        const processed = Number(data?.result?.processed || 0);
+        const skipped = Number(data?.result?.skipped || 0);
+        setStatus(`HDF5 scheduler run finished · processed ${processed} · skipped ${skipped}`);
+      } catch (err) {
+        document.getElementById('hdf5SchedulerStatusText').textContent = `Scheduler run failed: ${err.message}`;
+        setStatus('Failed to run HDF5 scheduler.');
+      } finally {
+        hideOverlay();
+      }
+    }
 
     function getDefaultBmkgPreset() {
       return {
@@ -960,10 +1167,11 @@
     function loadCustomCmapSpec() {
       try {
         const raw = localStorage.getItem(customCmapStorageKey);
-        if (!raw) return null;
-        return normalizeCustomCmapSpec(JSON.parse(raw));
+        if (!raw) return getDefaultBmkgPreset();
+        const parsed = normalizeCustomCmapSpec(JSON.parse(raw));
+        return parsed || getDefaultBmkgPreset();
       } catch (err) {
-        return null;
+        return getDefaultBmkgPreset();
       }
     }
 
@@ -1002,14 +1210,14 @@
       const active = getActiveCustomCmap();
       const spec = customCmapSpec;
       if (!spec) {
-        meta.textContent = 'Custom colormap is not active yet.';
-        preview.style.background = 'linear-gradient(90deg,#e5e7eb,#cbd5e1)';
-        toggleBtn.textContent = 'Enable Custom';
+        meta.textContent = 'Custom colormap is active by default.';
+        preview.style.background = buildGradientCss(getDefaultBmkgPreset());
+        toggleBtn.textContent = 'Custom Active';
         return;
       }
       preview.style.background = buildGradientCss(spec);
       meta.textContent = `${spec.name} · ${spec.mode === 'ranges' ? 'Ranges' : 'Gradients'} · ${spec.stops.length} colors${active ? ' · active' : ' · saved'}`;
-      toggleBtn.textContent = active ? 'Disable Custom' : 'Enable Custom';
+      toggleBtn.textContent = active ? 'Custom Active' : 'Enable Custom';
     }
 
     function toggleCustomCmap() {
@@ -1022,6 +1230,7 @@
       frame = 0;
       loadRadar();
     }
+    loadHdf5SchedulerStatus();
 
     function disableCustomCmap(closeModal=false) {
       if (customCmapSpec) {
@@ -3330,10 +3539,24 @@ Frame: ${index + 1}/${total}`;
       }
     }
 
-    function updateProductDefaults() {
+    function updateProductDefaults(forceApply=false) {
       const cfg = defaultConfigs[field] || {};
-      if (!document.getElementById('vmin').value && cfg.vmin !== undefined) document.getElementById('vmin').placeholder = cfg.vmin;
-      if (!document.getElementById('vmax').value && cfg.vmax !== undefined) document.getElementById('vmax').placeholder = cfg.vmax;
+      const vminInput = document.getElementById('vmin');
+      const vmaxInput = document.getElementById('vmax');
+      if (cfg.vmin !== undefined) vminInput.placeholder = cfg.vmin;
+      if (cfg.vmax !== undefined) vmaxInput.placeholder = cfg.vmax;
+
+      const shouldApply = forceApply || !String(vminInput.value || '').trim() || !String(vmaxInput.value || '').trim();
+      if (shouldApply) {
+        if (cfg.vmin !== undefined) {
+          vminInput.value = cfg.vmin;
+          vmin = String(cfg.vmin);
+        }
+        if (cfg.vmax !== undefined) {
+          vmaxInput.value = cfg.vmax;
+          vmax = String(cfg.vmax);
+        }
+      }
     }
 
     function setFilterRowDisabled(filterKey, disabled, reason='') {
@@ -3374,9 +3597,38 @@ Frame: ${index + 1}/${total}`;
       });
     }
 
+    function setCheckControlDisabled(id, disabled, reason='') {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const wrap = el.closest('.check');
+      el.disabled = !!disabled;
+      if (disabled) el.checked = false;
+      if (wrap) {
+        wrap.classList.toggle('is-disabled', !!disabled);
+        wrap.title = disabled ? reason : '';
+      }
+    }
+
+    function setFieldControlDisabled(id, disabled, reason='') {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const wrap = el.closest('.field');
+      el.disabled = !!disabled;
+      if (disabled && el.tagName === 'SELECT') {
+        const first = el.querySelector('option');
+        if (first) el.value = first.value;
+      }
+      if (wrap) {
+        wrap.classList.toggle('is-disabled', !!disabled);
+        wrap.title = disabled ? reason : '';
+      }
+      el.title = disabled ? reason : '';
+    }
+
     function applyFilterAvailability(meta) {
       const filtersMeta = (meta && meta.filters) ? meta.filters : {};
       const helperFields = (meta && meta.helper_fields) ? meta.helper_fields : {};
+      const eMeta = (meta && meta.e_processing) ? meta.e_processing : {};
       const reasonMap = {
         LOG: helperFields.LOG ? `LOG tersedia, tapi tidak relevan untuk product active.` : 'Field LOG tidak tersedia untuk frame active.',
         SQI: helperFields.SQI ? `SQI tersedia, tapi tidak relevan untuk product active.` : 'Field SQI tidak tersedia untuk frame active.',
@@ -3404,6 +3656,12 @@ Frame: ${index + 1}/${total}`;
         stdLabel.title = !stdEnabled ? 'Tidak ada parameter standard filter yang tersedia untuk product/frame active.' : '';
       }
 
+      const eAvailable = !!eMeta.available;
+      setCheckControlDisabled('enable_econvert', !eAvailable || !eMeta.ECONVERT, !eAvailable ? 'Tidak ada E moment seperti DBZE/DBTE pada frame active.' : 'econvert tidak tersedia untuk frame active.');
+      setFieldControlDisabled('econverttype', !eAvailable || !eMeta.ECONVERT, !eAvailable ? 'Tidak ada E moment seperti DBZE/DBTE pada frame active.' : 'econvert type tidak relevan untuk frame active.');
+      setCheckControlDisabled('enable_ecorrection', !eMeta.ECORRECTION, !eAvailable ? 'Tidak ada E moment seperti DBZE/DBTE pada frame active.' : 'ecorrection butuh E moment + ZDR + RHOHV.');
+      setCheckControlDisabled('enable_ecomposite', !eMeta.ECOMPOSITE, !eAvailable ? 'Tidak ada E moment seperti DBZE/DBTE pada frame active.' : 'ecomposite butuh pasangan base dan E moment, misalnya DBZ + DBZE atau DBT + DBTE.');
+
       gatherFilterInputs();
       syncPyirisUIFromFilters();
     }
@@ -3411,7 +3669,8 @@ Frame: ${index + 1}/${total}`;
     function syncPyirisUIFromFilters() {
       const ids = [
         'enable_standard_filter','active_LOG','active_SQI','active_PMI','active_CSR','active_SNR','active_PHI','active_SDZ','active_MDZ',
-        'enable_speckle_filter','speckle_type','window_size','th_LOGZ','th_SQIV','th_PMIV','th_CSRZ','th_SNLGZ','th_PHID1','th_PHID2','th_SDZ','th_MDZ'
+        'enable_speckle_filter','speckle_type','window_size','th_LOGZ','th_SQIV','th_PMIV','th_CSRZ','th_SNLGZ','th_PHID1','th_PHID2','th_SDZ','th_MDZ',
+        'enable_econvert','econverttype','enable_ecorrection','enable_ecomposite'
       ];
       ids.forEach(id => {
         const el = document.getElementById(id);
@@ -3437,20 +3696,65 @@ Frame: ${index + 1}/${total}`;
       filters.active_PHI = false;
       filters.active_SDZ = false;
       filters.active_MDZ = false;
+      filters.enable_econvert = false;
+      filters.enable_ecorrection = false;
+      filters.enable_ecomposite = false;
+      filters.econverttype = filters.econverttype || 'H';
 
       syncPyirisUIFromFilters();
       if (!uiOnly) gatherFilterInputs();
     }
 
+    function clearStandardFilterControls() {
+      [
+        'enable_standard_filter',
+        'active_LOG',
+        'active_SQI',
+        'active_PMI',
+        'active_CSR',
+        'active_SNR',
+        'active_PHI',
+        'active_SDZ',
+        'active_MDZ',
+        'enable_speckle_filter'
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = false;
+      });
+
+      const speckleType = document.getElementById('speckle_type');
+      const windowSize = document.getElementById('window_size');
+      if (speckleType) speckleType.value = pyirisDefaults?.speckle_type ?? 'mdfill';
+      if (windowSize) windowSize.value = pyirisDefaults?.window_size ?? 3;
+
+      const thresholdIds = [
+        'th_LOGZ','th_SQIV','th_PMIV','th_CSRZ','th_SNLGZ',
+        'th_PHID1','th_PHID2','th_SDZ','th_MDZ'
+      ];
+      thresholdIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = pyirisDefaults?.[id] ?? '';
+      });
+    }
+
     function gatherFilterInputs() {
+      const current = JSON.parse(JSON.stringify(filters || {}));
+      const defaults = JSON.parse(JSON.stringify(pyirisDefaults || {}));
+
       const getChecked = (id) => {
         const el = document.getElementById(id);
-        return !!(el && !el.disabled && el.checked);
+        if (el) return !!el.checked;
+        if (Object.prototype.hasOwnProperty.call(current, id)) return !!current[id];
+        return !!defaults[id];
       };
       const getValue = (id) => {
         const el = document.getElementById(id);
-        return (el && !el.disabled) ? el.value : '';
+        if (el) return el.value;
+        if (Object.prototype.hasOwnProperty.call(current, id)) return current[id];
+        return defaults[id] ?? '';
       };
+
       filters.enable_standard_filter = getChecked('enable_standard_filter');
       filters.active_LOG = getChecked('active_LOG');
       filters.active_SQI = getChecked('active_SQI');
@@ -3472,6 +3776,10 @@ Frame: ${index + 1}/${total}`;
       filters.th_PHID2 = getValue('th_PHID2');
       filters.th_SDZ = getValue('th_SDZ');
       filters.th_MDZ = getValue('th_MDZ');
+      filters.enable_econvert = false;
+      filters.econverttype = 'H';
+      filters.enable_ecorrection = getChecked('enable_ecorrection');
+      filters.enable_ecomposite = getChecked('enable_ecomposite');
     }
 
     async function applyFilters() {
@@ -3480,6 +3788,26 @@ Frame: ${index + 1}/${total}`;
       showOverlay('Applying filter…', 'Rendering radar with selected filter', 55);
       await precomputeCurrentView(false);
       loadRadar(true);
+    }
+
+    async function applyEProcessing() {
+      gatherFilterInputs();
+      frame = 0;
+      showOverlay('Applying E Process…', 'Rendering radar with selected E processing', 55);
+      await precomputeCurrentView(false);
+      loadRadar(true);
+    }
+
+    async function resetEProcessingDefaults() {
+      filters.enable_econvert = false;
+      filters.enable_ecorrection = false;
+      filters.enable_ecomposite = false;
+      filters.econverttype = 'H';
+      syncPyirisUIFromFilters();
+      gatherFilterInputs();
+      frame = 0;
+      showOverlay('Resetting E Process…', 'Restoring default E processing and reloading radar', 45);
+      await reloadCurrentRadarView('Loading radar without active E processing...');
     }
 
     async function reloadCurrentRadarView(statusText) {
@@ -3515,6 +3843,10 @@ Frame: ${index + 1}/${total}`;
       const targetRaysRaw = document.getElementById('convertTargetRays')?.value;
       let targetRays = parseInt(targetRaysRaw || '360', 10);
       if (!Number.isFinite(targetRays) || targetRays < 1) targetRays = 360;
+      const enableEconvert = false;
+      const econvertType = 'H';
+      const enableEcorrection = !!(document.getElementById('enable_ecorrection')?.checked);
+      const enableEcomposite = !!(document.getElementById('enable_ecomposite')?.checked);
 
       const params = new URLSearchParams({
         group,
@@ -3524,6 +3856,10 @@ Frame: ${index + 1}/${total}`;
       });
       if (interpolateMissing) params.set('interpolate_missing', '1');
       if (normalizeRpm) params.set('normalize_rpm', '1');
+      if (enableEconvert) params.set('enable_econvert', '1');
+      if (enableEcorrection) params.set('enable_ecorrection', '1');
+      if (enableEcomposite) params.set('enable_ecomposite', '1');
+      if (econvertType) params.set('econverttype', econvertType);
 
       showOverlay('Converting to HDF5…', `Building pyIRIS HDF5 for frame ${frame + 1}/${Math.max(total, 1)}`, 55);
       setStatus(`Converting active frame ${frame + 1}/${Math.max(total, 1)} to HDF5...`);
@@ -3571,17 +3907,41 @@ Frame: ${index + 1}/${total}`;
       }
     }
 
+    function resetStandardFilterState(enableCustomCmap=true) {
+      if (enableCustomCmap) {
+        customCmapSpec = loadCustomCmapSpec();
+        if (customCmapSpec) customCmapSpec.enabled = true;
+        saveCustomCmapSpec(customCmapSpec || getDefaultBmkgPreset());
+      }
+
+      clearStandardFilterControls();
+
+      filters = JSON.parse(JSON.stringify(pyirisDefaults || {}));
+      filters.enable_standard_filter = false;
+      filters.enable_speckle_filter = false;
+      filters.active_LOG = false;
+      filters.active_SQI = false;
+      filters.active_PMI = false;
+      filters.active_CSR = false;
+      filters.active_SNR = false;
+      filters.active_PHI = false;
+      filters.active_SDZ = false;
+      filters.active_MDZ = false;
+
+      syncPyirisUIFromFilters();
+      clearStandardFilterControls();
+      gatherFilterInputs();
+    }
+
     async function resetPyirisDefaults() {
-      customCmapSpec = loadCustomCmapSpec();
-      updateCustomCmapUI();
-      setPyirisDefaults();
+      resetStandardFilterState(true);
       frame = 0;
       showOverlay('Resetting filter…', 'Restoring default values and unfiltered view', 45);
       await reloadCurrentRadarView('Loading default unfiltered radar...');
     }
 
     async function disableAllFilters() {
-      setPyirisDefaults();
+      resetStandardFilterState(false);
       frame = 0;
       showOverlay('Disabling filters…', 'Loading unfiltered radar', 45);
       await reloadCurrentRadarView('Loading unfiltered radar...');
@@ -3810,14 +4170,21 @@ function changeCmap() {
   loadRadar();
 }
 
-    function applyVminVmax() { vmin = document.getElementById('vmin').value; vmax = document.getElementById('vmax').value; frame = 0; loadRadar(); }
+    function applyVminVmax() {
+      const cfg = defaultConfigs[field] || {};
+      const vminInput = document.getElementById('vmin');
+      const vmaxInput = document.getElementById('vmax');
+      if (!String(vminInput.value || '').trim() && cfg.vmin !== undefined) vminInput.value = cfg.vmin;
+      if (!String(vmaxInput.value || '').trim() && cfg.vmax !== undefined) vmaxInput.value = cfg.vmax;
+      vmin = vminInput.value;
+      vmax = vmaxInput.value;
+      frame = 0;
+      loadRadar();
+    }
 function resetOverrides() {
   cmap = '';
-  vmin = '';
-  vmax = '';
   document.getElementById('cmap').value = '';
-  document.getElementById('vmin').value = '';
-  document.getElementById('vmax').value = '';
+  updateProductDefaults(true);
   frame = 0;
   refresh3DOverlay();
   loadRadar();
@@ -3872,7 +4239,7 @@ function resetOverrides() {
 
     function prev(){ frame = Math.max(0, frame - 1); loadRadar(); }
     function next(){ frame = frame + 1; if (frame >= total) frame = 0; loadRadar(); }
-    function changeField(){ field = document.getElementById('field').value; updateProductDefaults(); frame = 0; loadRadar(); }
+    function changeField(){ field = document.getElementById('field').value; updateProductDefaults(true); frame = 0; loadRadar(); }
     function changeGroup(){ group = document.getElementById('group').value; frame = 0; populateFrameSelect(); loadRadar(); }
 
     function togglePlay() {
@@ -3933,10 +4300,17 @@ function resetOverrides() {
     document.getElementById('btnSidebarReset').addEventListener('click', resetViewer);
     document.getElementById('crossSectionMiniToggle').addEventListener('click', restoreCrossSectionPopup);
 
+    customCmapSpec = loadCustomCmapSpec();
+    if (customCmapSpec) {
+      customCmapSpec.enabled = true;
+      saveCustomCmapSpec(customCmapSpec);
+    } else {
+      saveCustomCmapSpec(getDefaultBmkgPreset());
+    }
     setPyirisDefaults();
     derivedProduct = document.getElementById('derivedProduct').value || 'PPI';
     cappiHeightKm = parseFloat(document.getElementById('cappiHeightKm').value || '2.0') || 2.0;
-    updateProductDefaults();
+    updateProductDefaults(true);
     populateFrameSelect();
     document.getElementById('timelineCard').style.display = 'none';
     document.getElementById('toggleBtn').innerText = 'Show Timeline';

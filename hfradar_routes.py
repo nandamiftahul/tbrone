@@ -33,6 +33,7 @@ hfradar_groups: dict[str, list[dict[str, Any]]] = {}
 available_fields: list[str] = []
 radar_extent = [[-10.0, 100.0], [10.0, 120.0]]
 time_bounds: dict[str, dict[str, float]] = {}
+frame_catalog: dict[str, list[dict[str, Any]]] = {}
 render_cache: 'OrderedDict[str, dict[str, Any]]' = OrderedDict()
 volume_cache: 'OrderedDict[str, dict[str, Any]]' = OrderedDict()
 CACHE_MAX_ITEMS = 96
@@ -42,9 +43,18 @@ FIELD_CONFIGS = {
     'Wdir': dict(vmin=0.0, vmax=360.0, cmap='twilight_shifted', unit='deg', label='Wave Direction'),
     'Tmean': dict(vmin=0.0, vmax=20.0, cmap='viridis', unit='s', label='Mean Wave Period'),
     'Tenergy': dict(vmin=0.0, vmax=20.0, cmap='plasma', unit='s', label='Energy Wave Period'),
+    'U10': dict(vmin=0.0, vmax=25.0, cmap='viridis', unit='m/s', label='Wind Speed 10 m'),
+    'Udir': dict(vmin=0.0, vmax=360.0, cmap='twilight_shifted', unit='deg', label='Wind Direction'),
+    'ewct': dict(vmin=-2.5, vmax=2.5, cmap='coolwarm', unit='m/s', label='Eastward Current'),
+    'nsct': dict(vmin=-2.5, vmax=2.5, cmap='coolwarm', unit='m/s', label='Northward Current'),
+    'ewct_error': dict(vmin=0.0, vmax=1.0, cmap='magma', unit='m/s', label='Eastward Current Error'),
+    'nsct_error': dict(vmin=0.0, vmax=1.0, cmap='magma', unit='m/s', label='Northward Current Error'),
+    'CurrentSpeed': dict(vmin=0.0, vmax=2.5, cmap='turbo', unit='m/s', label='Current Speed'),
+    'CurrentDir': dict(vmin=0.0, vmax=360.0, cmap='twilight_shifted', unit='deg', label='Current Direction'),
     'gdopx': dict(vmin=0.0, vmax=10.0, cmap='magma', unit='', label='GDOP X'),
     'gdopy': dict(vmin=0.0, vmax=10.0, cmap='magma', unit='', label='GDOP Y'),
-    'qual': dict(vmin=0.0, vmax=5.0, cmap='gray', unit='', label='Quality Flag'),
+    'qual': dict(vmin=0.0, vmax=127.0, cmap='gray', unit='', label='Quality Flag'),
+    'kl_qual': dict(vmin=0.0, vmax=127.0, cmap='gray', unit='', label='Current Vector Quality'),
 }
 
 QUALITY_PRESETS = {
@@ -138,6 +148,66 @@ QC_PRESETS = {
 }
 
 
+
+FIELD_ALIASES = {
+    'qual': ('qual', 'kl_qual'),
+    'CurrentSpeed': ('CurrentSpeed',),
+    'CurrentDir': ('CurrentDir',),
+}
+
+VECTOR_FIELD_MAP = {
+    'Wdir': ('Hs', 'Wave Direction'),
+    'Udir': ('U10', 'Wind Direction'),
+    'CurrentDir': ('CurrentSpeed', 'Current Direction'),
+}
+
+
+def _resolve_quality_field(ds):
+    if 'qual' in ds:
+        return 'qual'
+    if 'kl_qual' in ds:
+        return 'kl_qual'
+    return None
+
+
+def _resolve_field_name(ds, field: str) -> str | None:
+    if field in ds:
+        return field
+    if field == 'qual':
+        return _resolve_quality_field(ds)
+    if field in ('CurrentSpeed', 'CurrentDir'):
+        return field
+    for candidate in FIELD_ALIASES.get(field, (field,)):
+        if candidate in ds:
+            return candidate
+    return None
+
+
+def _detect_product_type(ds) -> str:
+    vars_set = set(ds.data_vars)
+    if {'Hs', 'Wdir', 'Tmean', 'Tenergy'} & vars_set:
+        return 'wave'
+    if {'U10', 'Udir'} & vars_set:
+        return 'wind'
+    if {'ewct', 'nsct'} & vars_set:
+        return 'current'
+    return 'generic'
+
+
+def _preferred_field_for_vars(vars_here: list[str]) -> str:
+    for candidate in ('Hs', 'U10', 'CurrentSpeed', 'ewct', 'Wdir', 'Udir', 'CurrentDir', 'gdopx', 'gdopy', 'qual', 'kl_qual'):
+        if candidate in vars_here:
+            return candidate
+    return vars_here[0] if vars_here else 'Hs'
+
+
+def _resolve_frame_field(frame: dict[str, Any], requested_field: str | None) -> str:
+    fields_here = list(frame.get('fields') or [])
+    if requested_field and requested_field in fields_here:
+        return requested_field
+    return frame.get('default_field') or _preferred_field_for_vars(fields_here)
+
+
 def _cache_store(cache_obj: OrderedDict, key: str, value: Any, max_items: int = CACHE_MAX_ITEMS):
     cache_obj[key] = value
     cache_obj.move_to_end(key)
@@ -206,15 +276,42 @@ def _extract_raw_field_2d(entry: dict[str, Any], field: str, time_index: int = 0
     ds = _open_dataset_from_entry(entry)
     with ds:
         lon_name, lat_name, time_name = _get_xy_names(ds)
-        if field not in ds:
-            return None, None, None
-        var = ds[field]
-        if time_name and time_name in var.dims:
-            arr = np.asarray(var.isel({time_name: time_index}).values, dtype=float)
-        else:
-            arr = np.asarray(var.values, dtype=float)
+        resolved = _resolve_field_name(ds, field)
         lons = np.asarray(ds[lon_name].values, dtype=float)
         lats = np.asarray(ds[lat_name].values, dtype=float)
+
+        if field == 'CurrentSpeed':
+            if 'ewct' not in ds or 'nsct' not in ds:
+                return None, None, None
+            u = ds['ewct']
+            v = ds['nsct']
+            if time_name and time_name in u.dims:
+                u_arr = np.asarray(u.isel({time_name: time_index}).values, dtype=float)
+                v_arr = np.asarray(v.isel({time_name: time_index}).values, dtype=float)
+            else:
+                u_arr = np.asarray(u.values, dtype=float)
+                v_arr = np.asarray(v.values, dtype=float)
+            arr = np.sqrt(np.square(u_arr) + np.square(v_arr))
+        elif field == 'CurrentDir':
+            if 'ewct' not in ds or 'nsct' not in ds:
+                return None, None, None
+            u = ds['ewct']
+            v = ds['nsct']
+            if time_name and time_name in u.dims:
+                u_arr = np.asarray(u.isel({time_name: time_index}).values, dtype=float)
+                v_arr = np.asarray(v.isel({time_name: time_index}).values, dtype=float)
+            else:
+                u_arr = np.asarray(u.values, dtype=float)
+                v_arr = np.asarray(v.values, dtype=float)
+            arr = (np.degrees(np.arctan2(u_arr, v_arr)) + 360.0) % 360.0
+        elif not resolved:
+            return None, None, None
+        else:
+            var = ds[resolved]
+            if time_name and time_name in var.dims:
+                arr = np.asarray(var.isel({time_name: time_index}).values, dtype=float)
+            else:
+                arr = np.asarray(var.values, dtype=float)
         lons, lats, arr = _apply_orientation(lons, lats, arr)
         return lons, lats, arr
 
@@ -231,12 +328,15 @@ def _build_qc_mask(entry: dict[str, Any], time_index: int, qc_config: dict[str, 
     _, _, tmean = _extract_raw_field_2d(entry, 'Tmean', time_index)
     _, _, tenergy = _extract_raw_field_2d(entry, 'Tenergy', time_index)
     _, _, wdir = _extract_raw_field_2d(entry, 'Wdir', time_index)
-    shape = next((a.shape for a in (qual, gdopx, gdopy, hs, tmean, tenergy, wdir) if isinstance(a, np.ndarray) and a.ndim == 2), None)
+    _, _, udir = _extract_raw_field_2d(entry, 'Udir', time_index)
+    _, _, current_dir = _extract_raw_field_2d(entry, 'CurrentDir', time_index)
+    direction_arr = next((a for a in (wdir, udir, current_dir) if isinstance(a, np.ndarray) and a.ndim == 2), None)
+    shape = next((a.shape for a in (qual, gdopx, gdopy, hs, tmean, tenergy, direction_arr) if isinstance(a, np.ndarray) and a.ndim == 2), None)
     if shape is None:
         return None, ['No QC-supporting fields found']
     mask = np.ones(shape, dtype=bool)
     if cfg.get('use_qual'):
-        if qual is None: warnings.append('qual not found')
+        if qual is None: warnings.append('quality field not found')
         else: mask &= np.isfinite(qual) & (qual >= cfg.get('qual_min', 1.0))
     if cfg.get('use_gdop_xy'):
         if gdopx is None or gdopy is None: warnings.append('gdopx/gdopy not found')
@@ -260,11 +360,12 @@ def _build_qc_mask(entry: dict[str, Any], time_index: int, qc_config: dict[str, 
         mask &= np.isfinite(tenergy) & (tenergy >= cfg.get('tenergy_min', 1.0)) & (tenergy <= cfg.get('tenergy_max', 25.0))
     elif cfg.get('use_tenergy_range'):
         warnings.append('Tenergy not found for QC')
-    if cfg.get('use_wdir_valid') and wdir is not None:
-        mask &= np.isfinite(wdir) & (wdir >= 0.0) & (wdir <= 360.0)
+    if cfg.get('use_wdir_valid') and direction_arr is not None:
+        mask &= np.isfinite(direction_arr) & (direction_arr >= 0.0) & (direction_arr <= 360.0)
     elif cfg.get('use_wdir_valid'):
-        warnings.append('Wdir not found for QC')
+        warnings.append('direction field not found')
     return mask, warnings
+
 
 def _safe_iso_to_epoch(value: Any) -> float | None:
     try:
@@ -319,9 +420,13 @@ def _extract_data_variables(ds) -> list[str]:
         dims = set(var.dims)
         if lon_name in dims and lat_name in dims:
             vars_out.append(name)
-    preferred = ['Hs', 'Wdir', 'Tmean', 'Tenergy', 'gdopx', 'gdopy', 'qual']
+    if 'ewct' in ds.data_vars and 'nsct' in ds.data_vars:
+        vars_out.extend(['CurrentSpeed', 'CurrentDir'])
+    if 'kl_qual' in ds.data_vars and 'qual' not in vars_out:
+        vars_out.append('qual')
+    preferred = ['Hs', 'Wdir', 'Tmean', 'Tenergy', 'U10', 'Udir', 'CurrentSpeed', 'CurrentDir', 'ewct', 'nsct', 'ewct_error', 'nsct_error', 'gdopx', 'gdopy', 'qual', 'kl_qual']
     ordered = [v for v in preferred if v in vars_out] + [v for v in vars_out if v not in preferred]
-    return ordered
+    return list(dict.fromkeys(ordered))
 
 
 def _weighted_gaussian_nan_2d(arr: Any, sigma: float = 0.0):
@@ -369,9 +474,10 @@ def _apply_smoothing_2d(arr: Any, strength: float = 0.0):
 
 
 def _build_groups():
-    global hfradar_groups, available_fields, radar_extent, time_bounds
+    global hfradar_groups, available_fields, radar_extent, time_bounds, frame_catalog
     hfradar_groups = {}
     time_bounds = {}
+    frame_catalog = {}
     available_fields = []
     render_cache.clear()
     volume_cache.clear()
@@ -395,6 +501,8 @@ def _build_groups():
                 radar_extent = [[float(np.nanmin(lats)), float(np.nanmin(lons))], [float(np.nanmax(lats)), float(np.nanmax(lons))]]
                 extent_done = True
             vars_here = _extract_data_variables(ds)
+            product_type = _detect_product_type(ds)
+            default_field = _preferred_field_for_vars(vars_here)
             fields_seen.update(vars_here)
 
             if time_name and ds[time_name].size:
@@ -408,6 +516,9 @@ def _build_groups():
                         'epoch': epoch,
                         'time_index': idx,
                         'filename': entry.get('filename', 'dataset.nc'),
+                        'fields': list(vars_here),
+                        'product_type': product_type,
+                        'default_field': default_field,
                     })
             else:
                 frames.append({
@@ -417,11 +528,26 @@ def _build_groups():
                     'epoch': None,
                     'time_index': 0,
                     'filename': entry.get('filename', 'dataset.nc'),
+                    'fields': list(vars_here),
+                    'product_type': product_type,
+                    'default_field': default_field,
                 })
 
     frames.sort(key=lambda item: (item['epoch'] if item['epoch'] is not None else float('inf'), item['filename']))
     hfradar_groups = {'HF Radar Ocean Sensing': frames} if frames else {}
-    available_fields = [f for f in ['Hs', 'Wdir', 'Tmean', 'Tenergy', 'gdopx', 'gdopy', 'qual'] if f in fields_seen] + [f for f in sorted(fields_seen) if f not in {'Hs', 'Wdir', 'Tmean', 'Tenergy', 'gdopx', 'gdopy', 'qual'}]
+    frame_catalog = {'HF Radar Ocean Sensing': [
+        {
+            'time': item.get('time'),
+            'epoch': item.get('epoch'),
+            'filename': item.get('filename'),
+            'fields': list(item.get('fields') or []),
+            'product_type': item.get('product_type', 'generic'),
+            'default_field': item.get('default_field'),
+        }
+        for item in frames
+    ]} if frames else {}
+    preferred_all = ['Hs', 'Wdir', 'Tmean', 'Tenergy', 'U10', 'Udir', 'CurrentSpeed', 'CurrentDir', 'ewct', 'nsct', 'ewct_error', 'nsct_error', 'gdopx', 'gdopy', 'qual', 'kl_qual']
+    available_fields = [f for f in preferred_all if f in fields_seen] + [f for f in sorted(fields_seen) if f not in set(preferred_all)]
     epochs = [f['epoch'] for f in frames if f['epoch'] is not None]
     if epochs:
         time_bounds['HF Radar Ocean Sensing'] = {'min': min(epochs), 'max': max(epochs)}
@@ -668,7 +794,7 @@ def hfradar_precompute():
 def hfradar_sample_point():
     group = request.args.get('group') or 'HF Radar Ocean Sensing'
     idx = int(request.args.get('frame', 0))
-    field = request.args.get('field') or (available_fields[0] if available_fields else 'Hs')
+    requested_field = request.args.get('field') or (available_fields[0] if available_fields else 'Hs')
     lat = float(request.args.get('lat'))
     lon = float(request.args.get('lon'))
     qc_enabled = str(request.args.get('qc_enabled', '0')).lower() in ('1', 'true', 'yes', 'on')
@@ -677,6 +803,7 @@ def hfradar_sample_point():
     smoothing_strength = float(request.args.get('smoothing_strength', 0) or 0)
 
     frame = _get_frame(group, idx)
+    field = _resolve_frame_field(frame, requested_field)
     entry = frame['files'][0]
     lons, lats, arr, qual, _qc_warn = _extract_field_2d(
         entry, field, frame.get('time_index', 0),
@@ -711,11 +838,12 @@ def hfradar_sample_point():
     })
 
 
+
 @hfradar_bp.route('/vector_data')
 def hfradar_vector_data():
     group = request.args.get('group') or 'HF Radar Ocean Sensing'
     idx = int(request.args.get('frame', 0))
-    field = request.args.get('field') or 'Wdir'
+    requested_field = request.args.get('field') or 'Wdir'
     quality = _normalize_render_quality(request.args.get('quality'))
     qc_enabled = str(request.args.get('qc_enabled', '0')).lower() in ('1', 'true', 'yes', 'on')
     qc_config = _parse_qc_config(request)
@@ -723,6 +851,7 @@ def hfradar_vector_data():
     smoothing_strength = float(request.args.get('smoothing_strength', 0) or 0)
 
     frame = _get_frame(group, idx)
+    field = _resolve_frame_field(frame, requested_field)
     entry = frame['files'][0]
     lons, lats, arr, qual, _qc_warn = _extract_field_2d(
         entry, field, frame.get('time_index', 0),
@@ -743,17 +872,19 @@ def hfradar_vector_data():
     step_y = max(1, int(np.ceil(arr.shape[0] / np.sqrt(target_count))))
     step_x = max(1, int(np.ceil(arr.shape[1] / np.sqrt(target_count))))
 
-    hs_arr = None
+    mag_field = VECTOR_FIELD_MAP.get(field, (None, None))[0]
+    mag_arr = None
     try:
-        _, _, hs_arr, _ = _extract_field_2d(
-            entry, 'Hs', frame.get('time_index', 0),
-            qc_enabled=qc_enabled,
-            interp_strength=interp_strength,
-            smoothing_strength=smoothing_strength,
-            qc_config=qc_config,
-        )
+        if mag_field:
+            _, _, mag_arr, _, _ = _extract_field_2d(
+                entry, mag_field, frame.get('time_index', 0),
+                qc_enabled=qc_enabled,
+                interp_strength=interp_strength,
+                smoothing_strength=smoothing_strength,
+                qc_config=qc_config,
+            )
     except Exception:
-        hs_arr = None
+        mag_arr = None
 
     vectors = []
     for iy in range(0, arr.shape[0], step_y):
@@ -764,10 +895,11 @@ def hfradar_vector_data():
                 'lat': float(lat_grid[iy, ix]),
                 'lon': float(lon_grid[iy, ix]),
                 'angle': float(arr[iy, ix]),
-                'magnitude': float(hs_arr[iy, ix]) if hs_arr is not None and np.isfinite(hs_arr[iy, ix]) else None,
+                'magnitude': float(mag_arr[iy, ix]) if mag_arr is not None and np.isfinite(mag_arr[iy, ix]) else None,
                 'qual': float(qual[iy, ix]) if qual is not None and np.isfinite(qual[iy, ix]) else None,
             })
     return jsonify({'vectors': vectors, 'count': len(vectors), 'field': field})
+
 
 
 @hfradar_bp.route('/', methods=['GET', 'POST'])
@@ -794,6 +926,7 @@ def hfradar_home():
         bounds=time_bounds,
         default_configs=FIELD_CONFIGS,
         qc_presets=QC_PRESETS,
+        frame_catalog=frame_catalog,
     )
 
 
@@ -801,7 +934,7 @@ def hfradar_home():
 def hfradar_overlay():
     group = request.args.get('group') or 'HF Radar Ocean Sensing'
     idx = int(request.args.get('frame', 0))
-    field = request.args.get('field') or (available_fields[0] if available_fields else 'Hs')
+    requested_field = request.args.get('field') or (available_fields[0] if available_fields else 'Hs')
     cmap_override = request.args.get('cmap', '')
     custom_cmap_raw = request.args.get('custom_cmap', '')
     quality = _normalize_render_quality(request.args.get('quality'))
@@ -818,6 +951,8 @@ def hfradar_overlay():
     except Exception:
         vmax_override = None
 
+    frame_obj = _get_frame(group, idx)
+    field = _resolve_frame_field(frame_obj, requested_field)
     key = _render_cache_key(group, idx, field, qc_enabled, interp_strength, smoothing_strength, cmap_override, custom_cmap_raw, vmin_override, vmax_override, quality, qc_config=qc_config)
     cached = _cache_get(render_cache, key)
     if cached is None:
@@ -841,21 +976,27 @@ def hfradar_overlay():
     response.headers['X-File-Count'] = str(cached['meta']['file_count'])
     response.headers['X-Filename'] = cached['meta']['filename']
     response.headers['X-Warnings'] = '; '.join(cached['meta']['warnings'])
+    response.headers['X-Resolved-Field'] = field
+    response.headers['X-Available-Fields'] = json.dumps(frame_obj.get('fields') or [])
+    response.headers['X-Product-Type'] = str(frame_obj.get('product_type', 'generic'))
     response.headers['X-Interp-Strength'] = str(cached['meta'].get('interp_strength', 0))
     response.headers['X-Smoothing-Strength'] = str(cached['meta'].get('smoothing_strength', 0))
     return response
+
 
 
 @hfradar_bp.route('/volume_data')
 def hfradar_volume_data():
     group = request.args.get('group') or 'HF Radar Ocean Sensing'
     idx = int(request.args.get('frame', 0))
-    field = request.args.get('field') or (available_fields[0] if available_fields else 'Hs')
+    requested_field = request.args.get('field') or (available_fields[0] if available_fields else 'Hs')
     quality = _normalize_render_quality(request.args.get('quality'))
     qc_enabled = str(request.args.get('qc_enabled', '0')).lower() in ('1', 'true', 'yes', 'on')
     qc_config = _parse_qc_config(request)
     interp_strength = float(request.args.get('interp_strength', 0) or 0)
     smoothing_strength = float(request.args.get('smoothing_strength', 0) or 0)
+    frame_obj = _get_frame(group, idx)
+    field = _resolve_frame_field(frame_obj, requested_field)
     payload = _build_volume_data(
         group, idx, field, qc_enabled,
         interp_strength=interp_strength,

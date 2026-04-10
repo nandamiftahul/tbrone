@@ -176,7 +176,7 @@
           <div class="headRow"><div><p class="name">QC Data</p><p class="coord">Adjust QC like an operational filter panel using quality flag, GDOP geometry, and physical range checks for the HF radar wave product.</p></div><div class="tag">QC</div></div>
           <label class="check"><input type="checkbox" id="qcEnabled"> Enable QC Data filter</label>
           <div class="field"><label for="qcPreset">QC Preset</label><select id="qcPreset">
-            <option value="off">Off</option><option value="loose">Loose</option><option value="normal" selected>Normal</option><option value="strict">Strict</option><option value="custom">Custom</option>
+            <option value="off" selected>Off</option><option value="loose">Loose</option><option value="normal">Normal</option><option value="strict">Strict</option><option value="custom">Custom</option>
           </select></div>
           <label class="check"><input type="checkbox" id="qcUseQual"> Use qual minimum</label>
           <div class="field"><label for="qualMin">qual min</label><input type="number" id="qualMin" step="0.1" value="2"></div>
@@ -291,6 +291,7 @@ const vectorDataUrl = "{{ url_for('hfradar_bp.hfradar_vector_data') }}";
 const times = {{ times | tojson }};
 const epochs = {{ epochs | tojson }};
 const bounds = {{ bounds | tojson }};
+const frameCatalog = {{ frame_catalog | tojson }};
 const customCmapStorageKey = 'hfradarCustomCmapSpec';
 let radarLayer = null, currentBounds = null, frame = 0, total = 1, playing = false, timer = null, overlayOpacity = 0.7;
 let customCmapSpec = null;
@@ -350,7 +351,7 @@ function saveCustomCmapSpec(spec) {
   customCmapSpec = normalizeCustomCmapSpec(spec);
   if (customCmapSpec) localStorage.setItem(customCmapStorageKey, JSON.stringify(customCmapSpec));
   updateCustomCmapUI();
-  updateStaticWaveLegend();
+  updateLegend();
 }
 function getActiveCustomCmap() { return (customCmapSpec && customCmapSpec.enabled) ? customCmapSpec : null; }
 function buildGradientCss(spec) {
@@ -540,12 +541,61 @@ function qcSummaryText(){
 
 function setStatus(text){ document.getElementById('statusPill').textContent = text; }
 function qs(id){ return document.getElementById(id); }
+function getCurrentFrameMeta(){ const arr = frameCatalog[group] || []; return arr[Math.max(0, Math.min(frame, arr.length - 1))] || null; }
+function getFieldsForCurrentFrame(){ const meta = getCurrentFrameMeta(); return Array.isArray(meta?.fields) ? meta.fields : []; }
+function syncFieldOptionsForCurrentFrame(preferredField=null){
+  const select = qs('field');
+  if(!select) return preferredField || field;
+  const fields = getFieldsForCurrentFrame();
+  const desired = preferredField || select.value || field;
+  if(!fields.length){
+    field = desired;
+    return field;
+  }
+  select.innerHTML = '';
+  fields.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+  const resolved = fields.includes(desired) ? desired : (getCurrentFrameMeta()?.default_field || fields[0]);
+  select.value = resolved;
+  field = resolved;
+  return resolved;
+}
+function syncSecondaryFieldOptionsForCurrentFrame(preferredField=null){
+  const select = qs('secondaryField');
+  if(!select) return '';
+  const fields = getFieldsForCurrentFrame();
+  const domValue = select.value || '';
+  const desired = preferredField ?? domValue ?? secondaryField ?? '';
+  select.innerHTML = '<option value="">None</option>';
+  fields.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+  const resolved = (desired && fields.includes(desired) && desired !== field) ? desired : '';
+  select.value = resolved;
+  secondaryField = resolved;
+  return resolved;
+}
+function updateFrameMetaInfo(){
+  const meta = getCurrentFrameMeta();
+  if(!meta) return;
+  qs('fileCountText').value = meta.filename || 'dataset.nc';
+  qs('paramList').value = (meta.fields || []).join(', ') || 'No data yet';
+}
 function updateWarningBox(rawWarnings){ const box=qs('warningBox'); const parts=String(rawWarnings||'').split(';').map(s=>s.trim()).filter(Boolean); if(parts.length){ box.style.display='block'; box.innerHTML='<strong>⚠ Issues detected</strong><br>'+parts.join('<br>'); } else { box.style.display='none'; box.innerHTML=''; } }
 function updateOpacity(v){ overlayOpacity = Number(v)/100; qs('opacityValue').textContent = `${v}%`; if(radarLayer) radarLayer.setOpacity(overlayOpacity); if(secondaryRasterLayer) secondaryRasterLayer.setOpacity(Math.min(0.55, overlayOpacity * 0.78)); if(deckOverlay) refresh3DOverlay(); }
 function updateInterpolation(v, reload=true){ interpolationStrength = Number(v) || 0; localStorage.setItem('hfradarInterpolationStrength', String(interpolationStrength)); if(qs('interpValue')) qs('interpValue').textContent = `${interpolationStrength}%`; if(reload) loadRadar(); }
 function updateSmoothing(v, reload=true){ smoothingStrength = Number(v) || 0; localStorage.setItem('hfradarSmoothingStrength', String(smoothingStrength)); if(qs('smoothValue')) qs('smoothValue').textContent = `${smoothingStrength}%`; if(reload) loadRadar(); }
 function updateSecondaryState(reload=true){
+  const selectedNow = qs('secondaryField')?.value || secondaryField || '';
   secondaryEnabled = !!qs('secondaryEnabled')?.checked;
+  syncSecondaryFieldOptionsForCurrentFrame(selectedNow);
   secondaryField = qs('secondaryField')?.value || '';
   localStorage.setItem('hfradarSecondaryEnabled', secondaryEnabled ? '1' : '0');
   localStorage.setItem('hfradarSecondaryField', secondaryField);
@@ -572,7 +622,7 @@ function clearSecondaryLayers(){
   }
   clearSecondaryVectorArtifacts();
 }
-function resetOverrides(){ qs('cmap').value=''; const cfg=defaultConfigs[field] || {}; qs('vmin').value = cfg.vmin ?? ''; qs('vmax').value = cfg.vmax ?? ''; updateStaticWaveLegend(); loadRadar(); }
+function resetOverrides(){ qs('cmap').value=''; const cfg=defaultConfigs[field] || {}; qs('vmin').value = cfg.vmin ?? ''; qs('vmax').value = cfg.vmax ?? ''; updateLegend(); loadRadar(); }
 function buildArrowPolyline(lat, lon, angleDeg, lengthDeg){
   const rad = (Number(angleDeg || 0) * Math.PI) / 180.0;
   const dx = Math.sin(rad) * lengthDeg;
@@ -593,14 +643,14 @@ function loadSecondaryOverlay(){
   if(interpolationStrength > 0) common.set('interp_strength', interpolationStrength);
   if(smoothingStrength > 0) common.set('smoothing_strength', smoothingStrength);
 
-  if(secondaryField === 'Wdir'){
+  if(['Wdir','Udir','CurrentDir'].includes(secondaryField)){
     common.set('field', secondaryField);
     return fetch(`${vectorDataUrl}?${common.toString()}`)
       .then(r => r.json())
       .then(data => {
         clearSecondaryVectorArtifacts();
 
-        if(!secondaryEnabled || secondaryField !== 'Wdir') return;
+        if(!secondaryEnabled || !['Wdir','Udir','CurrentDir'].includes(secondaryField)) return;
 
         const vectors = Array.isArray(data.vectors) ? data.vectors : [];
         const layer = L.layerGroup();
@@ -639,16 +689,16 @@ function loadSecondaryOverlay(){
     .catch(console.error);
 }
 function changeField(){
-  field = qs('field').value;
+  field = syncFieldOptionsForCurrentFrame(qs('field').value);
   const cfg = defaultConfigs[field] || {};
   qs('vmin').value = cfg.vmin ?? '';
   qs('vmax').value = cfg.vmax ?? '';
-  updateStaticWaveLegend();
+  updateLegend();
   loadRadar();
 }
 function changeGroup(){ group = qs('group').value; frame = 0; buildFrameSelect(); loadRadar(); }
-function changeFrameSelect(){ frame = Number(qs('frameSelect').value || 0); loadRadar(); }
-function buildFrameSelect(){ const select = qs('frameSelect'); const arr = times[group] || []; total = Math.max(1, arr.length); select.innerHTML=''; arr.forEach((t, idx)=>{ const opt=document.createElement('option'); opt.value=idx; opt.textContent=t || `Frame ${idx+1}`; select.appendChild(opt); }); select.value = String(Math.min(frame, total-1)); qs('frameText').textContent = `${Math.min(frame+1,total)}/${total}`; renderTimeline(); }
+function changeFrameSelect(){ frame = Number(qs('frameSelect').value || 0); buildFrameSelect(); loadRadar(); }
+function buildFrameSelect(){ const select = qs('frameSelect'); const arr = times[group] || []; total = Math.max(1, arr.length); select.innerHTML=''; arr.forEach((t, idx)=>{ const opt=document.createElement('option'); opt.value=idx; opt.textContent=t || `Frame ${idx+1}`; select.appendChild(opt); }); select.value = String(Math.min(frame, total-1)); qs('frameText').textContent = `${Math.min(frame+1,total)}/${total}`; syncFieldOptionsForCurrentFrame(field); syncSecondaryFieldOptionsForCurrentFrame(secondaryField); updateFrameMetaInfo(); renderTimeline(); }
 function timeWindowChanged(){ const sel = qs('timeWindow').value; const customBox = qs('customDaysInput'); if(customBox) customBox.style.display = (sel === 'custom') ? 'block' : 'none'; renderTimeline(); }
 function renderTimeline(){
   const container = qs('markers');
@@ -690,28 +740,16 @@ function getBaseLegendGradient(cmapName){
     plasma: 'linear-gradient(90deg,#0d0887 0%,#46039f 18%,#7201a8 32%,#9c179e 46%,#bd3786 60%,#d8576b 73%,#ed7953 84%,#fb9f3a 93%,#fdca26 98%,#f0f921 100%)',
     magma: 'linear-gradient(90deg,#000004 0%,#180f3d 15%,#440f76 32%,#721f81 46%,#9e2f7f 60%,#cd4071 74%,#f1605d 86%,#fd9668 94%,#feca8d 98%,#fcfdbf 100%)',
     gray: 'linear-gradient(90deg,#000000 0%,#222222 20%,#555555 45%,#888888 65%,#bdbdbd 85%,#ffffff 100%)',
-    twilight_shifted: 'linear-gradient(90deg,#2f1436 0%,#413c85 18%,#2c7fb8 34%,#41b6c4 48%,#a1dab4 60%,#f1f1a9 74%,#fdae61 88%,#d7191c 100%)'
+    twilight_shifted: 'linear-gradient(90deg,#2f1436 0%,#413c85 18%,#2c7fb8 34%,#41b6c4 48%,#a1dab4 60%,#f1f1a9 74%,#fdae61 88%,#d7191c 100%)',
+    coolwarm: 'linear-gradient(90deg,#3b4cc0 0%,#6f92f3 18%,#aac7fd 35%,#dbeaf7 50%,#f7d7c4 65%,#f7a889 82%,#de604d 92%,#b40426 100%)'
   };
   return gradients[cmapName] || gradients.turbo;
 }
-function updateStaticWaveLegend(){
+function updateLegend(){
   const titleEl = qs('hfLegendTitle');
   const barEl = qs('hfLegendBar');
   const tickTop = document.querySelector('.hfLegendTopTicks');
-
   if(!titleEl || !barEl || !tickTop) return;
-
-  if(field === 'Hs'){
-    titleEl.textContent = 'Significant Waveheight (m)';
-  } else if(field === 'Tmean'){
-    titleEl.textContent = 'Mean Wave Period (s)';
-  } else if(field === 'Tenergy'){
-    titleEl.textContent = 'Energy Wave Period (s)';
-  } else if(field === 'Wdir'){
-    titleEl.textContent = 'Wave Direction (deg)';
-  } else {
-    titleEl.textContent = (defaultConfigs[field]?.label || field);
-  }
 
   const cfg = defaultConfigs[field] || {};
   const vmin = Number(qs('vmin')?.value || cfg.vmin || 0);
@@ -737,6 +775,8 @@ function updateStaticWaveLegend(){
   tickTop.innerHTML = html;
 }
 function loadRadar(){
+  field = syncFieldOptionsForCurrentFrame(field);
+  syncSecondaryFieldOptionsForCurrentFrame(secondaryField);
   if(!group || !field) { setStatus('Upload NetCDF data first'); return; }
   const params = new URLSearchParams({ group, frame, field, quality: imageQuality });
   appendQcParams(params);
@@ -751,13 +791,21 @@ function loadRadar(){
     const time = res.headers.get('X-Time') || '--';
     const fileName = res.headers.get('X-Filename') || 'dataset.nc';
     const warnings = res.headers.get('X-Warnings') || '';
+    const resolvedField = res.headers.get('X-Resolved-Field') || field;
     if(radarLayer) map.removeLayer(radarLayer);
     radarLayer = L.imageOverlay(imgUrl, bounds, {opacity: overlayOpacity}).addTo(map);
     currentBounds = bounds;
     latestRadarImageUrl = imgUrl; latestRadarBounds = bounds; latestRadarCenter = latLonFromBounds(bounds); latestRadarRadiusKm = Math.max(10, map.distance(bounds[0], [bounds[0][0], bounds[1][1]])/2000);
-    qs('timestamp').textContent = time; qs('infoName').textContent = `${defaultConfigs[field]?.label || field}`; qs('infoExtent').textContent = `${fileName} · ${bounds[0][0].toFixed(3)}, ${bounds[0][1].toFixed(3)} to ${bounds[1][0].toFixed(3)}, ${bounds[1][1].toFixed(3)}`;
-    qs('fileCountText').value = fileName; qs('paramList').value = Object.keys(defaultConfigs).filter(k => (document.querySelector(`#field option[value="${k}"]`))).join(', ');
-        setStatus(`${field} · frame ${frame+1}/${total}${qcSummaryText()}${interpolationStrength > 0 ? ` · Interp ${interpolationStrength}%` : ''}${smoothingStrength > 0 ? ` · Smooth ${smoothingStrength}%` : ''}${secondaryEnabled && secondaryField && secondaryField !== field ? ` · + ${secondaryField}` : ''}`); buildFrameSelect(); updateWarningBox(warnings); loadSecondaryOverlay(); updateStaticWaveLegend();
+    field = syncFieldOptionsForCurrentFrame(resolvedField);
+    syncSecondaryFieldOptionsForCurrentFrame(secondaryField);
+    qs('timestamp').textContent = time;
+    qs('infoName').textContent = `${defaultConfigs[field]?.label || field}`;
+    qs('infoExtent').textContent = `${fileName} · ${bounds[0][0].toFixed(3)}, ${bounds[0][1].toFixed(3)} to ${bounds[1][0].toFixed(3)}, ${bounds[1][1].toFixed(3)}`;
+    updateFrameMetaInfo();
+    setStatus(`${field} · frame ${frame+1}/${total}${qcSummaryText()}${interpolationStrength > 0 ? ` · Interp ${interpolationStrength}%` : ''}${smoothingStrength > 0 ? ` · Smooth ${smoothingStrength}%` : ''}${secondaryEnabled && secondaryField && secondaryField !== field ? ` · + ${secondaryField}` : ''}`);
+    updateWarningBox(warnings);
+    loadSecondaryOverlay();
+    updateLegend();
     if(currentMapMode === '3d') loadRadar3D();
   }).catch(err => { console.error(err); setStatus('Failed to load HF radar overlay'); });
 }
@@ -847,12 +895,12 @@ function toggleMapMode(){ currentMapMode = currentMapMode === '2d' ? '3d' : '2d'
 document.getElementById('btnUpload').onclick = ()=> qs('radarfiles').click();
 qs('radarfiles').addEventListener('change', ()=> qs('uploadForm').submit());
 qs('opacitySlider').addEventListener('input', e=>updateOpacity(e.target.value));
-qs('cmap').addEventListener('change', ()=>{ updateStaticWaveLegend(); loadRadar(); }); 
+qs('cmap').addEventListener('change', ()=>{ updateLegend(); loadRadar(); }); 
 ['qcPreset','qcUseQual','qualMin','qcUseGdopXY','gdopxMax','gdopyMax','qcUseGdopCombined','gdopCombinedMax','qcUseHsRange','hsMin','hsMax','qcUseTmeanRange','tmeanMin','tmeanMax','qcUseTenergyRange','tenergyMin','tenergyMax','qcUseWdirValid'].forEach(id=>{ const el=qs(id); if(!el) return; const evt = (el.tagName==='SELECT' || el.type==='checkbox') ? 'change' : 'blur'; el.addEventListener(evt, ()=>{ if(id==='qcPreset' && qs('qcPreset').value !== 'custom'){ setQcFormFromPreset(qs('qcPreset').value); } loadRadar(); }); });
- qs('interpStrength').addEventListener('input', e=>updateInterpolation(e.target.value, false)); qs('interpStrength').addEventListener('change', e=>updateInterpolation(e.target.value, true)); qs('smoothingStrength').addEventListener('input', e=>updateSmoothing(e.target.value, false)); qs('smoothingStrength').addEventListener('change', e=>updateSmoothing(e.target.value, true)); qs('secondaryEnabled').addEventListener('change', ()=>updateSecondaryState(true)); qs('secondaryField').addEventListener('change', ()=>updateSecondaryState(true)); qs('vmin').addEventListener('blur', ()=>{ updateStaticWaveLegend(); loadRadar(); }); qs('vmax').addEventListener('blur', ()=>{ updateStaticWaveLegend(); loadRadar(); }); qs('qcEnabled').addEventListener('change', loadRadar); qs('secondaryEnabled').addEventListener('change', ()=>updateSecondaryState(true)); qs('secondaryField').addEventListener('change', ()=>updateSecondaryState(true));
-qs('btnFitRadar').onclick = fitRadar; qs('btnToggleMapMode').onclick = toggleMapMode; qs('btnPrevTop').onclick = prev; qs('btnNextTop').onclick = next; qs('btnPlayTop').onclick = togglePlay; qs('btnSidebarPlay').onclick = togglePlay; qs('btnSidebarReset').onclick = ()=>{ frame=0; if(qs('qcPreset')) qs('qcPreset').value='normal'; setQcFormFromPreset('normal'); qs('qcEnabled').checked=false; interpolationStrength=0; smoothingStrength=0; secondaryEnabled=false; secondaryField=''; clearSecondaryLayers(); if(qs('interpStrength')) qs('interpStrength').value='0'; if(qs('smoothingStrength')) qs('smoothingStrength').value='0'; if(qs('secondaryEnabled')) qs('secondaryEnabled').checked=false; if(qs('secondaryField')) qs('secondaryField').value=''; updateInterpolation(0, false); updateSmoothing(0, false); updateSecondaryState(false); resetOverrides(); buildFrameSelect(); loadRadar(); };
+ qs('interpStrength').addEventListener('input', e=>updateInterpolation(e.target.value, false)); qs('interpStrength').addEventListener('change', e=>updateInterpolation(e.target.value, true)); qs('smoothingStrength').addEventListener('input', e=>updateSmoothing(e.target.value, false)); qs('smoothingStrength').addEventListener('change', e=>updateSmoothing(e.target.value, true)); qs('secondaryEnabled').addEventListener('change', ()=>updateSecondaryState(true)); qs('secondaryField').addEventListener('change', ()=>updateSecondaryState(true)); qs('vmin').addEventListener('blur', ()=>{ updateLegend(); loadRadar(); }); qs('vmax').addEventListener('blur', ()=>{ updateLegend(); loadRadar(); }); qs('qcEnabled').addEventListener('change', loadRadar); qs('secondaryEnabled').addEventListener('change', ()=>updateSecondaryState(true)); qs('secondaryField').addEventListener('change', ()=>updateSecondaryState(true));
+qs('btnFitRadar').onclick = fitRadar; qs('btnToggleMapMode').onclick = toggleMapMode; qs('btnPrevTop').onclick = prev; qs('btnNextTop').onclick = next; qs('btnPlayTop').onclick = togglePlay; qs('btnSidebarPlay').onclick = togglePlay; qs('btnSidebarReset').onclick = ()=>{ frame=0; if(qs('qcPreset')) qs('qcPreset').value='off'; setQcFormFromPreset('off'); qs('qcEnabled').checked=false; interpolationStrength=0; smoothingStrength=0; secondaryEnabled=false; secondaryField=''; clearSecondaryLayers(); if(qs('interpStrength')) qs('interpStrength').value='0'; if(qs('smoothingStrength')) qs('smoothingStrength').value='0'; if(qs('secondaryEnabled')) qs('secondaryEnabled').checked=false; if(qs('secondaryField')) qs('secondaryField').value=''; updateInterpolation(0, false); updateSmoothing(0, false); updateSecondaryState(false); resetOverrides(); buildFrameSelect(); loadRadar(); };
 
-(function init(){ customCmapSpec = loadCustomCmapSpec(); updateCustomCmapUI(); updateStaticWaveLegend(); if(qs('qcPreset')){ qs('qcPreset').value='normal'; setQcFormFromPreset('normal'); } const cfg = defaultConfigs[field] || {}; if(qs('vmin')) qs('vmin').value = cfg.vmin ?? ''; if(qs('vmax')) qs('vmax').value = cfg.vmax ?? ''; if(qs('interpStrength')) qs('interpStrength').value = String(interpolationStrength); if(qs('smoothingStrength')) qs('smoothingStrength').value = String(smoothingStrength); if(qs('secondaryEnabled')) qs('secondaryEnabled').checked = secondaryEnabled; if(qs('secondaryField')) qs('secondaryField').value = secondaryField; updateInterpolation(interpolationStrength, false); updateSmoothing(smoothingStrength, false); updateSecondaryState(false); if(group){ buildFrameSelect(); loadRadar(); } })();
+(function init(){ customCmapSpec = loadCustomCmapSpec(); updateCustomCmapUI(); updateLegend(); if(qs('qcPreset')){ qs('qcPreset').value='off'; setQcFormFromPreset('off'); } const cfg = defaultConfigs[field] || {}; if(qs('vmin')) qs('vmin').value = cfg.vmin ?? ''; if(qs('vmax')) qs('vmax').value = cfg.vmax ?? ''; if(qs('interpStrength')) qs('interpStrength').value = String(interpolationStrength); if(qs('smoothingStrength')) qs('smoothingStrength').value = String(smoothingStrength); if(qs('secondaryEnabled')) qs('secondaryEnabled').checked = secondaryEnabled; if(qs('secondaryField')) qs('secondaryField').value = secondaryField; updateInterpolation(interpolationStrength, false); updateSmoothing(smoothingStrength, false); updateSecondaryState(false); if(group){ buildFrameSelect(); loadRadar(); } })();
 </script>
 
   <div class="modalOverlay" id="customCmapModal">

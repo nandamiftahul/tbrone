@@ -6,6 +6,8 @@ import json
 import os
 import re
 import tempfile
+import threading
+import time
 from collections import OrderedDict
 from hashlib import md5
 from datetime import datetime, timedelta
@@ -52,21 +54,274 @@ merged_radar_cache: "OrderedDict[str, tuple[Any, list[str]]]" = OrderedDict()
 CACHE_MAX_ITEMS = 96
 MERGED_CACHE_MAX_ITEMS = 24
 
+
+HDF5_SCHEDULER_THREAD: threading.Thread | None = None
+HDF5_SCHEDULER_STOP = threading.Event()
+HDF5_SCHEDULER_LOCK = threading.Lock()
+HDF5_SCHEDULER_STATE: dict[str, Any] = {
+    'running': False,
+    'last_run': None,
+    'last_error': '',
+    'processed_count': 0,
+    'skipped_count': 0,
+    'last_scan_count': 0,
+    'current_file': '',
+    'last_output': '',
+    'worker_pid': os.getpid(),
+}
+
+def _scheduler_config_path(app=None) -> str:
+    app_obj = app or current_app
+    return app_obj.config.get('RADAR_HDF5_SCHEDULER_CONFIG') or os.path.join(app_obj.root_path, 'radar_hdf5_scheduler.json')
+
+def _default_hdf5_scheduler_settings(app=None) -> dict[str, Any]:
+    input_path = '/etc/pyiris/input'
+    output_path = '/etc/pyiris/output'
+    delete_input = False
+    interpolate_missing = False
+    normalize_rpm = False
+    target_rays = 360
+    try:
+        cfg_path = (app.config.get('PYIRIS_CONFIG_PATH') if app is not None else current_app.config.get('PYIRIS_CONFIG_PATH')) or os.path.join((app.root_path if app is not None else current_app.root_path), 'pyiris.conf')
+        cfg = configparser.ConfigParser()
+        if os.path.exists(cfg_path):
+            cfg.read(cfg_path)
+            if 'FILE' in cfg:
+                input_path = str(cfg['FILE'].get('input_file', input_path) or input_path).strip()
+                output_path = str(cfg['FILE'].get('output_file', output_path) or output_path).strip()
+                delete_input = str(cfg['FILE'].get('delete', 'disable')).strip().lower() == 'enable'
+            if 'MOD' in cfg:
+                interpolate_missing = str(cfg['MOD'].get('interpolate', 'disable')).strip().lower() == 'enable'
+                normalize_rpm = str(cfg['MOD'].get('rpm_mod', 'disable')).strip().lower() == 'enable'
+                try:
+                    target_rays = max(1, int(cfg['MOD'].get('target_rays', target_rays) or target_rays))
+                except Exception:
+                    target_rays = 360
+    except Exception:
+        pass
+    return {
+        'enabled': False,
+        'interval_seconds': 60,
+        'input_path': input_path,
+        'output_path': output_path,
+        'delete_input': delete_input,
+        'interpolate_missing': interpolate_missing,
+        'normalize_rpm': normalize_rpm,
+        'target_rays': target_rays,
+        'enable_filter': False,
+        'enable_econvert': False,
+        'enable_ecomposite': False,
+        'scheduler_filters': {},
+    }
+
+def _normalize_hdf5_scheduler_settings(payload: dict[str, Any] | None, app=None) -> dict[str, Any]:
+    settings = dict(_default_hdf5_scheduler_settings(app))
+    payload = payload or {}
+    settings['enabled'] = bool(payload.get('enabled', settings['enabled']))
+    try:
+        settings['interval_seconds'] = max(5, int(payload.get('interval_seconds', settings['interval_seconds']) or settings['interval_seconds']))
+    except Exception:
+        settings['interval_seconds'] = 60
+    settings['input_path'] = str(payload.get('input_path', settings['input_path']) or settings['input_path']).strip()
+    settings['output_path'] = str(payload.get('output_path', settings['output_path']) or settings['output_path']).strip()
+    settings['delete_input'] = bool(payload.get('delete_input', settings['delete_input']))
+    settings['interpolate_missing'] = bool(payload.get('interpolate_missing', settings['interpolate_missing']))
+    settings['normalize_rpm'] = bool(payload.get('normalize_rpm', settings['normalize_rpm']))
+    try:
+        settings['target_rays'] = max(1, int(payload.get('target_rays', settings['target_rays']) or settings['target_rays']))
+    except Exception:
+        settings['target_rays'] = 360
+    settings['enable_filter'] = bool(payload.get('enable_filter', settings.get('enable_filter', False)))
+    settings['enable_econvert'] = bool(payload.get('enable_econvert', settings.get('enable_econvert', False)))
+    settings['enable_ecomposite'] = bool(payload.get('enable_ecomposite', settings.get('enable_ecomposite', False)))
+    scheduler_filters = payload.get('scheduler_filters', settings.get('scheduler_filters', {}))
+    settings['scheduler_filters'] = dict(scheduler_filters) if isinstance(scheduler_filters, dict) else {}
+    return settings
+
+def _load_hdf5_scheduler_settings(app=None) -> dict[str, Any]:
+    app_obj = app or current_app
+    defaults = _default_hdf5_scheduler_settings(app_obj)
+    cfg_path = _scheduler_config_path(app_obj)
+    try:
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as fh:
+                stored = json.load(fh) or {}
+            return _normalize_hdf5_scheduler_settings({**defaults, **stored}, app_obj)
+    except Exception:
+        pass
+    return defaults
+
+def _save_hdf5_scheduler_settings(settings: dict[str, Any], app=None) -> dict[str, Any]:
+    app_obj = app or current_app
+    normalized = _normalize_hdf5_scheduler_settings(settings, app_obj)
+    cfg_path = _scheduler_config_path(app_obj)
+    os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
+    with open(cfg_path, 'w', encoding='utf-8') as fh:
+        json.dump(normalized, fh, indent=2)
+    return normalized
+
+def _scheduler_collect_input_files(input_path: str) -> list[str]:
+    if not input_path:
+        return []
+    if os.path.isfile(input_path):
+        return [input_path]
+    if not os.path.isdir(input_path):
+        return []
+    candidates = []
+    for name in sorted(os.listdir(input_path)):
+        full = os.path.join(input_path, name)
+        if not os.path.isfile(full):
+            continue
+        upper = name.upper()
+        if '.RAW' in upper or upper.endswith('.RAW') or 'RAW' in upper:
+            candidates.append(full)
+    return candidates
+
+def _scheduler_status_snapshot(app=None) -> dict[str, Any]:
+    app_obj = app or current_app
+    settings = _load_hdf5_scheduler_settings(app_obj)
+    with HDF5_SCHEDULER_LOCK:
+        state = dict(HDF5_SCHEDULER_STATE)
+    return {'settings': settings, 'state': state}
+
+def _scheduler_process_pending_files(app) -> dict[str, Any]:
+    settings = _load_hdf5_scheduler_settings(app)
+    result = {'processed': 0, 'skipped': 0, 'errors': []}
+    input_path = str(settings.get('input_path') or '').strip()
+    output_path = str(settings.get('output_path') or '').strip()
+    if not input_path or not output_path:
+        with HDF5_SCHEDULER_LOCK:
+            HDF5_SCHEDULER_STATE['last_error'] = 'Input path or output path is empty.'
+        return result
+    os.makedirs(output_path, exist_ok=True)
+    files = _scheduler_collect_input_files(input_path)
+    with HDF5_SCHEDULER_LOCK:
+        HDF5_SCHEDULER_STATE['last_scan_count'] = len(files)
+    defaults = load_pyiris_defaults()
+    scheduler_filters = dict(settings.get('scheduler_filters') or {}) if bool(settings.get('enable_filter')) else {}
+    if scheduler_filters:
+        scheduler_filters['enable_standard_filter'] = bool(scheduler_filters.get('enable_standard_filter'))
+        scheduler_filters['enable_speckle_filter'] = bool(scheduler_filters.get('enable_speckle_filter'))
+    for source_path in files:
+        output_name = f"{os.path.basename(source_path)}.h5"
+        final_output = os.path.join(output_path, output_name)
+        if os.path.exists(final_output):
+            result['skipped'] += 1
+            continue
+        with HDF5_SCHEDULER_LOCK:
+            HDF5_SCHEDULER_STATE['current_file'] = source_path
+            HDF5_SCHEDULER_STATE['last_error'] = ''
+        try:
+            runtime_filters = dict(defaults)
+            runtime_filters.update(scheduler_filters)
+            export_path, warnings, _radar = _build_pyiris_hdf5_dataset(
+                [source_path],
+                filters=runtime_filters,
+                target_rays=int(settings.get('target_rays') or 360),
+                interpolate_missing=bool(settings.get('interpolate_missing')),
+                normalize_rpm=bool(settings.get('normalize_rpm')),
+                enable_econvert=bool(settings.get('enable_econvert')),
+                econvert_type=str(runtime_filters.get('econverttype') or defaults.get('econverttype') or 'H'),
+                enable_ecorrection=False,
+                enable_ecomposite=bool(settings.get('enable_ecomposite')),
+            )
+            os.replace(export_path, final_output)
+            if settings.get('delete_input'):
+                try:
+                    os.remove(source_path)
+                except Exception:
+                    pass
+            result['processed'] += 1
+            with HDF5_SCHEDULER_LOCK:
+                HDF5_SCHEDULER_STATE['last_output'] = final_output
+                if warnings:
+                    HDF5_SCHEDULER_STATE['last_error'] = '; '.join(_unique_warning_messages(warnings))
+        except Exception as exc:
+            result['errors'].append(f'{os.path.basename(source_path)}: {exc}')
+            with HDF5_SCHEDULER_LOCK:
+                HDF5_SCHEDULER_STATE['last_error'] = f'{os.path.basename(source_path)}: {exc}'
+        finally:
+            with HDF5_SCHEDULER_LOCK:
+                HDF5_SCHEDULER_STATE['current_file'] = ''
+    with HDF5_SCHEDULER_LOCK:
+        HDF5_SCHEDULER_STATE['processed_count'] += int(result['processed'])
+        HDF5_SCHEDULER_STATE['skipped_count'] += int(result['skipped'])
+        HDF5_SCHEDULER_STATE['last_run'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+    return result
+
+def _hdf5_scheduler_loop(app):
+    while not HDF5_SCHEDULER_STOP.is_set():
+        try:
+            with app.app_context():
+                settings = _load_hdf5_scheduler_settings(app)
+                with HDF5_SCHEDULER_LOCK:
+                    HDF5_SCHEDULER_STATE['running'] = bool(settings.get('enabled'))
+                    HDF5_SCHEDULER_STATE['worker_pid'] = os.getpid()
+                if settings.get('enabled'):
+                    _scheduler_process_pending_files(app)
+                wait_seconds = max(5, int(settings.get('interval_seconds') or 60))
+        except Exception as exc:
+            wait_seconds = 30
+            with HDF5_SCHEDULER_LOCK:
+                HDF5_SCHEDULER_STATE['running'] = False
+                HDF5_SCHEDULER_STATE['last_error'] = str(exc)
+        if HDF5_SCHEDULER_STOP.wait(wait_seconds):
+            break
+    with HDF5_SCHEDULER_LOCK:
+        HDF5_SCHEDULER_STATE['running'] = False
+        HDF5_SCHEDULER_STATE['current_file'] = ''
+
+def _ensure_hdf5_scheduler_thread(app=None):
+    global HDF5_SCHEDULER_THREAD
+    app_obj = app or current_app._get_current_object()
+    if HDF5_SCHEDULER_THREAD and HDF5_SCHEDULER_THREAD.is_alive():
+        return
+    HDF5_SCHEDULER_STOP.clear()
+    HDF5_SCHEDULER_THREAD = threading.Thread(
+        target=_hdf5_scheduler_loop,
+        args=(app_obj,),
+        name='radar-hdf5-scheduler',
+        daemon=True,
+    )
+    HDF5_SCHEDULER_THREAD.start()
+
+
 default_configs = {
-    'DBZ2': dict(vmin=-20, vmax=70, cmap='turbo'),
+    'DBZ2': dict(vmin=0, vmax=70, cmap='turbo'),
+    'DBT2': dict(vmin=0, vmax=70, cmap='turbo'),
+    'DBZE2': dict(vmin=0, vmax=70, cmap='turbo'),
+    'DBTE2': dict(vmin=0, vmax=70, cmap='turbo'),
+    'DBZH': dict(vmin=0, vmax=70, cmap='turbo'),
+    'DBZ': dict(vmin=0, vmax=70, cmap='turbo'),
+    'DBT': dict(vmin=0, vmax=70, cmap='turbo'),
+    'TH': dict(vmin=0, vmax=70, cmap='turbo'),
+    'DZ': dict(vmin=0, vmax=70, cmap='turbo'),
     'VEL2': dict(vmin=-30, vmax=30, cmap='seismic'),
-    'WIDTH2': dict(vmin=0, vmax=5, cmap='turbo'),
-    'ZDR2': dict(vmin=-5, vmax=5, cmap='turbo'),
-    'KDP2': dict(vmin=-1, vmax=5, cmap='viridis'),
-    'RHOHV2': dict(vmin=0.8, vmax=1.05, cmap='seismic'),
     'VELC2': dict(vmin=-30, vmax=30, cmap='seismic'),
+    'VEL': dict(vmin=-30, vmax=30, cmap='seismic'),
+    'WIDTH2': dict(vmin=0, vmax=8, cmap='turbo'),
+    'WIDTH': dict(vmin=0, vmax=8, cmap='turbo'),
+    'ZDR2': dict(vmin=-2, vmax=6, cmap='turbo'),
+    'ZDR': dict(vmin=-2, vmax=6, cmap='turbo'),
+    'KDP2': dict(vmin=-1, vmax=6, cmap='viridis'),
+    'KDP': dict(vmin=-1, vmax=6, cmap='viridis'),
+    'RHOHV2': dict(vmin=0.7, vmax=1.0, cmap='viridis'),
+    'RHOHV': dict(vmin=0.7, vmax=1.0, cmap='viridis'),
     'SQI2': dict(vmin=0, vmax=1, cmap='viridis'),
+    'SQI': dict(vmin=0, vmax=1, cmap='viridis'),
     'PHIDP2': dict(vmin=-180, vmax=180, cmap='twilight_shifted'),
+    'PHIDP': dict(vmin=-180, vmax=180, cmap='twilight_shifted'),
     'HCLASS2': dict(vmin=0, vmax=10, cmap='turbo'),
-    'SNR16': dict(vmin=-20, vmax=40, cmap='turbo'),
+    'HCLASS': dict(vmin=0, vmax=10, cmap='turbo'),
+    'SNR16': dict(vmin=0, vmax=60, cmap='turbo'),
+    'SNR': dict(vmin=0, vmax=60, cmap='turbo'),
     'PMI16': dict(vmin=0, vmax=1, cmap='viridis'),
+    'PMI': dict(vmin=0, vmax=1, cmap='viridis'),
     'LOG16': dict(vmin=0, vmax=5, cmap='plasma'),
+    'LOG': dict(vmin=0, vmax=5, cmap='plasma'),
     'CSP16': dict(vmin=0, vmax=1, cmap='turbo'),
+    'CSR': dict(vmin=0, vmax=1, cmap='turbo'),
+    'CSP': dict(vmin=0, vmax=1, cmap='turbo'),
 }
 
 QUALITY_PRESETS = {
@@ -439,6 +694,7 @@ def _sample_product_value_from_files(
         raw_data = radar.fields[fname]['data'].copy()
         filtered_data, _ = _apply_pyiris_filters(radar, fname, raw_data, filters, load_pyiris_defaults())
         radar.fields[fname]['data'] = np.ma.masked_invalid(filtered_data)
+    warnings.extend(_apply_viewer_e_processing(radar, filters))
 
     product_used = (derived_product or 'PPI').upper()
     source_field, source_data, product_data = _compute_product_field_data(
@@ -595,6 +851,10 @@ PYIRIS_DEFAULTS = {
     'th_PHID2': 20.0,
     'th_SDZ': 35.0,
     'th_MDZ': -35.0,
+    'enable_econvert': False,
+    'econverttype': 'H',
+    'enable_ecorrection': False,
+    'enable_ecomposite': False,
 }
 
 
@@ -662,6 +922,7 @@ def load_pyiris_defaults() -> dict[str, Any]:
         filt = cfg['FILTER'] if 'FILTER' in cfg else {}
         mode = cfg['FILTERMODE'] if 'FILTERMODE' in cfg else {}
         ftype = cfg['FILTERTYPE'] if 'FILTERTYPE' in cfg else {}
+        econvert_cfg = cfg['ECONVERT'] if 'ECONVERT' in cfg else {}
         defaults['enable_standard_filter'] = str(mode.get('standard_filter', 'disable')).lower() == 'enable'
         defaults['active_LOG'] = True
         defaults['active_SQI'] = True
@@ -672,6 +933,10 @@ def load_pyiris_defaults() -> dict[str, Any]:
         defaults['active_SDZ'] = True
         defaults['active_MDZ'] = True
         defaults['enable_speckle_filter'] = str(mode.get('speckle_filter', 'disable')).lower() == 'enable'
+        defaults['enable_econvert'] = str(mode.get('econvert', 'disable')).lower() == 'enable'
+        defaults['econverttype'] = str(econvert_cfg.get('moment_e', defaults['econverttype'])).strip().upper() or defaults['econverttype']
+        defaults['enable_ecorrection'] = str(econvert_cfg.get('ecorrection', 'disable')).lower() == 'enable'
+        defaults['enable_ecomposite'] = str(econvert_cfg.get('ecomposite', 'disable')).lower() == 'enable'
         defaults['speckle_type'] = str(ftype.get('speckle', defaults['speckle_type'])).split(',')[0].strip() or defaults['speckle_type']
         defaults['window_size'] = int(filt.get('me_windowSize', defaults['window_size']))
         for k in list(PYIRIS_DEFAULTS.keys()):
@@ -825,11 +1090,20 @@ def _get_radar_epoch_and_label(radar, filepath: str) -> tuple[str, float | None]
             return file_dt.strftime('%Y-%m-%d %H:%M:%S'), file_dt.timestamp()
         return 'N/A', None
 
+def _clone_radar_for_viewer(radar):
+    try:
+        return radar.deepcopy()
+    except Exception:
+        import copy
+        return copy.deepcopy(radar)
+
+
 def _merge_radars(file_entries):
     cache_key = _make_merged_cache_key(file_entries)
     cached = _cache_get(merged_radar_cache, cache_key)
     if cached is not None:
-        return cached
+        cached_radar, cached_warnings = cached
+        return _clone_radar_for_viewer(cached_radar), list(cached_warnings)
 
     warnings, radars = [], []
     for entry in file_entries:
@@ -849,8 +1123,8 @@ def _merge_radars(file_entries):
             merged = pyart.util.join_radar(merged, nxt)
         except Exception as exc:
             warnings.append(f'join failed for radar #{i+1}: {exc}')
-    _cache_store(merged_radar_cache, cache_key, (merged, warnings), MERGED_CACHE_MAX_ITEMS)
-    return merged, warnings
+    _cache_store(merged_radar_cache, cache_key, (merged, list(warnings)), MERGED_CACHE_MAX_ITEMS)
+    return _clone_radar_for_viewer(merged), list(warnings)
 
 # ---------- pyIRIS-like filters ----------
 def std_deviation(arr):
@@ -944,6 +1218,12 @@ def _compute_filter_availability(radar, field_name: str) -> dict[str, Any]:
     csr_field = _field_by_substring(radar, 'CSP', 'CSR')
     snr_field = _field_by_substring(radar, 'SNR')
     phi_field = _field_by_substring(radar, 'PHIDP', 'PHI')
+    zdr_field = _field_by_substring(radar, 'ZDR')
+    rho_field = _field_by_substring(radar, 'RHOHV', 'RHO')
+    dbze_field = _field_by_substring(radar, 'DBZE')
+    dbte_field = _field_by_substring(radar, 'DBTE')
+    dbz_field = _field_by_substring(radar, 'DBZ')
+    dbt_field = _field_by_substring(radar, 'DBT')
 
     helper_fields = {
         'LOG': log_field,
@@ -952,8 +1232,15 @@ def _compute_filter_availability(radar, field_name: str) -> dict[str, Any]:
         'CSR': csr_field,
         'SNR': snr_field,
         'PHI': phi_field,
+        'ZDR': zdr_field,
+        'RHO': rho_field,
+        'DBZE': dbze_field,
+        'DBTE': dbte_field,
+        'DBZ': dbz_field,
+        'DBT': dbt_field,
     }
 
+    has_e_moment = bool(dbze_field or dbte_field)
     availability = {
         'field_category': category,
         'field_name': field_name,
@@ -968,6 +1255,12 @@ def _compute_filter_availability(radar, field_name: str) -> dict[str, Any]:
             'SDZ': category in ('Z', 'E'),
             'MDZ': category in ('Z', 'E'),
             'SPECKLE': True,
+        },
+        'e_processing': {
+            'available': has_e_moment,
+            'ECONVERT': has_e_moment,
+            'ECORRECTION': has_e_moment and bool(zdr_field) and bool(rho_field),
+            'ECOMPOSITE': has_e_moment and bool((dbze_field and dbz_field) or (dbte_field and dbt_field)),
         }
     }
     return availability
@@ -1088,6 +1381,22 @@ def _apply_pyiris_filters(radar, field_name: str, data_in, filters: dict[str, An
 
     return np.ma.masked_invalid(data), warnings
 
+def _apply_viewer_e_processing(radar, filters: dict[str, Any] | None = None):
+    filters = filters or {}
+    enable_econvert = bool(filters.get('enable_econvert'))
+    enable_ecorrection = bool(filters.get('enable_ecorrection'))
+    enable_ecomposite = bool(filters.get('enable_ecomposite'))
+    econvert_type = str(filters.get('econverttype') or 'H').strip().upper()[:1] or 'H'
+    if not (enable_econvert or enable_ecorrection or enable_ecomposite):
+        return []
+    return _pyiris_apply_ecorrection_and_econvert(
+        radar,
+        enable_ecorrection=enable_ecorrection,
+        enable_econvert=enable_econvert,
+        econvert_type=econvert_type,
+        enable_ecomposite=enable_ecomposite,
+    )
+
 def _extract_active_sweep_options(radar) -> list[dict[str, Any]]:
     options = []
     try:
@@ -1161,6 +1470,7 @@ def _render_radar_png_from_files(
     if filters.get('clipRange') and vmin_override is not None and vmax_override is not None:
         filtered_data = np.ma.array(np.clip(filtered_data.filled(np.nan), vmin_override, vmax_override))
     radar.fields[field]['data'] = np.ma.masked_invalid(filtered_data)
+    warnings.extend(_apply_viewer_e_processing(radar, filters))
 
     product_used = (derived_product or 'PPI').upper()
     cfg = default_configs.get(field, {})
@@ -1866,12 +2176,105 @@ def _safe_masked_to_float(data: Any, fill_value: float = np.nan) -> np.ndarray:
     return np.asarray(filled, dtype=float)
 
 
+def _pyiris_find_moment_indexes(radar):
+    fields = list(getattr(radar, 'fields', {}).keys())
+    indexes = {
+        'dbz': -1, 'dbze': -1, 'dbt': -1, 'dbte': -1, 'vel': -1, 'velc': -1,
+        'width': -1, 'zdr': -1, 'rho': -1, 'hcl': -1,
+    }
+    for idx, moment in enumerate(fields):
+        low = str(moment).lower()
+        if 'dbt' in low:
+            if 'dbte' in low:
+                indexes['dbte'] = idx
+            else:
+                indexes['dbt'] = idx
+        if 'dbz' in low:
+            if 'dbze' in low:
+                indexes['dbze'] = idx
+            else:
+                indexes['dbz'] = idx
+        if 'vel' in low:
+            if 'velc' in low:
+                indexes['velc'] = idx
+            else:
+                indexes['vel'] = idx
+        if 'width' in low:
+            indexes['width'] = idx
+        if 'zdr' in low:
+            indexes['zdr'] = idx
+        if 'rhohv' in low:
+            indexes['rho'] = idx
+        if 'class' in low or 'hclass' in low:
+            indexes['hcl'] = idx
+    return fields, indexes
+
+
+def _pyiris_apply_ecorrection_and_econvert(radar, enable_ecorrection: bool = False, enable_econvert: bool = False, econvert_type: str = 'H', enable_ecomposite: bool = False):
+    warnings = []
+    fields, idx = _pyiris_find_moment_indexes(radar)
+
+    def _field_name(index_key: str):
+        i = idx.get(index_key, -1)
+        return fields[i] if i is not None and i >= 0 and i < len(fields) else None
+
+    def _composite_into(dst_key: str, src_key: str):
+        dst_name = _field_name(dst_key)
+        src_name = _field_name(src_key)
+        if not dst_name or not src_name:
+            return
+        try:
+            src = _safe_masked_to_float(radar.fields[src_name]['data'])
+            dst = _safe_masked_to_float(radar.fields[dst_name]['data'])
+            src[src >= 327] = np.nan
+            src[src <= -327] = np.nan
+            dst[dst >= 327] = np.nan
+            dst[dst <= -327] = np.nan
+            radar.fields[dst_name]['data'] = np.ma.masked_invalid(np.maximum(src, dst))
+        except Exception as exc:
+            warnings.append(f'ecomposite skipped for {dst_name}: {exc}')
+
+    if enable_ecorrection:
+        zdr_name = _field_name('zdr')
+        rho_name = _field_name('rho')
+        if zdr_name and rho_name:
+            try:
+                zdr = _safe_masked_to_float(radar.fields[zdr_name]['data'])
+                rho = _safe_masked_to_float(radar.fields[rho_name]['data'])
+                rho_safe = np.where(np.isfinite(rho) & (rho > 0), rho, np.nan)
+                correction = zdr / 2.0 - 10.0 * np.log10(rho_safe)
+                for key in ('dbze', 'dbte'):
+                    target_name = _field_name(key)
+                    if not target_name:
+                        continue
+                    target = _safe_masked_to_float(radar.fields[target_name]['data'])
+                    radar.fields[target_name]['data'] = np.ma.masked_invalid(target + correction)
+            except Exception as exc:
+                warnings.append(f'ecorrection skipped: {exc}')
+        else:
+            warnings.append('ecorrection skipped: ZDR or RHOHV field not available')
+
+    if enable_econvert:
+        econvert_type = str(econvert_type or 'H').strip().upper()[:1] or 'H'
+        # Keep econvert behavior limited to the pyIRIS export path only; no viewer rendering changes here.
+
+    if enable_ecomposite:
+        _composite_into('dbze', 'dbz')
+        _composite_into('dbte', 'dbt')
+
+    return warnings
+
+
 def _build_pyiris_hdf5_dataset(
     filepaths,
     filters=None,
     target_rays: int | None = 360,
     interpolate_missing: bool = False,
     normalize_rpm: bool = False,
+    enable_econvert: bool = False,
+    econvert_type: str = 'H',
+    enable_ecorrection: bool = False,
+    enable_ecomposite: bool = False,
 ):
     filters = filters or {}
     radar, warnings = _merge_radars(filepaths)
@@ -1896,6 +2299,14 @@ def _build_pyiris_hdf5_dataset(
             radar.fields[fname]['data'] = np.ma.masked_invalid(filtered_data)
         except Exception as exc:
             warnings.append(f'filter skipped for {fname}: {exc}')
+
+    warnings.extend(_pyiris_apply_ecorrection_and_econvert(
+        radar,
+        enable_ecorrection=enable_ecorrection,
+        enable_econvert=enable_econvert,
+        econvert_type=econvert_type,
+        enable_ecomposite=enable_ecomposite,
+    ))
 
     try:
         hclass_name = next((f for f in radar.fields.keys() if 'CLASS' in str(f).upper() or 'HCLASS' in str(f).upper()), None)
@@ -2429,6 +2840,10 @@ def radar_convert_hdf5():
     except Exception:
         target_rays = 360
     target_rays = max(1, target_rays)
+    enable_econvert = str(request.args.get('enable_econvert', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    econvert_type = str(request.args.get('econverttype', 'H') or 'H').strip().upper()[:1] or 'H'
+    enable_ecorrection = str(request.args.get('enable_ecorrection', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    enable_ecomposite = str(request.args.get('enable_ecomposite', '')).strip().lower() in ('1', 'true', 'yes', 'on')
 
     if not radar_groups or group not in radar_groups:
         return 'No radar files loaded', 404
@@ -2443,6 +2858,10 @@ def radar_convert_hdf5():
         target_rays=target_rays,
         interpolate_missing=interpolate_missing,
         normalize_rpm=normalize_rpm,
+        enable_econvert=enable_econvert,
+        econvert_type=econvert_type,
+        enable_ecorrection=enable_ecorrection,
+        enable_ecomposite=enable_ecomposite,
     )
 
     task_name = _normalize_task_name(_safe_text(getattr(radar, 'metadata', {}).get('sigmet_task_name') or getattr(radar, 'metadata', {}).get('task_name') or group))
@@ -2641,10 +3060,39 @@ def radar_sample_point():
         return jsonify({'ok': False, 'error': str(exc)}), 500
 
 
+
+
+@radar_bp.route('/scheduler_hdf5_status')
+def radar_scheduler_hdf5_status():
+    _ensure_hdf5_scheduler_thread()
+    return jsonify(_scheduler_status_snapshot())
+
+@radar_bp.route('/scheduler_hdf5_save', methods=['POST'])
+def radar_scheduler_hdf5_save():
+    payload = request.get_json(silent=True) or {}
+    settings = _save_hdf5_scheduler_settings(payload)
+    _ensure_hdf5_scheduler_thread()
+    return jsonify({
+        'ok': True,
+        'settings': settings,
+        'state': _scheduler_status_snapshot().get('state', {}),
+    })
+
+@radar_bp.route('/scheduler_hdf5_run_once', methods=['POST'])
+def radar_scheduler_hdf5_run_once():
+    _ensure_hdf5_scheduler_thread()
+    result = _scheduler_process_pending_files(current_app._get_current_object())
+    return jsonify({
+        'ok': True,
+        'result': result,
+        'snapshot': _scheduler_status_snapshot(),
+    })
+
 @radar_bp.route('/', methods=['GET', 'POST'])
 def radar_home():
     global merge_window_minutes
     defaults = load_pyiris_defaults()
+    _ensure_hdf5_scheduler_thread()
     if request.method == 'POST':
         try:
             merge_window_minutes = int(request.form.get('scan_window_minutes') or request.args.get('scan_window') or merge_window_minutes or 5)
@@ -2821,7 +3269,9 @@ def radar_volume_data():
         raw_data = radar.fields[field]['data'].copy()
         filtered_data, filter_warnings = _apply_pyiris_filters(radar, field, raw_data, filters, load_pyiris_defaults())
         warnings.extend(filter_warnings)
-        data = np.ma.filled(filtered_data, np.nan).astype(float)
+        radar.fields[field]['data'] = np.ma.masked_invalid(filtered_data)
+        warnings.extend(_apply_viewer_e_processing(radar, filters))
+        data = np.ma.filled(radar.fields[field]['data'], np.nan).astype(float)
     except Exception:
         data = np.ma.filled(radar.fields[field]['data'], np.nan).astype(float)
 
