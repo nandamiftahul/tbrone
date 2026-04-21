@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime, date
-from routes.models import db, Employee, Attendance, LeaveRequest, Office, Announcement, Shift
+from routes.attendance_models import db, Employee, Attendance, LeaveRequest, Office, Announcement, Shift
 from flask_login import current_user
 
 attendance_bp = Blueprint("attendance", __name__, url_prefix="/attendance")

@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from flask import Flask, redirect, url_for
 
-from routes.models import db
+from routes.attendance_models import db
 from routes.pages_routes import pages_bp
 from routes.xweather_manual_routes import xweather_manual_bp
 from routes.twincityjakarta_manual_routes import twincityjakarta_manual_bp
