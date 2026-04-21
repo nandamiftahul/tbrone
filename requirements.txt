@@ -18,4 +18,5 @@ sv-ttk
 cmweather
 cmasher
 cmocean
-
+Flask-Login
+Flask-SQLAlchemy
