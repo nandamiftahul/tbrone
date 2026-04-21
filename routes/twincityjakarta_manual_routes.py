@@ -4,7 +4,7 @@ twincityjakarta_manual_bp = Blueprint("twincityjakarta_manual", __name__)
 
 @twincityjakarta_manual_bp.route("/twincityjakarta/manual")
 def twincityjakarta_manual_page():
-    return render_template("twincityjakarta_manual.html")
+    return render_template("wiki/twincityjakarta_manual.html")
 
 @twincityjakarta_manual_bp.route("/twincityjakarta/manual.pdf")
 def twincityjakarta_manual_pdf():
@@ -17,7 +17,7 @@ def twincityjakarta_manual_pdf():
             503,
         )
 
-    html = render_template("twincityjakarta_manual.html")
+    html = render_template("wiki/twincityjakarta_manual.html")
     base_url = request.url_root
     pdf_bytes = HTML(string=html, base_url=base_url).write_pdf()
 

@@ -9,7 +9,7 @@ xweather_report_bp = Blueprint("xweather_report", __name__)
 # ===============================
 @xweather_report_bp.route("/xweather/monthly-report")
 def xweather_monthly_report():
-    return render_template("xweather_monthly_report.html")
+    return render_template("project/xweather_monthly_report.html")
 
 
 # ===============================

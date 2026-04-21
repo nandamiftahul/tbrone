@@ -195,13 +195,13 @@ def _percentile(sorted_vals, p):
 @xweather_report_bp.route("/xweather/monthly-report")
 def xweather_monthly_report_viewer():
     init_db()
-    return render_template("xweather_monthly_report_sqlite.html")
+    return render_template("project/xweather_monthly_report_sqlite.html")
 
 
 @xweather_report_bp.route("/xweather/monthly-report-editor")
 def xweather_monthly_report_editor():
     init_db()
-    return render_template("xweather_monthly_report_editor_sqlite.html")
+    return render_template("project/xweather_monthly_report_editor_sqlite.html")
 
 
 # =========================================================
@@ -1047,7 +1047,7 @@ def api_delete_golf_location(id):
 @xweather_report_bp.route("/xweather/golfareamap")
 def xweather_golf_area_map_demo():
     init_db()
-    return render_template("xweather_golf_map_admin.html")
+    return render_template("project/xweather_golf_map_admin.html")
 
 try:
     import websocket  # websocket-client

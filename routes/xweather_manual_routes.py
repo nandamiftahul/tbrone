@@ -4,7 +4,7 @@ xweather_manual_bp = Blueprint("xweather_manual", __name__)
 
 @xweather_manual_bp.route("/xweather/manual")
 def xweather_manual_page():
-    return render_template("xweather_manual.html")
+    return render_template("wiki/xweather_manual.html")
 
 @xweather_manual_bp.route("/xweather/manual.pdf")
 def xweather_manual_pdf():
@@ -17,7 +17,7 @@ def xweather_manual_pdf():
             503,
         )
 
-    html = render_template("xweather_manual.html")
+    html = render_template("wiki/xweather_manual.html")
     base_url = request.url_root
     pdf_bytes = HTML(string=html, base_url=base_url).write_pdf()
 

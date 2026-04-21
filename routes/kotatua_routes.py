@@ -7,7 +7,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 kotatua_bp = Blueprint(
     'kotatua',
     __name__,
-    template_folder='templates/project'
+    template_folder='templates'
 )
 
 _DRIVER = None
@@ -274,7 +274,7 @@ def validate_payload(payload, partial=False):
 
 @kotatua_bp.route('/kotatuamap')
 def kotatua_map():
-    return render_template('kota_tua_dki_highlight_totaldki_with_toggles.html')
+    return render_template('project/kota_tua_dki_highlight_totaldki_with_toggles.html')
 
 
 @kotatua_bp.route('/api/kotatua/layers', methods=['GET'])

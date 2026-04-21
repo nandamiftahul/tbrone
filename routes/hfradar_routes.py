@@ -23,7 +23,7 @@ except Exception:  # pragma: no cover
 hfradar_bp = Blueprint(
     'hfradar_bp',
     __name__,
-    template_folder='templates/project',
+    template_folder='templates',
     static_folder='static',
     url_prefix='/hfradarviewer',
 )
@@ -917,7 +917,7 @@ def hfradar_home():
         _build_groups()
 
     return render_template(
-        'hfradar_map_tbr.html',
+        'project/hfradar_map_tbr.html',
         fields=available_fields,
         extent=radar_extent,
         groups=list(hfradar_groups.keys()),

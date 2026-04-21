@@ -36,7 +36,7 @@ from skimage import exposure
 radar_bp = Blueprint(
     'radar_bp',
     __name__,
-    template_folder='templates/project',
+    template_folder='templates',
     static_folder='static',
     url_prefix='/radarviewer',
 )
@@ -3118,7 +3118,7 @@ def radar_home():
         merge_window_minutes = requested_window
         _build_scan_groups(merge_window_minutes)
     return render_template(
-        'radar_map_tbr.html',
+        'project/radar_map_tbr.html',
         fields=available_fields,
         extent=radar_extent,
         groups=list(radar_groups.keys()),
