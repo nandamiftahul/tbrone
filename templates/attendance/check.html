@@ -1,0 +1,99 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Check-In/Out · Attendance{% endblock %}
+{% block content %}
+<div class="hero">
+  <div>
+    <div class="eyebrow">Daily Attendance</div>
+    <h2>Check-In / Check-Out</h2>
+    <p>Pilih employee dan lakukan check-in atau check-out. Semua field dan submit action tetap sama seperti backend lama.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+    <div>
+      <strong style="font-size:20px;">Attendance Action</strong><br>
+      <span class="muted">Mobile friendly • Location auto capture</span>
+    </div>
+    <div class="badge" id="geoPill">📍 Getting location…</div>
+  </div>
+
+  <div class="top-actions" style="margin-bottom:14px;">
+    <input id="searchEmp" placeholder="Search employee name / code…" autocomplete="off" style="max-width:360px;">
+    <div style="display:flex;gap:8px;">
+      <button class="btn" id="btnIn" type="button" onclick="setAction('check_in')">Check-In</button>
+      <button class="btn secondary" id="btnOut" type="button" onclick="setAction('check_out')">Check-Out</button>
+    </div>
+  </div>
+
+  <form id="checkForm" method="post" style="display:none;">
+    <input type="hidden" name="employee_id" id="employee_id">
+    <input type="hidden" name="action" id="action" value="check_in">
+    <input type="hidden" name="lat" id="lat">
+    <input type="hidden" name="lon" id="lon">
+  </form>
+
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+    {% for e in employees %}
+    <button
+      type="button"
+      class="card emp-card"
+      data-name="{{ (e.name or '')|lower }}"
+      data-code="{{ (e.code or '')|lower }}"
+      onclick="submitCheck('{{ e.id }}')"
+      style="text-align:left;cursor:pointer"
+    >
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:start;">
+        <div>
+          <div style="font-size:18px;font-weight:800;">{{ e.name }}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <span class="badge">{{ e.code }}</span>
+            {% if e.dept %}<span class="badge" style="background:#f7f3f3;color:#665d5d;">{{ e.dept }}</span>{% endif %}
+          </div>
+        </div>
+        <div style="width:42px;height:42px;border-radius:14px;background:#fff1e2;display:grid;place-items:center;color:#c96f0c;font-weight:900;">→</div>
+      </div>
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="muted" style="margin-top:12px;">Tip: If geofence is enabled, you must allow location for Check-In.</div>
+</div>
+
+<script>
+let currentAction = 'check_in';
+function setAction(a){
+  currentAction = a;
+  document.getElementById('action').value = a;
+  const inBtn = document.getElementById('btnIn');
+  const outBtn = document.getElementById('btnOut');
+  if(a === 'check_in'){ inBtn.classList.remove('secondary'); outBtn.classList.add('secondary'); }
+  else { outBtn.classList.remove('secondary'); inBtn.classList.add('secondary'); }
+}
+function submitCheck(empId){
+  document.getElementById('employee_id').value = empId;
+  document.getElementById('checkForm').submit();
+}
+document.getElementById('searchEmp').addEventListener('input', (e) => {
+  const q = (e.target.value || '').toLowerCase().trim();
+  document.querySelectorAll('.emp-card').forEach(c => {
+    const name = c.dataset.name || '';
+    const code = c.dataset.code || '';
+    c.style.display = (!q || name.includes(q) || code.includes(q)) ? '' : 'none';
+  });
+});
+(function(){
+  const pill = document.getElementById('geoPill');
+  if (!navigator.geolocation) { pill.textContent = '📍 Not supported'; return; }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      document.getElementById('lat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('lon').value = pos.coords.longitude.toFixed(6);
+      pill.textContent = '📍 Location OK';
+    },
+    () => { pill.textContent = '📍 Location denied'; },
+    { enableHighAccuracy:true, timeout:6000, maximumAge:0 }
+  );
+})();
+</script>
+{% endblock %}

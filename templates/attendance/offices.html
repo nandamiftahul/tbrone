@@ -1,0 +1,61 @@
+{% extends "attendance/base.html" %}
+{% block title %}Office Locations{% endblock %}
+{% block content %}
+<div class="hero">
+  <div>
+    <div class="eyebrow">Geofence Admin</div>
+    <h2>Office Locations</h2>
+    <p>Pengaturan geofence kantor dengan map tetap memakai flow backend yang sama.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Office Locations (Geofence)</h3>
+  <div id="map" style="height:360px;border-radius:18px;overflow:hidden;"></div>
+  <form method="post" style="margin-top:14px;max-width:520px;" class="two-col">
+    <input name="name" placeholder="Office name" required>
+    <input name="radius_m" value="200" placeholder="Radius (m)">
+    <input name="lat" id="lat" placeholder="Latitude" required>
+    <input name="lon" id="lon" placeholder="Longitude" required>
+    <div style="grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn" name="create" type="submit">Add Office</button>
+      <button class="btn secondary" type="button" onclick="useMyLocation()">Use my location</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Active Office</h3>
+  <form method="post" class="top-actions">
+    <div style="min-width:320px;">
+      <label>Select active office</label>
+      <select name="office_id">
+        {% for o in offices %}
+        <option value="{{ o.id }}" {% if o.is_active %}selected{% endif %}>{{ o.name }} ({{ o.radius_m }}m)</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;align-items:end;"><button class="btn" name="set_active" type="submit">Set Active</button></div>
+  </form>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+const map=L.map('map').setView([{{ active.lat if active else -6.2 }},{{ active.lon if active else 106.8 }}],16);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+{% if active %}
+L.marker([{{ active.lat }},{{ active.lon }}]).addTo(map).bindPopup('Active Office').openPopup();
+L.circle([{{ active.lat }},{{ active.lon }}],{radius:{{ active.radius_m }}}).addTo(map);
+{% endif %}
+function useMyLocation(){
+  if(!navigator.geolocation){alert('GPS not supported');return;}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    document.getElementById('lat').value=pos.coords.latitude.toFixed(6);
+    document.getElementById('lon').value=pos.coords.longitude.toFixed(6);
+    map.setView([pos.coords.latitude,pos.coords.longitude],17);
+    L.marker([pos.coords.latitude,pos.coords.longitude]).addTo(map).bindPopup('Your position').openPopup();
+  },()=>alert('Location denied'));
+}
+</script>
+{% endblock %}

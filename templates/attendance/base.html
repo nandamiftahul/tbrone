@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Attendance{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      :root{--orange:#f28c28;--orange-2:#ff9f3f;--orange-soft:#fff1e2;--dark:#2f2323;--muted:#665d5d;--line:rgba(47,35,35,.08);--danger:#c0392b}
+      *{box-sizing:border-box}
+      body{margin:0;font-family:Inter,system-ui;background:linear-gradient(180deg,#fbf8f7,#f2ecec);color:var(--dark)}
+      a{text-decoration:none;color:inherit}
+      .wrap{max-width:1180px;margin:0 auto;padding:24px}
+      .shell{background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:30px;box-shadow:0 22px 48px rgba(0,0,0,.07);overflow:hidden}
+      .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 24px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fff,#fcf8f6)}
+      .brand{display:flex;align-items:center;gap:14px;min-width:0}
+      .brand img{height:54px;display:block}
+      .brand h1{margin:0;font-size:22px}
+      .brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
+      .nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+      .nav a{padding:10px 12px;border-radius:12px;background:#fff;border:1px solid var(--line);font-weight:700;font-size:13px}
+      .content{padding:24px}
+      .hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px}
+      .eyebrow{display:inline-block;padding:7px 12px;border-radius:999px;background:var(--orange-soft);color:#c96f0c;font-weight:800;letter-spacing:.14em;font-size:12px;text-transform:uppercase}
+      .hero h2{margin:12px 0 8px;font-size:38px}
+      .hero p{margin:0;color:var(--muted);line-height:1.8;max-width:760px}
+      .card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:0 12px 28px rgba(0,0,0,.05)}
+      .card + .card{margin-top:14px}
+      .grid{display:grid;gap:18px}
+      .stats{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+      .stat .label{color:var(--muted);font-size:13px;font-weight:700}
+      .stat .value{margin-top:10px;font-size:34px;font-weight:800}
+      form{margin:0}
+      label{display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:var(--muted)}
+      input,select,textarea{width:100%;padding:12px 14px;border-radius:14px;border:1px solid rgba(47,35,35,.12);background:#fff;color:var(--dark);font:inherit}
+      .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;border-radius:14px;border:none;background:linear-gradient(180deg,var(--orange-2),var(--orange));color:#fff;font-weight:800;cursor:pointer}
+      .btn.secondary{background:#fff;color:var(--dark);border:1px solid var(--line)}
+      .btn.danger{background:linear-gradient(180deg,#d85747,#c0392b)}
+      .btn-outline-danger{background:#fff;color:var(--danger);border:1px solid rgba(192,57,43,.35)}
+      .btn-sm{padding:9px 12px;border-radius:12px;font-size:13px}
+      .badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:var(--orange-soft);color:#c96f0c;font-size:12px;font-weight:800}
+      .tablewrap{overflow-x:auto}
+      .table{width:100%;border-collapse:collapse}
+      .table th,.table td{padding:12px 10px;border-bottom:1px solid rgba(47,35,35,.08);text-align:left;vertical-align:top}
+      .table th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+      .flash{margin-bottom:12px;padding:12px 14px;border-radius:14px;background:var(--orange-soft);color:#9b5a10;font-weight:700}
+      .muted{color:var(--muted)}
+      .actions-row{display:flex;gap:8px;flex-wrap:wrap}
+      .top-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+      .two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+      .three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+      .five-col{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+      .seven-col{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px}
+      .actions-cell{white-space:nowrap}
+      .truncate{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:18px;z-index:20}
+      .modal-box{width:min(720px,100%);background:#fff;border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:0 20px 42px rgba(0,0,0,.18)}
+      .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+      .chk{display:flex;gap:8px;align-items:center;font-weight:700;color:var(--dark)}
+      .chk input{width:auto}
+      @media (max-width:960px){.content{padding:16px}.hero h2{font-size:30px}.five-col,.seven-col,.three-col,.two-col{grid-template-columns:1fr}.nav{justify-content:flex-start}}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="shell">
+        <div class="topbar">
+          <div class="brand">
+            <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Terrindo Logo">
+            <div>
+              <h1>Attendance</h1>
+              <p>Modernized page style without changing existing backend logic.</p>
+            </div>
+          </div>
+          <nav class="nav">
+<a href="{{ url_for('attendance.dashboard') }}">Dashboard</a>
+<a href="{{ url_for('attendance.attendance_check') }}">Check-In/Out</a>
+<a href="{{ url_for('attendance.attendance_list') }}">Records</a>
+<a href="{{ url_for('attendance.leave_request') }}">Leave</a>
+<a href="{{ url_for('attendance.approvals') }}">Approvals</a>
+<a href="{{ url_for('attendance.employees') }}">Employees</a>
+<a href="{{ url_for('attendance.offices') }}">Offices</a>
+<a href="{{ url_for('attendance.announcements') }}">Announcements</a>
+<a href="{{ url_for('attendance.mobile') }}">Mobile</a>
+          </nav>
+        </div>
+        <div class="content">
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+              {% for cat, msg in messages %}
+                <div class="flash">{{ msg }}</div>
+              {% endfor %}
+            {% endif %}
+          {% endwith %}
+          {% block content %}{% endblock %}
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

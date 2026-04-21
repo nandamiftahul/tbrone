@@ -1,18 +1,14 @@
 import os
 from pathlib import Path
-from flask import Flask, redirect, url_for
-
-from routes.models import db
-from routes.pages_routes import pages_bp
-from routes.xweather_manual_routes import xweather_manual_bp
-from routes.twincityjakarta_manual_routes import twincityjakarta_manual_bp
-from routes.xweather_monthly_report_sqlite_routes import xweather_report_bp
-from routes.xweather_mapgolf_routes import xweather_mapgolf_bp
-from routes.kotatua_routes import kotatua_bp
-from routes.radar_routes import radar_bp
-from routes.iris_product_flow_routes import iris_product_flow_bp
-from routes.hfradar_routes import hfradar_bp
-from routes.attendance_routes import attendance_bp
+from flask import Flask, redirect, url_for, render_template
+from xweather_manual_routes import xweather_manual_bp
+from twincityjakarta_manual_routes import twincityjakarta_manual_bp
+from xweather_monthly_report_sqlite_routes import xweather_report_bp
+from xweather_mapgolf_routes import xweather_mapgolf_bp
+from kotatua_routes import kotatua_bp
+from radar_routes import radar_bp
+from iris_product_flow_routes import iris_product_flow_bp
+from hfradar_routes import hfradar_bp
 
 
 def load_env_file(env_path: str = '.env') -> None:
@@ -29,33 +25,22 @@ def load_env_file(env_path: str = '.env') -> None:
         os.environ.setdefault(key, value)
 
 
+
 def create_app():
     load_env_file('.env')
 
     app = Flask(__name__)
 
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'terrindo-xweather-manual')
+    app.config['SECRET_KEY'] = 'terrindo-xweather-manual'
     app.config['TEMPLATES_AUTO_RELOAD'] = True
     app.config['XWEATHER_DB_PATH'] = 'xweather_reports.db'
     app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', '').strip()
-
-    # === WAJIB untuk Attendance / models.py ===
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-        'SQLALCHEMY_DATABASE_URI',
-        'sqlite:///app.sqlite'
-    )
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
     app.config['RADAR_UPLOAD_FOLDER'] = os.path.join(app.root_path, 'uploads', 'radarviewer')
     app.config['RADAR_RENDER_FOLDER'] = os.path.join(app.root_path, 'static', 'radar')
 
     os.makedirs(app.config['RADAR_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['RADAR_RENDER_FOLDER'], exist_ok=True)
 
-    # === init db sebelum register blueprint attendance ===
-    db.init_app(app)
-
-    app.register_blueprint(pages_bp)
     app.register_blueprint(xweather_manual_bp)
     app.register_blueprint(twincityjakarta_manual_bp)
     app.register_blueprint(xweather_mapgolf_bp)
@@ -64,7 +49,10 @@ def create_app():
     app.register_blueprint(radar_bp)
     app.register_blueprint(iris_product_flow_bp)
     app.register_blueprint(hfradar_bp)
-    app.register_blueprint(attendance_bp)
+
+    @app.route('/')
+    def index():
+        return render_template('index.html')
 
     @app.route('/xweather/manual.pdf', endpoint='xweather_manual_pdf')
     def xweather_manual_pdf_alias():
@@ -73,8 +61,5 @@ def create_app():
     @app.route('/twincityjakarta/manual.pdf', endpoint='twincityjakarta_manual_pdf')
     def twincityjakarta_manual_pdf_alias():
         return redirect(url_for('twincityjakarta_manual.twincityjakarta_manual_pdf'))
-
-    with app.app_context():
-        db.create_all()
 
     return app

@@ -1,211 +1,291 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Terrindo Xweather Portal</title>
-
+  <title>Terrindo One</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root{
-      --xw-blue:#003A8F;
-      --xw-blue-2:#0A4BBF;
-      --tbr-orange:#F28C28;
-      --card:#ffffff;
-      --border:rgba(17,24,39,.1);
-      --shadow:0 20px 40px rgba(2,22,55,.15);
-      --radius:18px;
+      --tbr-orange:#f28c28;
+      --tbr-orange-2:#ff9f3f;
+      --tbr-orange-3:#fff2e5;
+      --tbr-dark:#2f2323;
+      --tbr-muted:#6f6666;
+      --bg:#f6f2f2;
+      --card:#ffffffee;
+      --line:rgba(47,35,35,.10);
+      --shadow:0 18px 45px rgba(91,55,28,.12);
+      --radius-xl:28px;
+      --radius-lg:22px;
     }
-
     *{box-sizing:border-box}
-
+    html,body{margin:0;padding:0}
     body{
-      margin:0;
-      font-family:Inter,system-ui;
-      background:linear-gradient(180deg,#EAF1FF 0%,#F4F7FB 60%,#F7FAFF 100%);
+      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--tbr-dark);
+      background:
+        radial-gradient(circle at 12% 18%, rgba(242,140,40,.16), transparent 24%),
+        radial-gradient(circle at 84% 12%, rgba(242,140,40,.20), transparent 28%),
+        radial-gradient(circle at 15% 88%, rgba(242,140,40,.16), transparent 24%),
+        linear-gradient(180deg,#fbf9f9 0%, #f5f0f0 100%);
       min-height:100vh;
-      display:flex;
-      flex-direction:column;
+      overflow-x:hidden;
+    }
+    body::before,
+    body::after{
+      content:"";
+      position:fixed;
+      inset:auto auto 0 0;
+      width:62vw;
+      height:38vh;
+      background:
+        radial-gradient(circle at 20% 80%, rgba(242,140,40,.30), transparent 40%),
+        radial-gradient(circle at 35% 90%, rgba(242,140,40,.22), transparent 48%),
+        radial-gradient(circle at 55% 100%, rgba(242,140,40,.14), transparent 54%);
+      pointer-events:none;
+      z-index:0;
+      filter:blur(4px);
+    }
+    body::after{
+      inset:0 0 auto auto;
+      width:52vw;
+      height:34vh;
+      transform:scaleX(-1);
     }
 
-    /* ===== Topbar mirip manual ===== */
-    .topbar{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:14px 20px;
-      background:rgba(0,58,143,.95);
-      color:#fff;
-      border-bottom:1px solid rgba(255,255,255,.15);
+    .page-wrap{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:28px 22px 0}
+
+    .hero{
+      position:relative;
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.65);
+      border-radius:36px;
+      background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.82));
+      box-shadow:0 28px 65px rgba(82,58,41,.12);
+      padding:28px 28px 30px;
+      backdrop-filter:blur(8px);
     }
 
-    .brand{
-      display:flex;
-      align-items:center;
-      gap:12px;
+    .hero::before{
+      content:"";
+      position:absolute;
+      left:-12%;
+      right:-12%;
+      top:150px;
+      height:18px;
+      background:linear-gradient(90deg, rgba(242,140,40,.68), rgba(255,180,84,.95), rgba(242,140,40,.72));
+      border-radius:999px;
+      opacity:.9;
+      box-shadow:0 0 0 10px rgba(242,140,40,.10), 0 0 0 22px rgba(242,140,40,.05);
     }
 
-    .brand img{
-      height:36px;
-      border-radius:8px;
-    }
-
-    .brand-text{
-      display:flex;
-      flex-direction:column;
-      line-height:1.1;
-    }
-
-    .brand-text strong{
-      font-size:14px;
-      font-weight:800;
-    }
-
-    .brand-text span{
-      font-size:12px;
-      opacity:.85;
-    }
-
-    /* ===== Main Content ===== */
-    .container{
-      flex:1;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      padding:40px 20px;
-    }
-
-    .grid{
+    .hero-grid{
       display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-      gap:24px;
-      width:100%;
-      max-width:1000px;
+      grid-template-columns:360px 1fr;
+      gap:26px;
+      align-items:center;
+      min-height:420px;
     }
 
-    .card{
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
+    .brand-box{display:flex;flex-direction:column;gap:22px;align-self:start}
+    .brand-head{display:flex;align-items:center;gap:18px}
+    .brand-head img{height:112px;width:auto;object-fit:contain;filter:drop-shadow(0 10px 20px rgba(0,0,0,.08))}
+    .brand-text strong{display:block;font-size:32px;line-height:1.02;font-weight:800;letter-spacing:.02em}
+    .brand-text span{display:block;font-size:18px;letter-spacing:.34em;color:var(--tbr-muted);margin-top:4px}
+
+    .title-block{padding-top:32px;text-align:center}
+    .kicker{display:inline-block;padding:10px 18px;border-radius:999px;background:var(--tbr-orange-3);color:var(--tbr-orange);font-weight:700;font-size:13px;letter-spacing:.16em;text-transform:uppercase}
+    h1{margin:18px 0 10px;font-size:68px;line-height:.96;font-weight:800;letter-spacing:-.04em}
+    h1 .accent{color:var(--tbr-orange)}
+    .subtitle{font-size:24px;letter-spacing:.14em;text-transform:uppercase;color:#c96f0c;font-weight:500}
+    .summary{max-width:760px;margin:24px auto 0;font-size:18px;line-height:1.75;color:#5f5656}
+
+    .core-panel{
+      margin-top:36px;
+      position:relative;
+      background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(250,246,246,.92));
+      border:1px solid rgba(62,40,30,.08);
+      border-radius:32px;
       padding:28px;
-      text-align:center;
-      text-decoration:none;
-      color:#111827;
-      transition:all .18s ease;
+      box-shadow:var(--shadow);
     }
 
-    .card:hover{
-      transform:translateY(-6px);
-      border-color:rgba(0,58,143,.25);
-      box-shadow:0 30px 60px rgba(0,58,143,.18);
-    }
-
-    .icon{
-      font-size:44px;
-      margin-bottom:14px;
-    }
-
-    .card h2{
-      margin:0;
-      font-size:17px;
-      font-weight:800;
-      color:var(--xw-blue);
-    }
-
-    .card p{
-      margin-top:10px;
-      font-size:13px;
-      color:#6B7280;
-      line-height:1.6;
-    }
-
-    .footer{
-      text-align:center;
+    .core-panel::before{
+      content:"6 CORE PAGES";
+      position:absolute;
+      top:-14px; left:32px;
+      background:linear-gradient(90deg,var(--tbr-orange),#ffb355);
+      color:#fff;
+      border-radius:999px;
+      padding:8px 16px;
       font-size:12px;
-      color:#6B7280;
-      padding:16px;
+      font-weight:800;
+      letter-spacing:.16em;
     }
 
-    @media(max-width:600px){
-      .brand img{height:30px}
-      .card{padding:22px}
+    .core-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:18px;
+      margin-top:6px;
     }
 
+    .core-card{
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-height:210px;
+      padding:22px;
+      text-decoration:none;
+      color:inherit;
+      border-radius:24px;
+      background:linear-gradient(180deg,#fff,#f8f3f3);
+      border:1px solid var(--line);
+      box-shadow:0 16px 34px rgba(0,0,0,.06);
+      transition:.22s ease;
+      overflow:hidden;
+    }
+    .core-card:hover{transform:translateY(-7px);box-shadow:0 24px 46px rgba(242,140,40,.16);border-color:rgba(242,140,40,.28)}
+    .core-card::after{
+      content:"";
+      position:absolute;
+      inset:auto -12% -60% auto;
+      width:180px;height:180px;border-radius:50%;
+      background:radial-gradient(circle, rgba(242,140,40,.18), transparent 68%);
+    }
+    .icon-box{
+      width:68px;height:68px;border-radius:20px;
+      display:grid;place-items:center;
+      background:linear-gradient(180deg,var(--tbr-orange-2),var(--tbr-orange));
+      color:#fff;font-size:34px;box-shadow:0 12px 22px rgba(242,140,40,.25)
+    }
+    .core-card h3{margin:0;font-size:28px;line-height:1.05}
+    .core-card p{margin:0;color:#625959;line-height:1.7;font-size:15px}
+    .mini-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
+    .mini-tags span{padding:7px 10px;border-radius:999px;background:var(--tbr-orange-3);font-size:12px;font-weight:700;color:#c26d11}
+
+    .footer-band{
+      margin-top:26px;
+      background:linear-gradient(90deg, #d96e00 0%, #f28c28 38%, #f49d3e 62%, #342625 100%);
+      color:#fff;
+      border-radius:26px 26px 0 0;
+      padding:18px 24px;
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      align-items:center;
+      font-size:18px;
+      font-weight:600;
+    }
+    .footer-band strong{font-size:clamp(20px,2.2vw,28px)}
+    .footer-band span{opacity:.96}
+
+    @media (max-width:1100px){
+      .hero-grid{grid-template-columns:1fr}
+      .brand-box{align-self:stretch}
+      .title-block{text-align:left;padding-top:0}
+      .summary{margin-left:0}
+      .core-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      h1{font-size:56px}
+    }
+    @media (max-width:720px){
+      .page-wrap{padding:16px 14px 0}
+      .hero{padding:18px 16px 22px;border-radius:28px}
+      .hero::before{top:176px;height:12px}
+      .brand-head{align-items:flex-start}
+      .brand-head img{height:84px}
+      .brand-text strong{font-size:25px}
+      .brand-text span{font-size:13px;letter-spacing:.22em}
+      h1{font-size:42px}
+      .subtitle{font-size:17px;letter-spacing:.10em}
+      .summary{font-size:15px;line-height:1.72}
+      .core-panel{padding:20px 16px 16px}
+      .core-grid{grid-template-columns:1fr}
+      .core-card{min-height:auto}
+      .footer-band{flex-direction:column;align-items:flex-start;border-radius:22px 22px 0 0;font-size:15px}
+    }
   </style>
 </head>
-
 <body>
+  <div class="page-wrap">
+    <section class="hero">
+      <div class="hero-grid">
+        <div class="brand-box">
+          <div class="brand-head">
+            <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Terrindo Logo">
+            <div class="brand-text">
+              <strong>TERRINDO</strong>
+              <strong>BUMI RAYA</strong>
+              <span>INTERNAL SYSTEM</span>
+            </div>
+          </div>
+        </div>
 
-  <!-- ===== TOPBAR ===== -->
-  <div class="topbar">
-    <div class="brand">
-      <!-- GANTI DENGAN LOGO TERRINDO KAMU -->
-      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Terrindo Logo">
-
-      <div class="brand-text">
-        <strong>Terrindo Bumi Raya</strong>
-        <span>Data System Portal</span>
+        <div class="title-block">
+          <div class="kicker">All-in-One Internal Application</div>
+          <h1>TERRINDO <span class="accent">ONE</span></h1>
+          <div class="subtitle">6 Core Page untuk Sistem Internal Terpadu</div>
+          <p class="summary">
+            Satu pintu utama untuk mengakses seluruh sistem internal Terrindo. Setiap core page mewakili domain kerja utama agar navigasi lebih rapi, mudah dipahami, dan siap dikembangkan bertahap sesuai kebutuhan operasional.
+          </p>
+        </div>
       </div>
+
+      <div class="core-panel">
+        <div class="core-grid">
+          <a class="core-card" href="{{ url_for('pages.attendance_page')}}">
+            <div class="icon-box">🗓️</div>
+            <h3>Attendance</h3>
+            <p>Absensi karyawan, shift, izin, approval, dan kontrol kehadiran dalam satu domain utama.</p>
+            <div class="mini-tags"><span>Single login</span><span>Approval</span><span>Shift</span></div>
+          </a>
+
+          <a class="core-card" href="{{ url_for('pages.inventory_page')}}">
+            <div class="icon-box">📦</div>
+            <h3>Inventory</h3>
+            <p>Manajemen aset, stok barang, pergerakan item, dan histori inventaris perusahaan.</p>
+            <div class="mini-tags"><span>Asset</span><span>Stock</span><span>Tracking</span></div>
+          </a>
+
+          <a class="core-card" href="{{ url_for('pages.project_page') }}">
+            <div class="icon-box">📝</div>
+            <h3>Project</h3>
+            <p>Portal untuk demo, viewer, report, dan tools project yang sudah berjalan saat ini.</p>
+            <div class="mini-tags"><span>Radar</span><span>Report</span><span>Demo tools</span></div>
+          </a>
+
+          <a class="core-card" href="{{ url_for('pages.finance_page')}}">
+            <div class="icon-box">💰</div>
+            <h3>Finance</h3>
+            <p>Pengelolaan expense, budget, biaya proyek, dan kontrol finansial internal perusahaan.</p>
+            <div class="mini-tags"><span>Expense</span><span>Budget</span><span>Control</span></div>
+          </a>
+
+          <a class="core-card" href="{{ url_for('pages.job_page')}}">
+            <div class="icon-box">💼</div>
+            <h3>Job</h3>
+            <p>Penugasan site duty, training, aktivitas kerja lapangan, dan pengelolaan pekerjaan tim.</p>
+            <div class="mini-tags"><span>Assignment</span><span>Training</span><span>Site duty</span></div>
+          </a>
+
+          <a class="core-card" href="{{ url_for('pages.wiki_page')}}">
+            <div class="icon-box">📚</div>
+            <h3>Wiki</h3>
+            <p>Knowledge base internal berisi manual, flow produk, SOP, dan referensi teknis perusahaan.</p>
+            <div class="mini-tags"><span>Manual</span><span>Flow</span><span>Knowledge base</span></div>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer-band">
+      <strong>Integrasi internal lebih mudah, cepat, dan efisien.</strong>
+      <span>www.terrindo.co.id</span>
     </div>
   </div>
-
-  <!-- ===== MENU GRID ===== -->
-  <div class="container">
-    <div class="grid">
-
-      <a href="{{ url_for('xweather_manual.xweather_manual_page') }}" class="card">
-        <div class="icon">📘</div>
-        <h2>Xweather Manual</h2>
-        <p>User manual lengkap untuk konfigurasi Asset, Alert, Monitoring & Replay.</p>
-      </a>
-
-      <a href="/xweather/golfareamap" class="card">
-        <div class="icon">⛳</div>
-        <h2>Golf Area Demo</h2>
-        <p>Demo AOI + Ring Alarm (Alarm / Warning / Info) dengan radius & warna editable.</p>
-      </a>
-
-      <a href="/xweather/monthly-report" class="card">
-        <div class="icon">📊</div>
-        <h2>WBN Monthly Report</h2>
-        <p>Viewer & Editor laporan bulanan lightning alert + expert statistical analysis.</p>
-      </a>
-    
-
-
-      <a href="{{ url_for('iris_product_flow.iris_product_flow_page') }}" class="card">
-        <div class="icon">🧭</div>
-        <h2>IRIS Product Flow</h2>
-        <p>Flowchart Vaisala IRIS</p>
-      </a>
-
-      <a href="{{ url_for('radar_bp.radar_home') }}" class="card">
-        <div class="icon">📡</div>
-        <h2>Radar Viewer</h2>
-        <p>Viewer radar dengan overlay map</p>
-      </a>
-
-      <a href="{{ url_for('hfradar_bp.hfradar_home') }}" class="card">
-        <div class="icon">🌊</div>
-        <h2>HF Radar Viewer</h2>
-        <p>Viewer HF Radar Ocean Sensing overlay map</p>
-      </a>
-
-      <a href="/kotatuamap" class="card">
-        <div class="icon">🗺️</div>
-        <h2>Trial Map Zone</h2>
-        <p>Map Planning Focus Area</p>
-      </a>
-      
-    </div>
-  </div>
-
-  <div class="footer">
-    © 2026 Terrindo Bumi Raya · Portal
-  </div>
-
 </body>
 </html>

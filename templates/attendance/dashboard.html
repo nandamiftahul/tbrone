@@ -1,0 +1,40 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Dashboard · Attendance{% endblock %}
+{% block content %}
+<div class="hero">
+  <div>
+    <div class="eyebrow">Attendance Dashboard</div>
+    <h2>Today · {{ today }}</h2>
+    <p>Ringkasan kehadiran harian dalam tampilan yang lebih rapi, tetap memakai statistik backend yang sama.</p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px;">
+  {% if current_user.role == 'admin' %}
+  <form method="post" action="{{ url_for('holiday_create') }}" class="three-col">
+    <div>
+      <label>Holiday date</label>
+      <input type="date" name="date" required>
+    </div>
+    <div>
+      <label>Holiday name</label>
+      <input name="name" placeholder="e.g., National Holiday" required>
+    </div>
+    <div style="display:flex;align-items:end;">
+      <button class="btn" type="submit">Add holiday</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="muted">Tip: Ask admin to add holidays so auto-absent ignores them.</div>
+  {% endif %}
+</div>
+
+<div class="grid stats">
+  <div class="card stat"><div class="label">Total Records</div><div class="value">{{ stats.total }}</div></div>
+  <div class="card stat"><div class="label">Present / Late / WFH</div><div class="value">{{ stats.present }}</div></div>
+  <div class="card stat"><div class="label">Leave</div><div class="value">{{ stats.leave }}</div></div>
+  <div class="card stat"><div class="label">Sick</div><div class="value">{{ stats.sick }}</div></div>
+  <div class="card stat"><div class="label">WFH</div><div class="value">{{ stats.wfh }}</div></div>
+  <div class="card stat"><div class="label">Absent</div><div class="value">{{ stats.absent }}</div></div>
+</div>
+{% endblock %}

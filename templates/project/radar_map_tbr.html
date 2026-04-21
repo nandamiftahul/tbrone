@@ -947,7 +947,7 @@
     let imageQuality = localStorage.getItem('radarImageQuality') || 'high';
     let radar3DStylePreset = localStorage.getItem('radar3DStylePreset') || 'balanced';
     let radar3DPointScale = Math.max(0.2, Math.min(1.0, Number(localStorage.getItem('radar3DPointScale') || 0.42)));
-    let radar3DShowHeightGuides = localStorage.getItem('radar3DShowHeightGuides') !== '0';
+    let radar3DShowHeightGuides = localStorage.getItem('radar3DShowHeightGuides') === '1';
     let cmap = '', vmin = '', vmax = '';
     const customCmapStorageKey = 'radarCustomCmapSpec';
     let customCmapSpec = null;
@@ -1493,14 +1493,14 @@
     function get3DStyleProfile() {
       const profiles = {
         mist: {
-          valueCut: 0.14,
+          valueCut: 0.12,
           shellAlpha: 54,
           bodyAlpha: 42,
           coreAlpha: 118,
           glowAlpha: 22,
           capAlpha: 84,
-          shellRadiusMul: 1.34,
-          bodyRadiusMul: 1.06,
+          shellRadiusMul: 1.54,
+          bodyRadiusMul: 1.18,
           coreRadiusMul: 0.78,
           glowRadiusMul: 1.95,
           pointMul: 0.38,
@@ -1509,18 +1509,18 @@
           shellOpacity: 0.32,
           coreOpacity: 0.58,
           groundOpacity: 0.72,
-          shellSlices: 2,
+          shellSlices: 5,
           shellSpreadMul: 1.25
         },
         realistic: {
-          valueCut: 0.11,
+          valueCut: 0.09,
           shellAlpha: 62,
           bodyAlpha: 52,
           coreAlpha: 132,
           glowAlpha: 28,
           capAlpha: 96,
-          shellRadiusMul: 1.42,
-          bodyRadiusMul: 1.14,
+          shellRadiusMul: 1.62,
+          bodyRadiusMul: 1.26,
           coreRadiusMul: 0.84,
           glowRadiusMul: 2.15,
           pointMul: 0.44,
@@ -1529,18 +1529,18 @@
           shellOpacity: 0.40,
           coreOpacity: 0.68,
           groundOpacity: 0.76,
-          shellSlices: 3,
+          shellSlices: 4,
           shellSpreadMul: 1.55
         },
         balanced: {
-          valueCut: 0.09,
+          valueCut: 0.07,
           shellAlpha: 70,
           bodyAlpha: 60,
           coreAlpha: 144,
           glowAlpha: 34,
           capAlpha: 108,
-          shellRadiusMul: 1.50,
-          bodyRadiusMul: 1.20,
+          shellRadiusMul: 1.72,
+          bodyRadiusMul: 1.34,
           coreRadiusMul: 0.90,
           glowRadiusMul: 2.30,
           pointMul: 0.50,
@@ -1553,14 +1553,14 @@
           shellSpreadMul: 1.75
         },
         dense: {
-          valueCut: 0.07,
+          valueCut: 0.05,
           shellAlpha: 78,
           bodyAlpha: 68,
           coreAlpha: 156,
           glowAlpha: 40,
           capAlpha: 116,
-          shellRadiusMul: 1.58,
-          bodyRadiusMul: 1.28,
+          shellRadiusMul: 1.86,
+          bodyRadiusMul: 1.42,
           coreRadiusMul: 0.96,
           glowRadiusMul: 2.48,
           pointMul: 0.56,
@@ -1579,7 +1579,7 @@
     function get3DPointSize() {
       const base = ({ low: 5.8, medium: 6.6, high: 7.2, ultra: 8.0 }[imageQuality] || 7.2);
       const profile = get3DStyleProfile();
-      return Math.max(1.0, base * profile.pointMul * radar3DPointScale);
+      return Math.max(1.25, base * 1.18 * profile.pointMul * radar3DPointScale);
     }
 
     function get3DMaxPoints() {
@@ -1731,7 +1731,7 @@
         resetBtn.addEventListener('click', () => {
           radar3DStylePreset = 'balanced';
           radar3DPointScale = 0.42;
-          radar3DShowHeightGuides = true;
+          radar3DShowHeightGuides = false;
           apply3DStyleSettings(true);
         });
         resetBtn.dataset.bound = '1';
@@ -2423,9 +2423,9 @@ function build3DRadarLayers() {
   if (!voxels.length) return layers;
 
   const shellData = voxels.filter(v => v.mean_norm >= profile.valueCut);
-  const bodyData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.04, 0.16));
-  const coreData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.36, 0.52));
-  const topData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.08, 0.20)).map(v => ({
+  const bodyData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.02, 0.12));
+  const coreData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.30, 0.46));
+  const topData = voxels.filter(v => v.mean_norm >= Math.max(profile.valueCut + 0.05, 0.16)).map(v => ({
     lat: v.lat,
     lon: v.lon,
     alt_m: v.base_m + v.height_m,
@@ -2450,7 +2450,7 @@ function build3DRadarLayers() {
         const c = radarValueToColor(d.value, 255);
         return [c[0], c[1], c[2], Math.max(10, Math.round(profile.shellAlpha * (1.0 - t * 0.42)))];
       },
-      opacity: Math.max(0.10, Math.min(1, overlayOpacity * profile.shellOpacity)),
+      opacity: Math.max(0.14, Math.min(1, overlayOpacity * Math.min(0.92, profile.shellOpacity + 0.10))),
       parameters: { depthTest: true, blend: true },
       pickable: false
     }));
@@ -2472,7 +2472,7 @@ function build3DRadarLayers() {
       const c = radarValueToColor(d.value, 255);
       return [c[0], c[1], c[2], Math.round(profile.bodyAlpha + d.mean_norm * 18)];
     },
-    opacity: Math.max(0.14, Math.min(1, overlayOpacity * profile.baseOpacity)),
+    opacity: Math.max(0.18, Math.min(1, overlayOpacity * Math.min(0.96, profile.baseOpacity + 0.06))),
     material: { ambient: 0.56, diffuse: 0.78, shininess: 18, specularColor: [255,255,255] },
     parameters: { depthTest: true },
     pickable: true,
@@ -2526,7 +2526,7 @@ function build3DRadarLayers() {
         const c = radarValueToColor(d.value, 255);
         return [c[0], c[1], c[2], profile.capAlpha];
       },
-      opacity: Math.max(0.10, Math.min(1, overlayOpacity * 0.52)),
+      opacity: Math.max(0.14, Math.min(1, overlayOpacity * 0.62)),
       parameters: { depthTest: true, blend: true },
       pickable: false
     }));

@@ -7,7 +7,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 kotatua_bp = Blueprint(
     'kotatua',
     __name__,
-    template_folder='templates'
+    template_folder='templates/project'
 )
 
 _DRIVER = None

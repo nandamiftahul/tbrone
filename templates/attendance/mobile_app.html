@@ -1,0 +1,1192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Terrindo Attendance · Mobile Web</title>
+  <style>
+    :root{
+      --orange:#F28C28;
+      --navy:#0B2A4A;
+      --card:#102F52;
+      --muted: rgba(255,255,255,.7);
+      --muted2: rgba(255,255,255,.55);
+      --border: rgba(255,255,255,.12);
+      --soft: rgba(0,0,0,.35);
+      --danger:#ff5252;
+      --ok:#66ffa6;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--navy);
+      color:#fff;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
+    }
+    a{color:var(--orange); text-decoration:none}
+    .wrap{max-width:460px; margin:0 auto; padding:14px 14px 92px;}
+    .appbar{
+      position:sticky; top:0; z-index:20;
+      background:var(--navy);
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      display:flex; align-items:center; gap:10px;
+    }
+    .title{font-weight:800; letter-spacing:.2px}
+    .chip{
+      margin-left:auto;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.15);
+      color:rgba(255,255,255,.8);
+      font-weight:800;
+      font-size:12px;
+    }
+    .iconbtn{
+      background:transparent; border:0; color:#fff; cursor:pointer;
+      padding:8px; border-radius:12px;
+    }
+    .iconbtn:hover{background:rgba(255,255,255,.06)}
+    .card{
+      background:var(--card);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:16px;
+      padding:16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+    .row{display:flex; gap:12px; align-items:center}
+    .col{display:flex; flex-direction:column; gap:10px}
+    .h2{font-size:18px; font-weight:900; margin:0 0 10px 0}
+    .btn{
+      width:100%;
+      border:0;
+      border-radius:14px;
+      padding:14px 14px;
+      font-weight:900;
+      cursor:pointer;
+      color:#000;
+      background:var(--orange);
+    }
+    .btn:disabled{opacity:.6; cursor:not-allowed}
+    .btn.outline{
+      background:transparent; color:#fff;
+      border:1px solid rgba(255,255,255,.25);
+    }
+    .btn.small{padding:10px 12px; border-radius:12px; font-weight:800}
+    .inp, select{
+      width:100%;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid transparent;
+      background: rgba(255,255,255,.06);
+      color:#fff;
+      outline:none;
+    }
+    .inp:focus, select:focus{
+      border-color: var(--orange);
+    }
+    label{display:block; font-size:12px; color:var(--muted2); margin-bottom:6px}
+    .muted{color:var(--muted2); font-size:12px}
+    .msg{margin-top:10px; font-weight:700}
+    .msg.ok{color:var(--orange)}
+    .msg.err{color:var(--danger)}
+    .progress{
+      height:4px; background:rgba(255,255,255,.12); border-radius:999px; overflow:hidden;
+      margin-top:10px;
+    }
+    .bar{height:100%; width:40%; background:var(--orange); animation: ind 1s infinite linear}
+    @keyframes ind{
+      0%{transform:translateX(-120%)}
+      100%{transform:translateX(320%)}
+    }
+    .tabs{
+      position:fixed; left:0; right:0; bottom:0; z-index:30;
+      background:var(--card);
+      border-top:1px solid rgba(255,255,255,.10);
+    }
+    .tabs .inner{
+      max-width:460px; margin:0 auto;
+      display:flex; justify-content:space-between;
+      padding:8px 10px;
+    }
+    .tab{
+      flex:1;
+      text-align:center;
+      padding:10px 6px;
+      border-radius:14px;
+      cursor:pointer;
+      color:rgba(255,255,255,.72);
+      font-weight:800;
+      user-select:none;
+    }
+    .tab.active{
+      color:#000;
+      background:var(--orange);
+    }
+
+    /* Month picker (black/orange vibe) */
+    .modal{
+      position:fixed; inset:0; z-index:50;
+      background: rgba(0,0,0,.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+    }
+    .modal.show{display:flex}
+    .dialog{
+      width:100%;
+      max-width:420px;
+      background:#000;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.12);
+      padding:14px;
+    }
+    .dialog h3{margin:0 0 12px 0; color:var(--orange)}
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      color:rgba(255,255,255,.8);
+      font-weight:800;
+      font-size:12px;
+    }
+    .badge{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      font-weight:900;
+      font-size:11px;
+    }
+    .b-present{border-color:rgba(102,255,166,.4); color:var(--ok); background: rgba(102,255,166,.10)}
+    .b-late{border-color:rgba(242,140,40,.55); color:var(--orange); background: rgba(242,140,40,.14)}
+    .b-absent{border-color:rgba(255,82,82,.5); color:var(--danger); background: rgba(255,82,82,.12)}
+    .b-other{border-color:rgba(130,200,255,.45); color:#82c8ff; background: rgba(130,200,255,.12)}
+    .b-weekend{border-color:rgba(255,255,255,.22); color:rgba(255,255,255,.75); background: rgba(255,255,255,.08)}
+    .b-holiday{border-color:rgba(255,82,82,.55); color:var(--danger); background: rgba(255,82,82,.14)}
+
+    .dayrow{
+      display:flex; gap:12px;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);
+      background: var(--card);
+      margin-bottom:10px;
+    }
+    .daybox{
+      width:46px; height:46px;
+      display:flex; align-items:center; justify-content:center;
+      border-radius:12px;
+      background: rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.12);
+      font-weight:900;
+    }
+    .grow{flex:1}
+    .line{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .kv{display:flex; gap:10px; align-items:center; margin-bottom:6px}
+    .k{width:120px; color:var(--muted2); font-size:12px}
+    .v{font-weight:900}
+  </style>
+</head>
+<body>
+
+  <div class="appbar">
+    <div class="title" id="appTitle">Attendance</div>
+    <span class="chip" id="roleChip" style="display:none">STAFF</span>
+    <button class="iconbtn" id="btnSettings" title="Server URL">⚙️</button>
+  </div>
+
+  <div class="wrap">
+
+    <!-- LOGIN -->
+    <div id="viewLogin">
+      <div class="card">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:12px;">
+          <img src="{{ url_for('static', filename='icon.png') }}" alt="Logo" style="height:90px; width:auto; display:block;">
+          <div style="display:flex; align-items:center; gap:10px; width:100%; justify-content:center; flex-wrap:wrap;">
+            <div style="font-weight:1000; font-size:22px;">Attendance</div>
+            <span class="pill" id="baseUrlLabel"></span>
+          </div>
+        </div>
+
+
+        <div class="col">
+          <div>
+            <label>Email/Username</label>
+            <input class="inp" id="loginEmail" placeholder="email/username"/>
+          </div>
+          <div>
+            <label>Password</label>
+            <input class="inp" id="loginPass" type="password" placeholder="password"/>
+          </div>
+          <button class="btn" id="btnLogin">Login</button>
+          <div class="progress" id="loginProg" style="display:none"><div class="bar"></div></div>
+          <div class="msg err" id="loginMsg" style="display:none"></div>
+          <div class="muted">Tip: pastikan server bisa diakses dari HP/PC kamu.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HOME -->
+    <div id="viewHome" style="display:none">
+      <div class="card">
+        <div class="h2">Check In / Check Out</div>
+        <div class="row">
+          <button class="btn" id="btnCheckIn">Check In</button>
+          <button class="btn outline" id="btnCheckOut">Check Out</button>
+        </div>
+        <div class="progress" id="attProg" style="display:none"><div class="bar"></div></div>
+        <div class="msg ok" id="attOk" style="display:none"></div>
+        <div class="msg err" id="attErr" style="display:none"></div>
+        <div class="muted" style="margin-top:6px;">Tip: izinkan lokasi (GPS) agar lat/lon terkirim.</div>
+      </div>
+      <div style="height:12px"></div>
+      
+      <div class="card" id="annCard">
+        <div class="h2">Announcements</div>
+        <div class="progress" id="annProg" style="display:none"><div class="bar"></div></div>
+        <div class="msg err" id="annErr" style="display:none"></div>
+        <div id="annList" class="col" style="gap:10px;"></div>
+        <div class="muted" style="margin-top:8px;">Info dari admin (berita duka, libur, cuti bersama, dll).</div>
+      </div>
+
+    </div>
+
+    <!-- RECORDS -->
+    <div id="viewRecords" style="display:none">
+      <div class="row" style="margin-bottom:12px;">
+        <div class="grow">
+          <div id="monthPickerBtn" class="card" style="padding:14px; background: rgba(0,0,0,.18); border-color: rgba(242,140,40,.55); cursor:pointer;">
+            <div class="row">
+              <div style="color:var(--orange); font-weight:1000;">📅</div>
+              <div style="font-weight:900;" id="monthTitle">-</div>
+              <div style="margin-left:auto; color:rgba(255,255,255,.7)">▾</div>
+            </div>
+          </div>
+        </div>
+        <button class="iconbtn" id="btnReloadRecords" title="Refresh" style="margin-top:8px;">🔄</button>
+      </div>
+
+      <div class="progress" id="recProg" style="display:none"><div class="bar"></div></div>
+      <div class="msg err" id="recErr" style="display:none"></div>
+
+      <div id="recordsList"></div>
+    </div>
+
+    <!-- LEAVE -->
+    <div id="viewLeave" style="display:none">
+      <div class="card">
+        <div class="h2">Leave Request</div>
+
+        <div class="col">
+          <div>
+            <label>Type</label>
+            <select id="leaveType">
+              <option value="leave">Leave</option>
+              <option value="sick">Sick</option>
+              <option value="wfh">WFH</option>
+              <option value="on_site">On Site Duty</option>
+              <option value="late_work">Late</option>
+              <option value="early_finish">Go home early</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="grow">
+              <label>Start</label>
+              <input class="inp" id="leaveStart" type="date"/>
+            </div>
+            <div class="grow">
+              <label>End</label>
+              <input class="inp" id="leaveEnd" type="date"/>
+            </div>
+          </div>
+
+          <div>
+            <label>Reason (optional)</label>
+            <input class="inp" id="leaveReason" placeholder="Optional"/>
+          </div>
+
+          <button class="btn" id="btnSubmitLeave">Submit</button>
+          <div class="progress" id="leaveProg" style="display:none"><div class="bar"></div></div>
+          <div class="msg" id="leaveMsg" style="display:none"></div>
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+      <div style="font-weight:1000; font-size:16px; margin:0 0 8px 0;">My Requests</div>
+      <div id="myLeaveList"></div>
+    </div>
+
+    <!-- APPROVAL (conditional) -->
+    <div id="viewApproval" style="display:none">
+      <div class="row" style="margin-bottom:8px;">
+        <div style="font-weight:1000; font-size:16px;">Pending Approvals</div>
+        <div style="margin-left:auto">
+          <button class="iconbtn" id="btnReloadApprovals" title="Refresh">🔄</button>
+        </div>
+      </div>
+      <div class="progress" id="apprProg" style="display:none"><div class="bar"></div></div>
+      <div class="msg err" id="apprErr" style="display:none"></div>
+      <div id="approvalsList"></div>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="viewProfile" style="display:none">
+      <div class="card">
+        <div class="h2">My Profile</div>
+        <div id="profileBox"></div>
+      </div>
+
+      <div style="height:14px"></div>
+
+      <div class="card">
+        <div class="h2" style="font-size:16px;">Face Enrollment</div>
+        <div class="muted">Daftarkan wajah 1x agar bisa check-in/out dengan verifikasi.</div>
+        <div style="height:10px"></div>
+        <button class="btn" id="btnEnrollFace">Enroll Face</button>
+        <div class="progress" id="enProg" style="display:none"><div class="bar"></div></div>
+        <div class="msg" id="enMsg" style="display:none"></div>
+      </div>
+      
+      <div style="height:14px"></div>
+      <div class="card">
+        <div class="h2" style="font-size:16px;">Change Password</div>
+        <div class="col">
+          <div>
+            <label>Old password</label>
+            <input class="inp" id="oldPw" type="password"/>
+          </div>
+          <div>
+            <label>New password (min 6 chars)</label>
+            <input class="inp" id="newPw" type="password"/>
+          </div>
+          <button class="btn" id="btnChangePw">Update</button>
+          <div class="progress" id="pwProg" style="display:none"><div class="bar"></div></div>
+          <div class="msg" id="pwMsg" style="display:none"></div>
+        </div>
+      </div>
+      
+      <div style="height:14px"></div>
+
+      <div class="card">
+        <div class="h2" style="font-size:16px;">Edit Profile</div>
+        <div class="col">
+          <div>
+            <label>Nomor HP</label>
+            <input class="inp" id="pfPhone" placeholder="08xxxxxxxxxx"/>
+          </div>
+          <div>
+            <label>Alamat</label>
+            <input class="inp" id="pfAddress" placeholder="Alamat lengkap"/>
+          </div>
+          <div class="row">
+            <div class="grow">
+              <label>Tanggal Lahir</label>
+              <input class="inp" id="pfBirthDate" type="date"/>
+            </div>
+            <div class="grow">
+              <label>Nomor KTP</label>
+              <input class="inp" id="pfKtp" placeholder="16 digit (opsional)"/>
+            </div>
+          </div>
+    
+          <button class="btn" id="btnSaveProfile">Save</button>
+          <div class="progress" id="pfProg" style="display:none"><div class="bar"></div></div>
+          <div class="msg" id="pfMsg" style="display:none"></div>
+        </div>
+      </div>
+    
+      <div style="height:14px"></div>
+
+      <button class="btn" id="btnLogout">Logout</button>
+    </div>
+
+  </div>
+
+  <!-- Bottom Tabs -->
+  <div class="tabs">
+    <div class="inner" id="tabsInner">
+      <!-- tabs inserted by JS -->
+    </div>
+  </div>
+
+  <!-- Month Picker Modal -->
+  <div class="modal" id="monthModal">
+    <div class="dialog">
+      <h3>Pilih Bulan</h3>
+      <div class="col">
+        <div>
+          <label>Tahun</label>
+          <select id="mpYear"></select>
+        </div>
+        <div>
+          <label>Bulan</label>
+          <select id="mpMonth"></select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn outline small" id="mpCancel">Cancel</button>
+        <button class="btn small" id="mpApply">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal" id="settingsModal">
+    <div class="dialog">
+      <h3>Server URL</h3>
+      <div class="col">
+        <div class="muted">Kosongkan untuk pakai domain yang sama (recommended).</div>
+        <div>
+          <label>Base URL</label>
+          <input class="inp" id="baseUrlInput" placeholder="http://192.168.0.113:5000"/>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn outline small" id="stCancel">Cancel</button>
+        <button class="btn small" id="stSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ---------- utilities ----------
+  const $ = (id)=>document.getElementById(id);
+  const show = (el, yes=true)=> el.style.display = yes ? "" : "none";
+  const setText = (el, t)=> el.textContent = t;
+
+  const idDays = ["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu","Minggu"];
+  const idMonths = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+
+  function ymd(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function hmFromIso(iso){
+    if(!iso) return "-";
+    const dt = new Date(iso); // respects offset, displays local time
+    const hh = String(dt.getHours()).padStart(2,'0');
+    const mm = String(dt.getMinutes()).padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+  function safeJson(text){
+    const s = (text||"").trimStart().toLowerCase();
+    if(s.startsWith("<!doctype") || s.startsWith("<html")) throw new Error("Server returned HTML (endpoint missing/unauthorized).");
+    return JSON.parse(text);
+  }
+
+
+  function esc(s){
+    return String(s ?? "")
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#39;");
+  }
+
+  // ---------- API ----------
+  const api = {
+    baseUrl: localStorage.getItem("base_url") || "", // "" = same origin
+    async req(path, opts={}){
+      const url = (this.baseUrl ? this.baseUrl.replace(/\/$/,"") : "") + path;
+      const res = await fetch(url, {
+        method: opts.method || "GET",
+        headers: Object.assign({"Content-Type":"application/json"}, opts.headers||{}),
+        credentials: "include",
+        body: opts.body ? JSON.stringify(opts.body) : undefined
+      });
+      const txt = await res.text();
+      const j = safeJson(txt);
+      if(!res.ok || j.ok !== true){
+        throw new Error(j.error || `Request failed (${res.status})`);
+      }
+      return j;
+    },
+    login(email, password){ return this.req("/api/login",{method:"POST", body:{email, password}}); },
+    logout(){ return this.req("/api/logout",{method:"POST"}); },
+    me(){ return this.req("/api/me"); },
+    checkAttendance(action, lat, lon){ return this.req("/api/attendance/check",{method:"POST", body:{action, lat, lon}}); },
+    myAttendance(start, end){ 
+      return this.req("/api/attendance/my?start="+encodeURIComponent(start)+"&end="+encodeURIComponent(end)); 
+    },
+    holidays(start, end){
+      return this.req("/api/holidays?start="+encodeURIComponent(start)+"&end="+encodeURIComponent(end));
+    },
+    requestLeave(type, start_date, end_date, reason){ return this.req("/api/leave/request",{method:"POST", body:{type, start_date, end_date, reason}}); },
+    myLeave(){ return this.req("/api/leave/my"); },
+    approvals(){ return this.req("/api/leave/approvals"); },
+    approve(id){ return this.req(`/api/leave/${id}/approve`,{method:"POST"}); },
+    reject(id){ return this.req(`/api/leave/${id}/reject`,{method:"POST"}); },
+    changePassword(old_password, new_password){ return this.req("/api/profile/change_password",{method:"POST", body:{old_password, new_password}}); },
+    announcements(){ return this.req("/api/announcements/active"); },
+    updateProfile(payload){ return this.req("/api/profile/update",{method:"POST", body: payload}); },
+    faceEnroll(image){ return this.req("/api/face/enroll",{method:"POST", body:{image}}); },
+    faceVerify(image, action){ return this.req("/api/face/verify",{method:"POST", body:{image, action}}); },
+  };
+
+
+  // ---------- state ----------
+  let me = null;
+  let role = "staff";
+  let canApprove = false;
+  let activeTab = "home";
+  let month = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  // ---------- tabs ----------
+  function buildTabs(){
+    const tabs = [
+      {key:"home", label:"Home"},
+      {key:"records", label:"Records"},
+      {key:"leave", label:"Leave"},
+      ...(canApprove ? [{key:"approval", label:"Approval"}] : []),
+      {key:"profile", label:"Profile"},
+    ];
+    const inner = $("tabsInner");
+    inner.innerHTML = "";
+    tabs.forEach(t=>{
+      const div = document.createElement("div");
+      div.className = "tab" + (t.key===activeTab ? " active":"");
+      div.textContent = t.label;
+      div.onclick = ()=> switchTab(t.key);
+      inner.appendChild(div);
+    });
+  }
+
+  function switchTab(key){
+    activeTab = key;
+    setText($("appTitle"), key==="home"?"Home": key==="records"?"Records": key==="leave"?"Leave": key==="approval"?"Approval":"Profile");
+    show($("viewHome"), key==="home");
+    show($("viewRecords"), key==="records");
+    show($("viewLeave"), key==="leave");
+    show($("viewApproval"), key==="approval");
+    show($("viewProfile"), key==="profile");
+    buildTabs();
+
+    if(key==="records") loadRecords();
+    if(key==="leave") loadMyLeave();
+    if(key==="approval") loadApprovals();
+    if(key==="profile") loadProfileBox();
+    if(key==="home") loadAnnouncements();
+  }
+
+  // ---------- login/bootstrap ----------
+  function setBaseUrlLabel(){
+    const v = api.baseUrl || "mobile app";
+    setText($("baseUrlLabel"), v);
+  }
+
+  async function bootstrap(){
+    setBaseUrlLabel();
+    try{
+      const j = await api.me();
+      me = j;
+      role = String(j.user?.role || "staff").toLowerCase();
+      canApprove = ["manager","general_manager","hrd","admin"].includes(role);
+      show($("roleChip"), true);
+      setText($("roleChip"), role.toUpperCase());
+
+      show($("viewLogin"), false);
+      showAppShell(true);
+      buildTabs();
+      switchTab("home");
+    }catch(e){
+      // not logged in
+      showAppShell(false);
+      show($("viewLogin"), true);
+    }
+  }
+
+  function showAppShell(yes){
+    // views are controlled by tabs; just hide all initially if not logged
+    if(!yes){
+      show($("viewHome"), false);
+      show($("viewRecords"), false);
+      show($("viewLeave"), false);
+      show($("viewApproval"), false);
+      show($("viewProfile"), false);
+      show($("roleChip"), false);
+      activeTab = "home";
+      buildTabs();
+    }
+  }
+
+  // ---------- settings ----------
+  $("btnSettings").onclick = ()=>{
+    $("baseUrlInput").value = api.baseUrl;
+    $("settingsModal").classList.add("show");
+  };
+  $("stCancel").onclick = ()=> $("settingsModal").classList.remove("show");
+  $("stSave").onclick = async ()=>{
+    const v = $("baseUrlInput").value.trim();
+    api.baseUrl = v;
+    localStorage.setItem("base_url", v);
+    $("settingsModal").classList.remove("show");
+    setBaseUrlLabel();
+    // try bootstrap again with new base url
+    await bootstrap();
+  };
+
+  // ---------- login handlers ----------
+  $("btnLogin").onclick = async ()=>{
+    const email = $("loginEmail").value.trim();
+    const password = $("loginPass").value;
+    show($("loginMsg"), false);
+    show($("loginProg"), true);
+    try{
+      await api.login(email, password);
+      show($("loginProg"), false);
+      await bootstrap();
+    }catch(e){
+      show($("loginProg"), false);
+      show($("loginMsg"), true);
+      setText($("loginMsg"), e.message || String(e));
+    }
+  };
+
+  // ---------- home check in/out (with geolocation) ----------
+  async function getPos(){
+    return new Promise((resolve)=>{
+      if(!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (p)=> resolve({lat:p.coords.latitude, lon:p.coords.longitude}),
+        ()=> resolve(null),
+        {enableHighAccuracy:true, timeout: 8000}
+      );
+    });
+  }
+
+  let faceStream = null;
+  
+  async function openFaceModal(hintText){
+    $("faceErr").style.display = "none";
+    $("faceProg").style.display = "none";
+    $("faceHint").textContent = hintText || "Pastikan wajah terlihat jelas.";
+    $("faceModal").classList.add("show");
+  
+    const v = $("faceVideo");
+    // prefer front camera
+    faceStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+      audio: false
+    });
+    v.srcObject = faceStream;
+    await v.play();
+  }
+  
+  function closeFaceModal(){
+    $("faceModal").classList.remove("show");
+    const v = $("faceVideo");
+    if(v) v.srcObject = null;
+    if(faceStream){
+      faceStream.getTracks().forEach(t=>t.stop());
+      faceStream = null;
+    }
+  }
+  
+  function captureFaceJpegBase64(){
+    const v = $("faceVideo");
+    const c = $("faceCanvas");
+    const w = v.videoWidth || 720;
+    const h = v.videoHeight || 720;
+  
+    // crop center square biar wajah lebih konsisten
+    const side = Math.min(w,h);
+    const sx = Math.floor((w - side)/2);
+    const sy = Math.floor((h - side)/2);
+  
+    c.width = 480; c.height = 480;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(v, sx, sy, side, side, 0, 0, c.width, c.height);
+  
+    return c.toDataURL("image/jpeg", 0.85);
+  }
+
+ // ✅ Face Enrollment button (Profile)
+$("btnEnrollFace").onclick = async ()=>{
+  show($("enMsg"), false);
+  show($("enProg"), true);
+
+  try{
+    await openFaceModal("Arahkan wajah ke kamera lalu tekan Capture untuk enroll.");
+
+    await new Promise((resolve, reject)=>{
+      $("faceCancel").onclick = ()=>{ closeFaceModal(); reject(new Error("Cancelled")); };
+      $("faceCapture").onclick = async ()=>{
+        try{
+          show($("faceErr"), false);
+          show($("faceProg"), true);
+
+          const img = captureFaceJpegBase64();
+          await api.faceEnroll(img);
+
+          show($("faceProg"), false);
+          closeFaceModal();
+          resolve();
+        }catch(e){
+          show($("faceProg"), false);
+          show($("faceErr"), true);
+          setText($("faceErr"), e.message || String(e));
+        }
+      };
+    });
+
+    show($("enProg"), false);
+    show($("enMsg"), true);
+    $("enMsg").className = "msg ok";
+    setText($("enMsg"), "Face enrolled successfully.");
+  }catch(e){
+    show($("enProg"), false);
+    show($("enMsg"), true);
+    $("enMsg").className = "msg err";
+    setText($("enMsg"), e.message || String(e));
+  }
+};
+ 
+
+async function doCheck(action){
+  show($("attOk"), false);
+  show($("attErr"), false);
+  show($("attProg"), true);
+
+  try{
+    // 1) ambil lokasi dulu (optional)
+    const pos = await getPos();
+
+    // 2) Face verify
+    await openFaceModal(action==="check_in" ? "Verifikasi wajah untuk Check In" : "Verifikasi wajah untuk Check Out");
+
+    const token = await new Promise((resolve, reject)=>{
+      $("faceCancel").onclick = ()=>{ closeFaceModal(); reject(new Error("Cancelled")); };
+      $("faceCapture").onclick = async ()=>{
+        try{
+          show($("faceErr"), false);
+          show($("faceProg"), true);
+          const img = captureFaceJpegBase64();
+          const vj = await api.faceVerify(img, action);
+          show($("faceProg"), false);
+          closeFaceModal();
+          resolve(vj.token);
+        }catch(e){
+          show($("faceProg"), false);
+          show($("faceErr"), true);
+          setText($("faceErr"), e.message || String(e));
+        }
+      };
+    });
+
+    // 3) attendance check dengan face_token
+    const j = await api.req("/api/attendance/check", {
+      method:"POST",
+      body:{ action, lat: pos?.lat, lon: pos?.lon, face_token: token }
+    });
+
+    const raw = String(j.time || "");
+    const dt = raw ? new Date(raw) : null;
+    const shown = dt ? dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,'0')+"-"+String(dt.getDate()).padStart(2,'0')
+        +" "+String(dt.getHours()).padStart(2,'0')+":"+String(dt.getMinutes()).padStart(2,'0')+":"+String(dt.getSeconds()).padStart(2,'0')
+        : "";
+
+    show($("attProg"), false);
+    show($("attOk"), true);
+    setText($("attOk"), (j.message||"OK") + (shown?(" · "+shown):""));
+  }catch(e){
+    show($("attProg"), false);
+    show($("attErr"), true);
+    setText($("attErr"), e.message || String(e));
+  }
+}
+
+  $("btnCheckIn").onclick = ()=> doCheck("check_in");
+  $("btnCheckOut").onclick = ()=> doCheck("check_out");
+
+  // ---------- records ----------
+  function updateMonthTitle(){
+    setText($("monthTitle"), `${idMonths[month.getMonth()]} ${month.getFullYear()}`);
+  }
+  updateMonthTitle();
+
+  $("monthPickerBtn").onclick = ()=>{
+    const now = new Date();
+    const ySel = $("mpYear"); const mSel = $("mpMonth");
+    ySel.innerHTML=""; mSel.innerHTML="";
+    for(let y=now.getFullYear()-3; y<=now.getFullYear()+3; y++){
+      const o = document.createElement("option"); o.value = y; o.textContent = y;
+      if(y===month.getFullYear()) o.selected = true;
+      ySel.appendChild(o);
+    }
+    idMonths.forEach((name,i)=>{
+      const mm = i+1;
+      const o = document.createElement("option"); o.value = mm; o.textContent = name;
+      if(mm===month.getMonth()+1) o.selected = true;
+      mSel.appendChild(o);
+    });
+    $("monthModal").classList.add("show");
+  };
+  $("mpCancel").onclick = ()=> $("monthModal").classList.remove("show");
+  $("mpApply").onclick = ()=>{
+    const y = parseInt($("mpYear").value,10);
+    const m = parseInt($("mpMonth").value,10);
+    month = new Date(y, m-1, 1);
+    updateMonthTitle();
+    $("monthModal").classList.remove("show");
+    loadRecords();
+  };
+  $("btnReloadRecords").onclick = ()=> loadRecords();
+
+  function badgeForStatus(st){
+    st = (st||"").toLowerCase();
+    if(st==="present") return `<span class="badge b-present">PRESENT</span>`;
+    if(st==="late") return `<span class="badge b-late">LATE</span>`;
+    if(st==="absent") return `<span class="badge b-absent">ABSENT</span>`;
+    if(["leave","sick","wfh","on_site","late_work","early_finish"].includes(st)) return `<span class="badge b-other">${st.toUpperCase()}</span>`;
+    return "";
+  }
+
+  async function loadRecords(){
+    show($("recErr"), false);
+    show($("recProg"), true);
+    $("recordsList").innerHTML = "";
+    try{
+      const start = new Date(month.getFullYear(), month.getMonth(), 1);
+      const end = new Date(month.getFullYear(), month.getMonth()+1, 0);
+      const j = await api.myAttendance(ymd(start), ymd(end));
+      const rows = j.rows || [];
+      const map = {};
+      rows.forEach(r=>{ if(r.date) map[r.date]=r; });
+
+      // holidays in this month (admin-defined)
+      const hj = await api.holidays(ymd(start), ymd(end));
+      const hmap = {};
+      (hj.rows || []).forEach(h=>{
+        if(h.date) hmap[h.date] = h.name || "Holiday";
+      });
+
+      const daysInMonth = end.getDate();
+      for(let d=1; d<=daysInMonth; d++){
+        const date = new Date(month.getFullYear(), month.getMonth(), d);
+        const weekday = (date.getDay()+6)%7; // make monday=0
+        const dayName = idDays[weekday];
+        const key = ymd(date);
+        const rec = map[key] || null;
+
+        const isWeekend = (date.getDay() === 0 || date.getDay() === 6);
+        const holidayName = hmap[key] || "";
+
+        const status = rec ? (rec.status||"") : "";
+        const note = rec ? (rec.note||"") : "";
+        const ci = rec ? (rec.check_in||"") : "";
+        const co = rec ? (rec.check_out||"") : "";
+        const ciHm = ci ? hmFromIso(ci) : "-";
+        const coHm = co ? hmFromIso(co) : "-";
+
+        const el = document.createElement("div");
+        el.className = "dayrow";
+        el.innerHTML = `
+          <div class="daybox">${String(d).padStart(2,'0')}</div>
+          <div class="grow">
+            <div class="line">
+              <div style="font-weight:900; color:rgba(255,255,255,.86)">${dayName}</div>
+              ${rec ? badgeForStatus(status) : ""}
+              ${holidayName ? `<span class="badge b-holiday" title="${esc(holidayName)}">HOLIDAY</span>` : ``}
+              ${isWeekend ? `<span class="badge b-weekend">WEEKEND</span>` : ``}
+            </div>
+            <div style="height:6px"></div>
+            <div class="line">
+              <span style="color:rgba(255,255,255,.7)">⬅️</span><span style="font-weight:900">${ciHm}</span>
+              <span style="width:10px"></span>
+              <span style="color:rgba(255,255,255,.7)">➡️</span><span style="font-weight:900">${coHm}</span>
+            </div>
+            ${note ? `<div style="margin-top:6px; font-size:12px; color:rgba(255,255,255,.6)">${note}</div>` : ""}
+          </div>
+        `;
+        $("recordsList").appendChild(el);
+      }
+
+      show($("recProg"), false);
+    }catch(e){
+      show($("recProg"), false);
+      show($("recErr"), true);
+      setText($("recErr"), e.message || String(e));
+    }
+  }
+
+  // ---------- leave ----------
+  $("btnSubmitLeave").onclick = async ()=>{
+    show($("leaveMsg"), false);
+    show($("leaveProg"), true);
+    try{
+      const type = $("leaveType").value;
+      const start = $("leaveStart").value;
+      const end = $("leaveEnd").value;
+      const reason = $("leaveReason").value.trim();
+      if(!start || !end) throw new Error("Start/End date wajib dipilih.");
+      if(end < start) throw new Error("End date harus >= start date.");
+
+      await api.requestLeave(type, start, end, reason);
+      $("leaveReason").value = "";
+      $("leaveStart").value = "";
+      $("leaveEnd").value = "";
+
+      show($("leaveProg"), false);
+      show($("leaveMsg"), true);
+      $("leaveMsg").className = "msg ok";
+      setText($("leaveMsg"), "Request submitted.");
+      loadMyLeave();
+    }catch(e){
+      show($("leaveProg"), false);
+      show($("leaveMsg"), true);
+      $("leaveMsg").className = "msg err";
+      setText($("leaveMsg"), e.message || String(e));
+    }
+  };
+
+  async function loadMyLeave(){
+    $("myLeaveList").innerHTML = "";
+    try{
+      const j = await api.myLeave();
+      const rows = j.rows || [];
+      if(rows.length===0){
+        $("myLeaveList").innerHTML = `<div class="muted">No requests.</div>`;
+        return;
+      }
+      rows.forEach(r=>{
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style.marginBottom = "10px";
+        const t = String(r.type||"").toUpperCase();
+        const st = String(r.status||"");
+        const reason = (r.reason||"").trim();
+        card.innerHTML = `
+          <div style="font-weight:1000">${t} — ${st}</div>
+          <div class="muted" style="margin-top:6px;">${r.start_date||""} → ${r.end_date||""}</div>
+          ${reason ? `<div style="margin-top:8px; color:rgba(255,255,255,.78)">${reason}</div>` : ``}
+        `;
+        $("myLeaveList").appendChild(card);
+      });
+    }catch(e){
+      $("myLeaveList").innerHTML = `<div class="msg err">${e.message || String(e)}</div>`;
+    }
+  }
+
+  // ---------- approval ----------
+  $("btnReloadApprovals").onclick = ()=> loadApprovals();
+
+  async function loadApprovals(){
+    show($("apprErr"), false);
+    show($("apprProg"), true);
+    $("approvalsList").innerHTML = "";
+    try{
+      const j = await api.approvals();
+      const rows = j.rows || [];
+      if(rows.length===0){
+        $("approvalsList").innerHTML = `<div class="muted">No pending approvals.</div>`;
+        show($("apprProg"), false);
+        return;
+      }
+      rows.forEach(r=>{
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style.marginBottom = "10px";
+        const name = r.employee_name || r.employee || "-";
+        const type = String(r.type||"").toUpperCase();
+        const dept = (r.dept||"").trim();
+        const reason = (r.reason||"").trim();
+        card.innerHTML = `
+          <div style="font-weight:1000">${name} — ${type}</div>
+          <div class="muted" style="margin-top:6px;">${r.start_date||""} → ${r.end_date||""}</div>
+          ${dept ? `<div class="muted" style="margin-top:6px;">Dept: ${dept}</div>` : ``}
+          ${reason ? `<div style="margin-top:8px; color:rgba(255,255,255,.78)">${reason}</div>` : ``}
+          <div class="row" style="margin-top:12px;">
+            <button class="btn outline small" data-act="reject">Reject</button>
+            <button class="btn small" data-act="approve">Approve</button>
+          </div>
+        `;
+        const btnReject = card.querySelector('[data-act="reject"]');
+        const btnApprove = card.querySelector('[data-act="approve"]');
+        btnReject.onclick = async ()=>{
+          btnReject.disabled = true; btnApprove.disabled = true;
+          try{ await api.reject(r.id); await loadApprovals(); }
+          catch(e){ show($("apprErr"), true); setText($("apprErr"), e.message||String(e)); }
+        };
+        btnApprove.onclick = async ()=>{
+          btnReject.disabled = true; btnApprove.disabled = true;
+          try{ await api.approve(r.id); await loadApprovals(); }
+          catch(e){ show($("apprErr"), true); setText($("apprErr"), e.message||String(e)); }
+        };
+        $("approvalsList").appendChild(card);
+      });
+      show($("apprProg"), false);
+    }catch(e){
+      show($("apprProg"), false);
+      show($("apprErr"), true);
+      setText($("apprErr"), e.message || String(e));
+    }
+  }
+
+  // ---------- profile ----------
+  function loadProfileBox(){
+    const user = me?.user || {};
+    const emp = me?.employee || null;
+    const html = `
+      <div class="kv"><div class="k">Name</div><div class="v">${user.name||"-"}</div></div>
+      <div class="kv"><div class="k">Email</div><div class="v">${user.email||"-"}</div></div>
+      <div class="kv"><div class="k">Role</div><div class="v">${(user.role||"-")}</div></div>
+      ${emp ? `
+        <hr style="border:0; border-top:1px solid rgba(255,255,255,.12); margin:12px 0;">
+        <div class="kv"><div class="k">Employee Code</div><div class="v">${emp.code||"-"}</div></div>
+        <div class="kv"><div class="k">Employee Name</div><div class="v">${emp.name||"-"}</div></div>
+        <div class="kv"><div class="k">Dept</div><div class="v">${emp.dept||"-"}</div></div>
+      ` : ``}
+    `;
+    $("profileBox").innerHTML = html;
+    // fill edit form from employee
+    $("pfPhone").value = emp?.phone || "";
+    $("pfAddress").value = emp?.address || "";
+    $("pfBirthDate").value = emp?.birth_date || "";
+    $("pfKtp").value = emp?.ktp_number || "";
+  }
+
+  $("btnChangePw").onclick = async ()=>{
+    show($("pwMsg"), false);
+    show($("pwProg"), true);
+    try{
+      const oldPw = $("oldPw").value.trim();
+      const newPw = $("newPw").value.trim();
+      if(!oldPw || !newPw) throw new Error("Old/New password wajib diisi.");
+      await api.changePassword(oldPw, newPw);
+      $("oldPw").value = ""; $("newPw").value = "";
+      show($("pwProg"), false);
+      show($("pwMsg"), true);
+      $("pwMsg").className = "msg ok";
+      setText($("pwMsg"), "Password updated.");
+    }catch(e){
+      show($("pwProg"), false);
+      show($("pwMsg"), true);
+      $("pwMsg").className = "msg err";
+      setText($("pwMsg"), e.message || String(e));
+    }
+  };
+
+  $("btnLogout").onclick = async ()=>{
+    try{
+      await api.logout();
+      me = null; role="staff"; canApprove=false;
+      show($("viewLogin"), true);
+      showAppShell(false);
+      setText($("appTitle"), "Attendance");
+    }catch(e){
+      alert(e.message || String(e));
+    }
+  };
+
+  // ===============================
+  // D) EDIT PROFILE — TARUH DI SINI
+  // ===============================
+  $("btnSaveProfile").onclick = async ()=>{
+    show($("pfMsg"), false);
+    show($("pfProg"), true);
+    try{
+      const payload = {
+        phone: $("pfPhone").value.trim(),
+        address: $("pfAddress").value.trim(),
+        birth_date: $("pfBirthDate").value, // YYYY-MM-DD
+        ktp_number: $("pfKtp").value.trim(),
+      };
+  
+      await api.updateProfile(payload);
+  
+      // reload profile info
+      me = await api.me();
+      loadProfileBox();
+  
+      show($("pfProg"), false);
+      show($("pfMsg"), true);
+      $("pfMsg").className = "msg ok";
+      setText($("pfMsg"), "Profile updated.");
+    }catch(e){
+      show($("pfProg"), false);
+      show($("pfMsg"), true);
+      $("pfMsg").className = "msg err";
+      setText($("pfMsg"), e.message || String(e));
+    }
+  };
+
+
+  async function loadAnnouncements(){
+    show($("annErr"), false);
+    show($("annProg"), true);
+    $("annList").innerHTML = "";
+    try{
+      const j = await api.announcements();
+      const rows = j.rows || [];
+      if(rows.length === 0){
+        $("annList").innerHTML = `<div class="muted">No announcements.</div>`;
+        show($("annProg"), false);
+        return;
+      }
+  
+      rows.forEach(a=>{
+        const lv = String(a.level||"info").toLowerCase();
+        const pill =
+          lv==="danger" ? `<span class="badge b-absent">IMPORTANT</span>` :
+          lv==="warning" ? `<span class="badge b-late">NOTICE</span>` :
+          `<span class="badge b-other">INFO</span>`;
+  
+        const el = document.createElement("div");
+        el.style.border = "1px solid rgba(255,255,255,.10)";
+        el.style.borderRadius = "14px";
+        el.style.padding = "12px";
+        el.style.background = "rgba(0,0,0,.18)";
+        el.innerHTML = `
+          <div class="line" style="margin-bottom:6px;">
+            <div style="font-weight:1000">${esc(a.title||"-")}</div>
+            <div style="margin-left:auto">${pill}</div>
+          </div>
+          <div style="color:rgba(255,255,255,.82)">${esc(a.body||"")}</div>
+        `;
+        $("annList").appendChild(el);
+      });
+  
+      show($("annProg"), false);
+    }catch(e){
+      show($("annProg"), false);
+      show($("annErr"), true);
+      setText($("annErr"), e.message || String(e));
+    }
+  }
+
+
+  // init
+  bootstrap();
+</script>
+
+<!-- Face Camera Modal -->
+<div class="modal" id="faceModal">
+  <div class="dialog" style="max-width:420px;">
+    <h3>Face Verification</h3>
+    <div class="muted" id="faceHint">Pastikan wajah terlihat jelas.</div>
+
+    <div style="margin-top:10px; border:1px solid rgba(255,255,255,.12); border-radius:14px; overflow:hidden;">
+      <video id="faceVideo" autoplay playsinline style="width:100%; display:block; background:#000;"></video>
+      <canvas id="faceCanvas" style="display:none;"></canvas>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <button class="btn outline small" id="faceCancel">Cancel</button>
+      <button class="btn small" id="faceCapture">Capture</button>
+    </div>
+
+    <div class="progress" id="faceProg" style="display:none"><div class="bar"></div></div>
+    <div class="msg err" id="faceErr" style="display:none"></div>
+  </div>
+</div>
+
+
+</body>
+</html>

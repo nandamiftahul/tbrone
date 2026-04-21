@@ -1,0 +1,47 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Announcements · Attendance{% endblock %}
+{% block content %}
+<div class="hero">
+  <div>
+    <div class="eyebrow">Internal News</div>
+    <h2>Announcements</h2>
+    <p>Admin dapat membuat, mengaktifkan, menonaktifkan, dan menghapus pengumuman dengan tampilan yang lebih modern.</p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px;">
+  <form method="post" action="{{ url_for('announcement_create') }}" class="three-col" style="align-items:end;">
+    <div><label>Title</label><input name="title" placeholder="e.g., Libur Cuti Bersama" required></div>
+    <div><label>Body</label><input name="body" placeholder="Isi pengumuman singkat..." required></div>
+    <div><label>Level</label><select name="level"><option value="info">Info</option><option value="warning">Warning</option><option value="danger">Danger</option></select></div>
+    <div><label>Start (optional)</label><input type="datetime-local" name="start_at"></div>
+    <div><label>End (optional)</label><input type="datetime-local" name="end_at"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><label class="chk"><input type="checkbox" name="is_active" value="1" checked>Active</label><button class="btn" type="submit">Add</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Latest</h3>
+  {% if rows|length == 0 %}
+    <div class="muted">No announcements.</div>
+  {% else %}
+    <div class="grid" style="grid-template-columns:1fr;">
+      {% for a in rows %}
+      <div class="card" style="padding:16px;">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <strong>{{ a.title }}</strong>
+          <span class="badge">{{ (a.level or 'info')|upper }}</span>
+          {% if a.is_active %}<span class="badge" style="background:#e8f7ef;color:#2e9f6b;">ACTIVE</span>{% else %}<span class="badge" style="background:#fbe9e7;color:#c0392b;">OFF</span>{% endif %}
+          <span style="margin-left:auto;" class="muted">{{ a.created_at }}</span>
+        </div>
+        <div style="margin-top:8px;color:#3f3737;">{{ a.body }}</div>
+        <div style="margin-top:12px;" class="actions-row">
+          <form method="post" action="{{ url_for('announcement_toggle', aid=a.id) }}"><button class="btn secondary btn-sm" type="submit">{% if a.is_active %}Disable{% else %}Enable{% endif %}</button></form>
+          <form method="post" action="{{ url_for('announcement_delete', aid=a.id) }}" onsubmit="return confirm('Delete this announcement?');"><button class="btn danger btn-sm" type="submit">Delete</button></form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

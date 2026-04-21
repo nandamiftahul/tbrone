@@ -1,0 +1,89 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Records · Attendance{% endblock %}
+{% block content %}
+<div class="hero">
+  <div>
+    <div class="eyebrow">Attendance Records</div>
+    <h2>Records & Import</h2>
+    <p>Filter, export, dan import attendance tetap memakai endpoint lama, hanya tampilannya yang diperbarui.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Filter Records</h3>
+  <form method="get" class="five-col" style="align-items:end;">
+    <div><label>Start</label><input type="date" name="start" value="{{ start or '' }}"></div>
+    <div><label>End</label><input type="date" name="end" value="{{ end or '' }}"></div>
+    <div><label>Employee</label><input name="employee" placeholder="Name contains..." value="{{ emp or '' }}"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn" type="submit">Filter</button>
+      <a class="btn secondary" href="{{ url_for('attendance_export_csv', start=start, end=end, employee=emp) }}">Export CSV</a>
+      <a class="btn secondary" href="{{ url_for('attendance_export_xlsx', start=start, end=end, employee=emp) }}">Export Excel</a>
+    </div>
+    <div></div>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Import Attendance (JSON)</h3>
+  <div class="top-actions">
+    <div style="min-width:260px;"><label>JSON File</label><input id="attImportFile" type="file" accept="application/json"></div>
+    <label class="chk" style="margin-bottom:0;"><input id="attImportOverwrite" type="checkbox">Overwrite existing check_in / check_out</label>
+    <button class="btn" type="button" onclick="uploadAttendanceJson()">Upload JSON</button>
+  </div>
+  <div id="attImportResult" style="margin-top:10px;font-size:13px;color:var(--muted);"></div>
+</div>
+
+<div class="card">
+  <div class="tablewrap">
+    <table class="table" style="min-width:1450px;">
+      <thead>
+        <tr><th>Date</th><th>Code</th><th>Name</th><th>Dept</th><th>Check-In</th><th>Check-Out</th><th>Hours</th><th>Status</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.work_date }}</td>
+          <td>{{ r.employee.code }}</td>
+          <td class="truncate" title="{{ r.employee.name }}">{{ r.employee.name }}</td>
+          <td class="truncate" title="{{ r.employee.dept or '' }}">{{ r.employee.dept or '' }}</td>
+          <td style="min-width:340px;">
+            <div><strong>{{ r.check_in_local_str }}</strong></div>
+            <div class="muted">IP: {{ r.check_in_ip or '' }}</div>
+            <div class="muted" style="white-space:normal;word-break:break-word;" title="{{ r.check_in_ua or '' }}">UA: {{ r.check_in_ua or '' }}</div>
+          </td>
+          <td style="min-width:340px;">
+            <div><strong>{{ r.check_out_local_str }}</strong></div>
+            <div class="muted">IP: {{ r.check_out_ip or '' }}</div>
+            <div class="muted" style="white-space:normal;word-break:break-word;" title="{{ r.check_out_ua or '' }}">UA: {{ r.check_out_ua or '' }}</div>
+          </td>
+          <td>{{ '%.2f'|format(r.duration_hours) }}</td>
+          <td><span class="badge">{{ r.status }}</span></td>
+          <td class="truncate" title="{{ r.note or '' }}">{{ r.note or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="muted" style="margin-top:10px;">Tip: swipe/drag the table left-right to see all columns.</div>
+</div>
+
+<script>
+async function uploadAttendanceJson(){
+  const fileEl = document.getElementById("attImportFile");
+  const overwrite = document.getElementById("attImportOverwrite").checked;
+  const out = document.getElementById("attImportResult");
+  out.textContent = "";
+  if(!fileEl.files || !fileEl.files[0]){ out.textContent = "Pilih file JSON dulu."; return; }
+  const fd = new FormData(); fd.append("file", fileEl.files[0]); out.textContent = "Uploading...";
+  try{
+    const url = "/api/admin/attendance/import" + (overwrite ? "?overwrite=1" : "");
+    const res = await fetch(url, { method: "POST", body: fd });
+    const j = await res.json();
+    if(!res.ok || !j.ok){ out.textContent = "Gagal: " + (j.error || ("HTTP " + res.status)); return; }
+    out.textContent = `Sukses ✔ created=${j.created}, updated=${j.updated}, skipped=${j.skipped}`;
+    setTimeout(()=>location.reload(), 800);
+  }catch(e){ out.textContent = "Error: " + e; }
+}
+</script>
+{% endblock %}

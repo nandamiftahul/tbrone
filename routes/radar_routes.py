@@ -36,7 +36,7 @@ from skimage import exposure
 radar_bp = Blueprint(
     'radar_bp',
     __name__,
-    template_folder='templates',
+    template_folder='templates/project',
     static_folder='static',
     url_prefix='/radarviewer',
 )

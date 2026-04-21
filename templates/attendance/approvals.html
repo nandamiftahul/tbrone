@@ -1,0 +1,42 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Approvals · Attendance{% endblock %}
+{% block content %}
+<div class="hero">
+  <div>
+    <div class="eyebrow">Approval Queue</div>
+    <h2>Leave / Sick / WFH Approvals</h2>
+    <p>Approve dan reject tetap memakai form action backend yang sama, hanya layout-nya dibuat lebih clean.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="tablewrap">
+    <table class="table" style="min-width:1200px;">
+      <thead><tr><th>ID</th><th>Employee</th><th>Type</th><th>Dates</th><th>Status</th><th>Reason</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td class="truncate" title="{{ r.employee.code }} — {{ r.employee.name }}">{{ r.employee.code }} — {{ r.employee.name }}</td>
+          <td><span class="badge">{{ r.type }}</span></td>
+          <td>{{ r.start_date }} → {{ r.end_date }}</td>
+          <td><span class="badge" style="background:#f7f3f3;color:#665d5d;">{{ r.status }}</span></td>
+          <td class="truncate" title="{{ r.reason or '' }}">{{ r.reason or '' }}</td>
+          <td class="actions-cell">
+            {% if r.status == 'pending' %}
+            <div class="actions-row">
+              <form method="post" action="{{ url_for('leave_approve', rid=r.id) }}"><button class="btn btn-sm" type="submit">✓ Approve</button></form>
+              <form method="post" action="{{ url_for('leave_reject', rid=r.id) }}" onsubmit="return confirm('Reject request #{{ r.id }} ({{ r.employee.code }} — {{ r.employee.name }})?');"><button class="btn btn-outline-danger btn-sm" type="submit">✕ Reject</button></form>
+            </div>
+            {% else %}
+            <small class="muted">by {{ r.approved_by or '-' }}</small>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="muted" style="margin-top:10px;">Tip: swipe/drag the table left-right if your screen is small.</div>
+</div>
+{% endblock %}
