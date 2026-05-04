@@ -28,17 +28,17 @@ def inventory_page():
     return render_template("main/inventory.html")
 
 @pages_bp.route("/finance")
-@login_required
+@role_required("admin")
 def finance_page():
     return render_template("main/finance.html")
 
 @pages_bp.route("/job")
-@login_required
+@role_required("admin")
 def job_page():
     return render_template("main/job.html")
 
 @pages_bp.route("/project")
-@login_required
+@role_required("admin")
 def project_page():
     return render_template("main/project.html")
 
