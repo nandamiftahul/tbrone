@@ -24,7 +24,8 @@ os.environ["PYART_QUIET"] = "1"
 import patch_pyart  # noqa: F401
 import pyart
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, url_for
-
+from flask_login import login_required
+from routes.auth_utils import role_required
 from scipy.ndimage import generic_filter, median_filter, distance_transform_edt, gaussian_filter
 from scipy.ndimage.measurements import variance
 from scipy.ndimage.filters import uniform_filter
@@ -40,7 +41,11 @@ radar_bp = Blueprint(
     static_folder='static',
     url_prefix='/radarviewer',
 )
-
+@radar_bp.before_request
+@login_required
+@role_required("admin")
+def restrict_radarviewer_to_admin():
+    pass
 radar_groups: dict[str, list[dict[str, Any]]] = {}
 uploaded_files_mem: list[dict[str, Any]] = []
 available_fields: list[str] = []

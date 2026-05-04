@@ -87,4 +87,13 @@ def create_app():
     with app.app_context():
         db.create_all()
 
+    # ==============================
+    # ERROR HANDLER 403
+    # ==============================
+    from flask import render_template
+    
+    @app.errorhandler(403)
+    def forbidden(error):
+        return render_template("errors/403.html"), 403
+
     return app

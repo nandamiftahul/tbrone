@@ -2,96 +2,259 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Login - Terrindo One</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login · Terrindo One</title>
+
   <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #fff7ed, #f6f2f2);
+    :root{
+      --orange:#F28C28;
+      --orange2:#F6A24A;
+      --navy:#14304A;
+      --blue:#1F4B6E;
+      --dark:#102336;
+      --soft:#FFF4E8;
+      --line:rgba(255,255,255,.18);
     }
 
-    .login-card {
-      width: 380px;
-      background: white;
-      padding: 32px;
-      border-radius: 24px;
-      box-shadow: 0 20px 50px rgba(0,0,0,.12);
+    *{box-sizing:border-box}
+
+    body{
+      margin:0;
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      font-family:Inter, system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(242,140,40,.30), transparent 28%),
+        radial-gradient(circle at 82% 12%, rgba(31,75,110,.38), transparent 24%),
+        linear-gradient(135deg, #102336 0%, #14304A 48%, #1F4B6E 100%);
+      color:white;
+      overflow:hidden;
+      padding:22px;
     }
 
-    h1 {
-      margin: 0 0 8px;
-      color: #2f2323;
+    .orb{
+      position:fixed;
+      width:360px;
+      height:360px;
+      border-radius:50%;
+      background:rgba(242,140,40,.16);
+      filter:blur(6px);
+      right:-120px;
+      bottom:-120px;
     }
 
-    p {
-      margin: 0 0 24px;
-      color: #6f6666;
+    .login-shell{
+      width:min(980px, 100%);
+      display:grid;
+      grid-template-columns:1.05fr .95fr;
+      border:1px solid var(--line);
+      border-radius:34px;
+      overflow:hidden;
+      background:rgba(255,255,255,.08);
+      box-shadow:0 34px 90px rgba(0,0,0,.38);
+      backdrop-filter:blur(18px);
     }
 
-    input {
-      width: 100%;
-      padding: 13px 14px;
-      margin-bottom: 14px;
-      border: 1px solid #ddd;
-      border-radius: 12px;
-      font-size: 15px;
-      box-sizing: border-box;
+    .brand-panel{
+      padding:46px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      background:
+        linear-gradient(160deg, rgba(242,140,40,.25), rgba(255,255,255,.04)),
+        rgba(255,255,255,.05);
     }
 
-    button {
-      width: 100%;
-      padding: 14px;
-      border: 0;
-      border-radius: 14px;
-      background: #f28c28;
-      color: white;
-      font-weight: bold;
-      font-size: 16px;
-      cursor: pointer;
+    .logo-box{
+      display:flex;
+      align-items:center;
+      gap:14px;
     }
 
-    .flash {
-      margin-bottom: 14px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      background: #fee2e2;
-      color: #991b1b;
-      font-size: 14px;
+    .logo-card{
+      width:70px;
+      height:70px;
+      border-radius:20px;
+      background:white;
+      display:grid;
+      place-items:center;
+      box-shadow:0 16px 36px rgba(0,0,0,.25);
+    }
+
+    .logo-card img{
+      width:58px;
+    }
+
+    .brand-name{
+      font-size:18px;
+      font-weight:900;
+    }
+
+    .brand-sub{
+      font-size:13px;
+      color:rgba(255,255,255,.7);
+    }
+
+    .headline h1{
+      font-size:42px;
+      margin:0 0 10px;
+      letter-spacing:-1px;
+    }
+
+    .headline p{
+      color:rgba(255,255,255,.75);
+      font-size:14px;
+    }
+
+    .mini-row{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:10px;
+    }
+
+    .mini{
+      padding:12px;
+      border-radius:16px;
+      background:rgba(255,255,255,.08);
+      font-size:12px;
+      text-align:center;
+    }
+
+    .mini strong{
+      display:block;
+      color:white;
+    }
+
+    .form-panel{
+      padding:46px;
+      background:white;
+      color:#111827;
+      display:flex;
+      align-items:center;
+    }
+
+    .login-card{
+      width:100%;
+    }
+
+    .eyebrow{
+      font-size:12px;
+      color:var(--orange);
+      font-weight:800;
+      margin-bottom:10px;
+    }
+
+    h2{
+      margin:0 0 6px;
+      font-size:28px;
+    }
+
+    .flash{
+      margin-bottom:14px;
+      padding:10px;
+      border-radius:10px;
+      background:#fee2e2;
+      color:#991b1b;
+      font-size:13px;
+    }
+
+    input{
+      width:100%;
+      padding:14px;
+      margin-bottom:12px;
+      border-radius:14px;
+      border:1px solid #ddd;
+      background:#f9fafb;
+    }
+
+    input:focus{
+      border-color:var(--orange);
+      outline:none;
+      box-shadow:0 0 0 4px rgba(242,140,40,.15);
+    }
+
+    button{
+      width:100%;
+      padding:14px;
+      border:0;
+      border-radius:16px;
+      background:linear-gradient(135deg, var(--orange), var(--orange2));
+      color:white;
+      font-weight:bold;
+      font-size:15px;
+      cursor:pointer;
+      box-shadow:0 10px 24px rgba(242,140,40,.3);
+    }
+
+    .footer{
+      margin-top:14px;
+      text-align:center;
+      font-size:12px;
+      color:#9ca3af;
+    }
+
+    @media(max-width:800px){
+      .login-shell{
+        grid-template-columns:1fr;
+      }
+      .brand-panel{
+        display:none;
+      }
     }
   </style>
 </head>
+
 <body>
-  <form class="login-card" method="POST">
-    <h1>Terrindo One</h1>
-    <p>Login untuk mengakses sistem internal.</p>
+  <div class="orb"></div>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        {% for msg in messages %}
-          <div class="flash">{{ msg }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+  <main class="login-shell">
+    <section class="brand-panel">
+      <div class="logo-box">
+        <div class="logo-card">
+          <img src="{{ url_for('static', filename='terrindo.png') }}">
+        </div>
+        <div>
+          <div class="brand-name">Terrindo One</div>
+          <div class="brand-sub">Internal Platform</div>
+        </div>
+      </div>
 
-<input
-  type="text"
-  name="email"
-  placeholder="Username"
-  autocomplete="username"
-  required
->
+      <div class="headline">
+        <h1>Terrindo One</h1>
+        <p>Internal operation platform for Terrindo Bumi Raya.</p>
+      </div>
 
-<input
-  type="password"
-  name="password"
-  placeholder="Password"
-  autocomplete="current-password"
-  required
->
-    <button type="submit">Login</button>
-  </form>
+      <div class="mini-row">
+        <div class="mini"><strong>People</strong>Attendance</div>
+        <div class="mini"><strong>Workflow</strong>Approval</div>
+        <div class="mini"><strong>System</strong>Terrindo One</div>
+      </div>
+    </section>
+
+    <section class="form-panel">
+      <form class="login-card" method="POST">
+        <div class="eyebrow">SECURE ACCESS</div>
+        <h2>Sign In</h2>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for msg in messages %}
+              <div class="flash">{{ msg }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <input type="text" name="email" placeholder="Username" required>
+        <input type="password" name="password" placeholder="Password" required>
+
+        <button type="submit">Login</button>
+
+        <div class="footer">
+          Terrindo Bumi Raya
+        </div>
+      </form>
+    </section>
+  </main>
 </body>
 </html>

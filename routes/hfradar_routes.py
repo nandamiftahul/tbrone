@@ -14,7 +14,8 @@ import matplotlib.colors as mcolors
 import numpy as np
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, url_for
 from scipy.ndimage import gaussian_filter
-
+from flask_login import login_required
+from routes.auth_utils import role_required
 try:
     import xarray as xr
 except Exception:  # pragma: no cover
@@ -27,7 +28,11 @@ hfradar_bp = Blueprint(
     static_folder='static',
     url_prefix='/hfradarviewer',
 )
-
+@hfradar_bp.before_request
+@login_required
+@role_required("admin")
+def restrict_hfradarviewer_to_admin():
+    pass
 uploaded_files_mem: list[dict[str, Any]] = []
 hfradar_groups: dict[str, list[dict[str, Any]]] = {}
 available_fields: list[str] = []

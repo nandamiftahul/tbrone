@@ -15,7 +15,8 @@ from psycopg.rows import dict_row
 from openpyxl import load_workbook
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
-
+from flask_login import login_required
+from routes.auth_utils import role_required
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -199,6 +200,8 @@ def xweather_monthly_report_viewer():
 
 
 @xweather_report_bp.route("/xweather/monthly-report-editor")
+@login_required
+@role_required("admin")
 def xweather_monthly_report_editor():
     init_db()
     return render_template("project/xweather_monthly_report_editor_sqlite.html")
@@ -1045,6 +1048,8 @@ def api_delete_golf_location(id):
     return jsonify({"ok": True})
 
 @xweather_report_bp.route("/xweather/golfareamap")
+@login_required
+@role_required("admin")
 def xweather_golf_area_map_demo():
     init_db()
     return render_template("project/xweather_golf_map_admin.html")
