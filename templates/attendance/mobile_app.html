@@ -491,43 +491,125 @@
   }
 
   // ---------- API ----------
+  const API_PREFIX = "/attendance/api";
+
   const api = {
-    baseUrl: localStorage.getItem("base_url") || "", // "" = same origin
+    baseUrl: localStorage.getItem("base_url") || "",
+
     async req(path, opts={}){
       const url = (this.baseUrl ? this.baseUrl.replace(/\/$/,"") : "") + path;
+
       const res = await fetch(url, {
         method: opts.method || "GET",
         headers: Object.assign({"Content-Type":"application/json"}, opts.headers||{}),
         credentials: "include",
         body: opts.body ? JSON.stringify(opts.body) : undefined
       });
+
       const txt = await res.text();
       const j = safeJson(txt);
+
       if(!res.ok || j.ok !== true){
         throw new Error(j.error || `Request failed (${res.status})`);
       }
+
       return j;
     },
-    login(email, password){ return this.req("/api/login",{method:"POST", body:{email, password}}); },
-    logout(){ return this.req("/api/logout",{method:"POST"}); },
-    me(){ return this.req("/api/me"); },
-    checkAttendance(action, lat, lon){ return this.req("/api/attendance/check",{method:"POST", body:{action, lat, lon}}); },
-    myAttendance(start, end){ 
-      return this.req("/api/attendance/my?start="+encodeURIComponent(start)+"&end="+encodeURIComponent(end)); 
+
+    login(email, password){
+      return this.req(`${API_PREFIX}/login`, {
+        method:"POST",
+        body:{email, password}
+      });
     },
+
+    logout(){
+      return this.req(`${API_PREFIX}/logout`, {
+        method:"POST"
+      });
+    },
+
+    me(){
+      return this.req(`${API_PREFIX}/me`);
+    },
+
+    checkAttendance(action, lat, lon){
+      return this.req(`${API_PREFIX}/attendance/check`, {
+        method:"POST",
+        body:{action, lat, lon}
+      });
+    },
+
+    myAttendance(start, end){
+      return this.req(
+        `${API_PREFIX}/attendance/my?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+      );
+    },
+
     holidays(start, end){
-      return this.req("/api/holidays?start="+encodeURIComponent(start)+"&end="+encodeURIComponent(end));
+      return this.req(
+        `${API_PREFIX}/holidays?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+      );
     },
-    requestLeave(type, start_date, end_date, reason){ return this.req("/api/leave/request",{method:"POST", body:{type, start_date, end_date, reason}}); },
-    myLeave(){ return this.req("/api/leave/my"); },
-    approvals(){ return this.req("/api/leave/approvals"); },
-    approve(id){ return this.req(`/api/leave/${id}/approve`,{method:"POST"}); },
-    reject(id){ return this.req(`/api/leave/${id}/reject`,{method:"POST"}); },
-    changePassword(old_password, new_password){ return this.req("/api/profile/change_password",{method:"POST", body:{old_password, new_password}}); },
-    announcements(){ return this.req("/api/announcements/active"); },
-    updateProfile(payload){ return this.req("/api/profile/update",{method:"POST", body: payload}); },
-    faceEnroll(image){ return this.req("/api/face/enroll",{method:"POST", body:{image}}); },
-    faceVerify(image, action){ return this.req("/api/face/verify",{method:"POST", body:{image, action}}); },
+
+    requestLeave(type, start_date, end_date, reason){
+      return this.req(`${API_PREFIX}/leave/request`, {
+        method:"POST",
+        body:{type, start_date, end_date, reason}
+      });
+    },
+
+    myLeave(){
+      return this.req(`${API_PREFIX}/leave/my`);
+    },
+
+    approvals(){
+      return this.req(`${API_PREFIX}/leave/approvals`);
+    },
+
+    approve(id){
+      return this.req(`${API_PREFIX}/leave/${id}/approve`, {
+        method:"POST"
+      });
+    },
+
+    reject(id){
+      return this.req(`${API_PREFIX}/leave/${id}/reject`, {
+        method:"POST"
+      });
+    },
+
+    changePassword(old_password, new_password){
+      return this.req(`${API_PREFIX}/profile/change_password`, {
+        method:"POST",
+        body:{old_password, new_password}
+      });
+    },
+
+    announcements(){
+      return this.req(`${API_PREFIX}/announcements/active`);
+    },
+
+    updateProfile(payload){
+      return this.req(`${API_PREFIX}/profile/update`, {
+        method:"POST",
+        body: payload
+      });
+    },
+
+    faceEnroll(image){
+      return this.req(`${API_PREFIX}/face/enroll`, {
+        method:"POST",
+        body:{image}
+      });
+    },
+
+    faceVerify(image, action){
+      return this.req(`${API_PREFIX}/face/verify`, {
+        method:"POST",
+        body:{image, action}
+      });
+    },
   };
 
 
@@ -781,7 +863,7 @@ async function doCheck(action){
     });
 
     // 3) attendance check dengan face_token
-    const j = await api.req("/api/attendance/check", {
+    const j = await api.req(`${API_PREFIX}/attendance/check`, {
       method:"POST",
       body:{ action, lat: pos?.lat, lon: pos?.lon, face_token: token }
     });

@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Terrindo Integrated Solutions Dashboard</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --xw-blue:#003A8F;
+      --xw-blue-2:#0A4BBF;
+      --tbr-orange:#F28C28;
+      --bg:#F4F7FB;
+      --card:#FFFFFF;
+      --text:#1F2937;
+      --muted:#6B7280;
+      --border:rgba(17,24,39,.10);
+      --shadow:0 10px 30px rgba(2,22,55,.08);
+      --radius:16px;
+      --green:#0E9F6E;
+      --red:#C81E1E;
+      --yellow:#D97706;
+    }
+
+    *{ box-sizing:border-box; }
+    html{ scroll-behavior:smooth; }
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text);
+      background:linear-gradient(180deg,#EAF1FF 0%,var(--bg) 40%,#F7FAFF 100%);
+    }
+
+    .topbar{
+      position:sticky;
+      top:0;
+      z-index:30;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      padding:14px 18px;
+      background:rgba(0,58,143,.94);
+      backdrop-filter:blur(8px);
+      border-bottom:1px solid rgba(255,255,255,.15);
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      color:#fff;
+    }
+
+    .brand-mark{
+      width:38px;
+      height:38px;
+      border-radius:12px;
+      display:grid;
+      place-items:center;
+      background:linear-gradient(135deg,var(--tbr-orange),#FFB565);
+      color:#111827;
+      font-weight:900;
+      box-shadow:0 8px 18px rgba(0,0,0,.18);
+    }
+
+    .brand .title{
+      display:flex;
+      flex-direction:column;
+      line-height:1.15;
+    }
+
+    .brand strong{
+      font-size:14px;
+      letter-spacing:.2px;
+    }
+
+    .brand span{
+      font-size:12px;
+      opacity:.85;
+    }
+
+    .top-actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .btn{
+      appearance:none;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.10);
+      color:#fff;
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:700;
+      font-size:13px;
+      text-decoration:none;
+      white-space:nowrap;
+    }
+
+    .btn.primary{
+      background:linear-gradient(135deg,var(--tbr-orange),#FFB565);
+      color:#1A1A1A;
+      border-color:rgba(255,255,255,.10);
+    }
+
+    .wrap{
+      display:grid;
+      grid-template-columns:320px 1fr;
+      gap:18px;
+      padding:18px;
+      max-width:1380px;
+      margin:0 auto;
+    }
+
+    .sidebar{
+      position:sticky;
+      top:74px;
+      align-self:start;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+
+    .sidebar .head{
+      padding:14px 16px;
+      border-bottom:1px solid var(--border);
+      background:linear-gradient(180deg,rgba(0,58,143,.06),rgba(0,58,143,0));
+    }
+
+    .sidebar .h{
+      margin:0;
+      color:var(--xw-blue);
+      font-weight:900;
+      font-size:14px;
+    }
+
+    .sidebar .s{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+
+    .nav{
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .nav a{
+      text-decoration:none;
+      color:var(--text);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 12px;
+      display:flex;
+      gap:10px;
+      background:#fff;
+    }
+
+    .badge{
+      min-width:26px;
+      height:26px;
+      border-radius:9px;
+      display:grid;
+      place-items:center;
+      font-weight:900;
+      font-size:12px;
+      color:#fff;
+      background:var(--xw-blue);
+    }
+
+    .meta{
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+
+    .meta strong{ font-size:13px; }
+    .meta span{ font-size:12px; color:var(--muted); }
+
+    .content{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+
+    .hero{
+      border-radius:22px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+      border:1px solid var(--border);
+      background:
+        radial-gradient(circle at 15% 20%,rgba(242,140,40,.24),transparent 28%),
+        radial-gradient(circle at 90% 10%,rgba(255,255,255,.20),transparent 20%),
+        linear-gradient(135deg,#003A8F,#0A4BBF 55%,#06265F);
+      color:#fff;
+      padding:26px;
+    }
+
+    .hero-grid{
+      display:grid;
+      grid-template-columns:1.35fr .65fr;
+      gap:18px;
+      align-items:stretch;
+    }
+
+    .hero h1{
+      margin:0;
+      font-size:34px;
+      line-height:1.08;
+      letter-spacing:-.7px;
+    }
+
+    .hero p{
+      margin:12px 0 0;
+      color:rgba(255,255,255,.86);
+      line-height:1.6;
+      max-width:820px;
+      font-size:14px;
+    }
+
+    .hero-panel{
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.16);
+      border-radius:18px;
+      padding:16px;
+    }
+
+    .hero-panel strong{
+      display:block;
+      font-size:13px;
+      margin-bottom:10px;
+    }
+
+    .pulse-row{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      font-size:12px;
+      padding:9px 0;
+      border-bottom:1px solid rgba(255,255,255,.12);
+    }
+
+    .pulse-row:last-child{ border-bottom:0; }
+
+    .status-dot{
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:#31C48D;
+      display:inline-block;
+      margin-right:8px;
+      box-shadow:0 0 0 5px rgba(49,196,141,.15);
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      scroll-margin-top:88px;
+    }
+
+    .card-head{
+      padding:16px 18px;
+      border-bottom:1px solid var(--border);
+      background:linear-gradient(90deg,rgba(0,58,143,.08),rgba(242,140,40,.08));
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    .card-head h2{
+      margin:0;
+      font-size:17px;
+      color:var(--xw-blue);
+      letter-spacing:.2px;
+    }
+
+    .card-head p{
+      margin:6px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+
+    .chip{
+      border:1px solid rgba(0,58,143,.18);
+      background:rgba(0,58,143,.06);
+      color:var(--xw-blue);
+      padding:8px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+
+    .body{ padding:16px 18px 18px; }
+
+    .kpi-grid{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:12px;
+    }
+
+    .kpi{
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:15px;
+      background:#fff;
+    }
+
+    .kpi .label{
+      color:var(--muted);
+      font-size:12px;
+      font-weight:700;
+    }
+
+    .kpi .value{
+      font-size:28px;
+      font-weight:900;
+      color:var(--xw-blue);
+      margin-top:8px;
+      letter-spacing:-.5px;
+    }
+
+    .kpi .desc{
+      margin-top:6px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+
+    .solution-grid{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:12px;
+    }
+
+    .solution{
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#fff;
+      padding:15px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      min-height:220px;
+    }
+
+    .icon{
+      width:42px;
+      height:42px;
+      border-radius:14px;
+      display:grid;
+      place-items:center;
+      font-size:22px;
+      background:rgba(0,58,143,.08);
+    }
+
+    .solution h3{
+      margin:0;
+      color:var(--xw-blue);
+      font-size:15px;
+    }
+
+    .solution p{
+      margin:0;
+      color:var(--muted);
+      font-size:12.5px;
+      line-height:1.55;
+    }
+
+    .tagrow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-top:auto;
+    }
+
+    .tag{
+      font-size:11px;
+      font-weight:800;
+      color:#374151;
+      border:1px solid var(--border);
+      background:#F9FAFB;
+      border-radius:999px;
+      padding:6px 8px;
+    }
+
+    .pipeline{
+      display:grid;
+      grid-template-columns:repeat(5,1fr);
+      gap:10px;
+      align-items:stretch;
+    }
+
+    .pipe{
+      border:1px solid var(--border);
+      background:#fff;
+      border-radius:16px;
+      padding:14px;
+      position:relative;
+      min-height:120px;
+    }
+
+    .pipe:not(:last-child)::after{
+      content:"→";
+      position:absolute;
+      right:-15px;
+      top:45%;
+      font-weight:900;
+      color:var(--tbr-orange);
+      z-index:1;
+    }
+
+    .pipe strong{
+      display:block;
+      color:var(--xw-blue);
+      font-size:13px;
+      margin-bottom:8px;
+    }
+
+    .pipe span{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    .industry-grid{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:12px;
+    }
+
+    .industry{
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#fff;
+      padding:15px;
+    }
+
+    .industry h3{
+      margin:0 0 8px;
+      color:var(--xw-blue);
+      font-size:15px;
+    }
+
+    .industry ul{
+      margin:0;
+      padding-left:18px;
+      color:var(--muted);
+      font-size:12.5px;
+      line-height:1.65;
+    }
+
+    .alert-board{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+
+    .mock-map{
+      min-height:330px;
+      border-radius:18px;
+      border:1px solid var(--border);
+      background:
+        radial-gradient(circle at 35% 45%,rgba(242,140,40,.32) 0 8%,transparent 9%),
+        radial-gradient(circle at 35% 45%,rgba(242,140,40,.18) 0 18%,transparent 19%),
+        radial-gradient(circle at 35% 45%,rgba(242,140,40,.08) 0 30%,transparent 31%),
+        linear-gradient(135deg,#E6F0FF,#F8FBFF);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .mock-map::before{
+      content:"";
+      position:absolute;
+      inset:24px;
+      border:2px dashed rgba(0,58,143,.18);
+      border-radius:24px;
+    }
+
+    .site-pin{
+      position:absolute;
+      left:34%;
+      top:44%;
+      transform:translate(-50%,-50%);
+      background:var(--xw-blue);
+      color:#fff;
+      padding:8px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      box-shadow:0 12px 28px rgba(0,58,143,.25);
+    }
+
+    .strike{
+      position:absolute;
+      font-size:22px;
+      filter:drop-shadow(0 8px 12px rgba(0,0,0,.18));
+    }
+
+    .strike.a{ left:58%; top:30%; }
+    .strike.b{ left:70%; top:52%; }
+    .strike.c{ left:44%; top:67%; }
+
+    .alert-list{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .alert{
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#fff;
+      padding:14px;
+      display:grid;
+      grid-template-columns:88px 1fr;
+      gap:12px;
+      align-items:start;
+    }
+
+    .level{
+      border-radius:999px;
+      padding:7px 10px;
+      text-align:center;
+      color:#fff;
+      font-size:11px;
+      font-weight:900;
+    }
+
+    .level.info{ background:var(--green); }
+    .level.warning{ background:var(--yellow); }
+    .level.alarm{ background:var(--red); }
+
+    .alert strong{
+      color:var(--xw-blue);
+      font-size:13px;
+    }
+
+    .alert p{
+      margin:5px 0 0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+
+    .timeline{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:12px;
+    }
+
+    .phase{
+      border:1px solid var(--border);
+      background:#fff;
+      border-radius:16px;
+      padding:15px;
+    }
+
+    .phase .num{
+      width:32px;
+      height:32px;
+      border-radius:11px;
+      display:grid;
+      place-items:center;
+      background:var(--xw-blue);
+      color:#fff;
+      font-weight:900;
+      margin-bottom:10px;
+    }
+
+    .phase h3{
+      margin:0;
+      color:var(--xw-blue);
+      font-size:14px;
+    }
+
+    .phase p{
+      margin:7px 0 0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.5;
+    }
+
+    .callout{
+      margin-top:12px;
+      border:1px solid rgba(242,140,40,.30);
+      background:rgba(242,140,40,.08);
+      border-radius:14px;
+      padding:12px;
+      color:#7A3E00;
+      font-size:12.5px;
+      line-height:1.55;
+    }
+
+    .footer{
+      max-width:1380px;
+      margin:0 auto 26px;
+      padding:0 18px;
+      color:var(--muted);
+      font-size:12px;
+      text-align:center;
+    }
+
+    @media(max-width:1100px){
+      .wrap{ grid-template-columns:1fr; }
+      .sidebar{ display:none; }
+      .hero-grid,
+      .alert-board,
+      .industry-grid{ grid-template-columns:1fr; }
+      .solution-grid,
+      .kpi-grid,
+      .pipeline,
+      .timeline{ grid-template-columns:1fr 1fr; }
+      .pipe:not(:last-child)::after{ display:none; }
+    }
+
+    @media(max-width:640px){
+      .topbar{ align-items:flex-start; flex-direction:column; }
+      .solution-grid,
+      .kpi-grid,
+      .pipeline,
+      .timeline{ grid-template-columns:1fr; }
+      .hero h1{ font-size:26px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">TBR</div>
+      <div class="title">
+        <strong>Terrindo Bumi Raya · Integrated Solutions</strong>
+        <span>Dashboard Mode – Weather, Ocean, Aviation, Lightning & Environmental Intelligence</span>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <a class="btn" href="#solutions">Solutions</a>
+      <a class="btn" href="#industries">Industries</a>
+      <a class="btn" href="#architecture">Architecture</a>
+      <button class="btn primary" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <aside class="sidebar">
+      <div class="head">
+        <p class="h">Terrindo Solution Dashboard</p>
+        <p class="s">Halaman demo untuk menjelaskan solusi sebagai satu kesatuan sistem, bukan sekadar daftar produk.</p>
+      </div>
+
+      <nav class="nav">
+        <a href="#overview"><div class="badge">1</div><div class="meta"><strong>Overview</strong><span>Executive positioning</span></div></a>
+        <a href="#kpi"><div class="badge">2</div><div class="meta"><strong>Value KPI</strong><span>Nilai bisnis sistem</span></div></a>
+        <a href="#solutions"><div class="badge">3</div><div class="meta"><strong>Solutions</strong><span>Bundling produk</span></div></a>
+        <a href="#architecture"><div class="badge">4</div><div class="meta"><strong>Architecture</strong><span>Data to decision</span></div></a>
+        <a href="#industries"><div class="badge">5</div><div class="meta"><strong>Industries</strong><span>Use case customer</span></div></a>
+        <a href="#alert"><div class="badge">6</div><div class="meta"><strong>Alert Demo</strong><span>Info / Warning / Alarm</span></div></a>
+        <a href="#roadmap"><div class="badge">7</div><div class="meta"><strong>Roadmap</strong><span>Implementasi</span></div></a>
+      </nav>
+    </aside>
+
+    <main class="content">
+
+      <section id="overview" class="hero">
+        <div class="hero-grid">
+          <div>
+            <h1>Integrated Environmental Intelligence System</h1>
+            <p>
+              Solusi terpadu Terrindo untuk mengubah data sensor menjadi keputusan operasional:
+              radar cuaca, lightning detection, AWS, radiosonde, HF radar, GNSS, dan dashboard analitik
+              dalam satu ekosistem monitoring, warning, reporting, dan decision support.
+            </p>
+            <p>
+              Fokus utama: meningkatkan keselamatan, mengurangi downtime, mempercepat respons,
+              dan menyediakan bukti data untuk pengambilan keputusan customer.
+            </p>
+          </div>
+
+          <div class="hero-panel">
+            <strong><span class="status-dot"></span>System Positioning</strong>
+            <div class="pulse-row"><span>Business Model</span><b>Integrated Solution</b></div>
+            <div class="pulse-row"><span>Primary Output</span><b>Decision Support</b></div>
+            <div class="pulse-row"><span>Target Client</span><b>B2G / B2B</b></div>
+            <div class="pulse-row"><span>Value</span><b>Safety + Efficiency</b></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="kpi" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Value Dashboard</h2>
+            <p>Ringkasan nilai yang mudah dipahami customer saat Terrindo menawarkan solusi sebagai sistem.</p>
+          </div>
+          <div class="chip">Executive View</div>
+        </div>
+
+        <div class="body">
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="label">Operational Safety</div>
+              <div class="value">↑</div>
+              <div class="desc">Peringatan lebih cepat untuk cuaca ekstrem, petir, gelombang, dan risiko operasional.</div>
+            </div>
+
+            <div class="kpi">
+              <div class="label">Downtime Risk</div>
+              <div class="value">↓</div>
+              <div class="desc">Keputusan shutdown, delay, atau mitigasi menjadi berbasis data, bukan feeling.</div>
+            </div>
+
+            <div class="kpi">
+              <div class="label">Data Integration</div>
+              <div class="value">1</div>
+              <div class="desc">Semua sensor dan output analitik masuk ke satu dashboard dan satu workflow.</div>
+            </div>
+
+            <div class="kpi">
+              <div class="label">Decision Speed</div>
+              <div class="value">24/7</div>
+              <div class="desc">Monitoring, alert, reporting, dan analisis dapat berjalan secara operasional.</div>
+            </div>
+          </div>
+
+          <div class="callout">
+            <strong>Kalimat jualan utama:</strong>
+            Terrindo membantu customer berpindah dari monitoring pasif menjadi sistem keputusan aktif:
+            melihat risiko, memahami dampak, dan menentukan aksi sebelum kerugian terjadi.
+          </div>
+        </div>
+      </section>
+
+      <section id="solutions" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Solution Portfolio</h2>
+            <p>Paket solusi yang bisa ditawarkan sebagai satu sistem end-to-end.</p>
+          </div>
+          <div class="chip">Sales Bundling</div>
+        </div>
+
+        <div class="body">
+          <div class="solution-grid">
+
+            <div class="solution">
+              <div class="icon">🌩️</div>
+              <h3>Weather Early Warning System</h3>
+              <p>Radar cuaca, lightning detection, AWS, dan dashboard warning untuk mendeteksi hujan lebat, badai, petir, dan risiko cuaca operasional.</p>
+              <div class="tagrow">
+                <span class="tag">Weather Radar</span>
+                <span class="tag">Lightning</span>
+                <span class="tag">AWS</span>
+                <span class="tag">Nowcasting</span>
+              </div>
+            </div>
+
+            <div class="solution">
+              <div class="icon">✈️</div>
+              <h3>Aviation Safety Suite</h3>
+              <p>Sistem keselamatan bandara untuk mendukung keputusan takeoff, landing, delay, dan mitigasi risiko windshear, petir, serta cuaca buruk.</p>
+              <div class="tagrow">
+                <span class="tag">Windshear</span>
+                <span class="tag">Airport Weather</span>
+                <span class="tag">ATC Support</span>
+              </div>
+            </div>
+
+            <div class="solution">
+              <div class="icon">⚡</div>
+              <h3>Lightning Risk Management</h3>
+              <p>Monitoring petir berbasis sensor/network dan alert radius untuk melindungi pekerja, aset, gardu, power plant, tambang, dan area industri.</p>
+              <div class="tagrow">
+                <span class="tag">Info 20 km</span>
+                <span class="tag">Warning 10 km</span>
+                <span class="tag">Alarm 4 km</span>
+              </div>
+            </div>
+
+            <div class="solution">
+              <div class="icon">🌊</div>
+              <h3>Ocean Intelligence System</h3>
+              <p>HF radar untuk monitoring arus, gelombang, dan kondisi laut real-time bagi offshore, pelabuhan, coastal surveillance, dan mitigasi bencana.</p>
+              <div class="tagrow">
+                <span class="tag">HF Radar</span>
+                <span class="tag">Current</span>
+                <span class="tag">Wave</span>
+                <span class="tag">Coastal</span>
+              </div>
+            </div>
+
+            <div class="solution">
+              <div class="icon">🎈</div>
+              <h3>Upper-Air Observation System</h3>
+              <p>Radiosonde dan analisis atmosfer atas untuk mendukung prakiraan cuaca, kalibrasi model, aviation meteorology, dan operasi meteorologi nasional.</p>
+              <div class="tagrow">
+                <span class="tag">Radiosonde</span>
+                <span class="tag">Upper Air</span>
+                <span class="tag">BUFR</span>
+              </div>
+            </div>
+
+            <div class="solution">
+              <div class="icon">🛰️</div>
+              <h3>GNSS Integrity & Monitoring</h3>
+              <p>GNSS monitoring, RAIM, dan positioning integrity untuk kebutuhan aviation, geodetik, deformasi tanah, serta monitoring infrastruktur kritis.</p>
+              <div class="tagrow">
+                <span class="tag">GNSS</span>
+                <span class="tag">RAIM</span>
+                <span class="tag">Integrity</span>
+              </div>
+            </div>
+
+            <div class="solution">
+              <div class="icon">🏭</div>
+              <h3>Industrial Weather Risk Platform</h3>
+              <p>Platform risiko cuaca untuk mining, smelter, oil & gas, energi, dan kawasan industri: alert petir, hujan ekstrem, angin kencang, dan laporan kejadian.</p>
+              <div class="tagrow">
+                <span class="tag">Mining</span>
+                <span class="tag">Oil & Gas</span>
+                <span class="tag">Power Plant</span>
+              </div>
+            </div>
+
+            <div class="solution">
+              <div class="icon">🏙️</div>
+              <h3>Smart City Environmental Command Center</h3>
+              <p>Integrasi kualitas udara, cuaca, banjir, petir, dan data lingkungan ke dashboard kota untuk monitoring publik dan keputusan pemerintah daerah.</p>
+              <div class="tagrow">
+                <span class="tag">Smart City</span>
+                <span class="tag">Dashboard</span>
+                <span class="tag">Public Alert</span>
+              </div>
+            </div>
+
+            <div class="solution">
+              <div class="icon">🛡️</div>
+              <h3>Critical Infrastructure Monitoring</h3>
+              <p>Sistem command center untuk aset vital: bandara, pelabuhan, pembangkit listrik, kawasan industri, dan fasilitas strategis.</p>
+              <div class="tagrow">
+                <span class="tag">Security</span>
+                <span class="tag">Environment</span>
+                <span class="tag">Command Center</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture" class="card">
+        <div class="card-head">
+          <div>
+            <h2>End-to-End System Architecture</h2>
+            <p>Alur sederhana untuk menjelaskan ke customer bagaimana produk menjadi sistem operasional.</p>
+          </div>
+          <div class="chip">Data to Decision</div>
+        </div>
+
+        <div class="body">
+          <div class="pipeline">
+            <div class="pipe">
+              <strong>1. Sensor Layer</strong>
+              <span>Radar, lightning sensor, AWS, radiosonde, HF radar, GNSS, dan data eksternal.</span>
+            </div>
+
+            <div class="pipe">
+              <strong>2. Ingestion Layer</strong>
+              <span>Data masuk melalui API, file, stream, gateway, database, atau scheduler.</span>
+            </div>
+
+            <div class="pipe">
+              <strong>3. Processing Layer</strong>
+              <span>QC, filter, validasi, konversi format, nowcasting, dan analisis statistik.</span>
+            </div>
+
+            <div class="pipe">
+              <strong>4. Application Layer</strong>
+              <span>Dashboard, map, alert, analytics, report, export PDF/CSV, dan API.</span>
+            </div>
+
+            <div class="pipe">
+              <strong>5. Decision Layer</strong>
+              <span>Operator, manager, ATC, HSE, command center, dan stakeholder menerima rekomendasi aksi.</span>
+            </div>
+          </div>
+
+          <div class="callout">
+            <strong>Pesan penting untuk customer:</strong>
+            nilai terbesar bukan hanya pada sensor, tetapi pada integrasi data menjadi keputusan yang bisa dipakai harian.
+          </div>
+        </div>
+      </section>
+
+      <section id="industries" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Industry Use Cases</h2>
+            <p>Mapping customer potensial dan solusi yang bisa ditawarkan.</p>
+          </div>
+          <div class="chip">Market View</div>
+        </div>
+
+        <div class="body">
+          <div class="industry-grid">
+            <div class="industry">
+              <h3>PLN / Power Plant</h3>
+              <ul>
+                <li>Lightning risk monitoring untuk gardu, transmisi, dan power plant.</li>
+                <li>Alert radius untuk keputusan shutdown atau worker evacuation.</li>
+                <li>Monthly report untuk evaluasi kejadian petir dan risiko aset.</li>
+              </ul>
+            </div>
+
+            <div class="industry">
+              <h3>Airport / AirNav</h3>
+              <ul>
+                <li>Weather radar dan windshear monitoring untuk runway safety.</li>
+                <li>Lightning alert untuk ground handling dan apron operation.</li>
+                <li>Nowcasting untuk keputusan delay, reroute, dan landing approach.</li>
+              </ul>
+            </div>
+
+            <div class="industry">
+              <h3>Offshore / Port / Marine</h3>
+              <ul>
+                <li>HF radar untuk arus laut dan gelombang.</li>
+                <li>Monitoring operasi kapal, offshore platform, dan pelabuhan.</li>
+                <li>Support mitigasi cuaca buruk dan kondisi laut ekstrem.</li>
+              </ul>
+            </div>
+
+            <div class="industry">
+              <h3>Mining / Industrial Area</h3>
+              <ul>
+                <li>Lightning alert untuk blasting, hauling, dan pekerja outdoor.</li>
+                <li>Rain monitoring untuk risiko banjir, jalan tambang, dan operasi alat berat.</li>
+                <li>Dashboard HSE untuk incident report dan compliance.</li>
+              </ul>
+            </div>
+
+            <div class="industry">
+              <h3>BMKG / Government</h3>
+              <ul>
+                <li>Radar cuaca, radiosonde, lightning, dan sistem observasi nasional.</li>
+                <li>Dashboard monitoring performa data dan quality control.</li>
+                <li>Integrasi data untuk layanan publik dan early warning.</li>
+              </ul>
+            </div>
+
+            <div class="industry">
+              <h3>Smart City / Local Government</h3>
+              <ul>
+                <li>Environmental command center untuk cuaca, banjir, petir, dan kualitas udara.</li>
+                <li>Public dashboard dan alert system.</li>
+                <li>Decision support untuk kebijakan kota berbasis data.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="alert" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Dashboard Mockup: Lightning & Weather Alert</h2>
+            <p>Contoh visual untuk menjelaskan konsep alert radius dan action level.</p>
+          </div>
+          <div class="chip">Demo Mode</div>
+        </div>
+
+        <div class="body">
+          <div class="alert-board">
+            <div class="mock-map">
+              <div class="site-pin">Customer Site</div>
+              <div class="strike a">⚡</div>
+              <div class="strike b">⚡</div>
+              <div class="strike c">⚡</div>
+            </div>
+
+            <div class="alert-list">
+              <div class="alert">
+                <div class="level info">INFO</div>
+                <div>
+                  <strong>Lightning detected within 20 km</strong>
+                  <p>Operator mulai monitoring. Aktivitas outdoor tetap berjalan dengan awareness.</p>
+                </div>
+              </div>
+
+              <div class="alert">
+                <div class="level warning">WARNING</div>
+                <div>
+                  <strong>Lightning detected within 10 km</strong>
+                  <p>HSE menyiapkan mitigasi. Aktivitas berisiko tinggi mulai dibatasi.</p>
+                </div>
+              </div>
+
+              <div class="alert">
+                <div class="level alarm">ALARM</div>
+                <div>
+                  <strong>Lightning detected within 4 km</strong>
+                  <p>Stop work / sheltering procedure dijalankan sesuai SOP customer.</p>
+                </div>
+              </div>
+
+              <div class="callout">
+                <strong>Catatan:</strong>
+                radius dapat disesuaikan dengan SOP customer, tetapi struktur Info–Warning–Alarm sangat mudah dipahami untuk kebutuhan operasional.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="roadmap" class="card">
+        <div class="card-head">
+          <div>
+            <h2>Implementation Roadmap</h2>
+            <p>Tahapan implementasi agar solusi bisa dijual sebagai project yang jelas dan terukur.</p>
+          </div>
+          <div class="chip">Project Plan</div>
+        </div>
+
+        <div class="body">
+          <div class="timeline">
+            <div class="phase">
+              <div class="num">1</div>
+              <h3>Assessment</h3>
+              <p>Survey kebutuhan customer, risiko utama, site, coverage, SOP, dan output yang dibutuhkan.</p>
+            </div>
+
+            <div class="phase">
+              <div class="num">2</div>
+              <h3>System Design</h3>
+              <p>Menentukan sensor, network, server, dashboard, alert level, dan integrasi data.</p>
+            </div>
+
+            <div class="phase">
+              <div class="num">3</div>
+              <h3>Deployment</h3>
+              <p>Instalasi perangkat, konfigurasi sistem, integrasi dashboard, dan training operator.</p>
+            </div>
+
+            <div class="phase">
+              <div class="num">4</div>
+              <h3>Operation</h3>
+              <p>Monitoring harian, maintenance, report bulanan, evaluasi KPI, dan improvement.</p>
+            </div>
+          </div>
+
+          <div class="callout">
+            <strong>Output akhir yang bisa dijual:</strong>
+            bukan hanya perangkat, tetapi sistem lengkap berisi sensor, server, dashboard, alert, SOP, report, training, dan maintenance.
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div class="footer">
+    © Terrindo Bumi Raya · Integrated Solutions Dashboard · Dashboard demo for internal sales & solution engineering.
+  </div>
+</body>
+</html>

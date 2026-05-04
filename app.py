@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from flask import Flask, redirect, url_for
 
-from routes.attendance_models import db
 from routes.pages_routes import pages_bp
 from routes.xweather_manual_routes import xweather_manual_bp
 from routes.twincityjakarta_manual_routes import twincityjakarta_manual_bp
@@ -13,6 +12,10 @@ from routes.radar_routes import radar_bp
 from routes.iris_product_flow_routes import iris_product_flow_bp
 from routes.hfradar_routes import hfradar_bp
 from routes.attendance_routes import attendance_bp
+from routes.terrindo_solutions_routes import terrindo_solutions_bp
+from flask_login import LoginManager
+from routes.attendance_models import db, User
+from routes.auth_routes import auth_bp
 
 
 def load_env_file(env_path: str = '.env') -> None:
@@ -40,10 +43,7 @@ def create_app():
     app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', '').strip()
 
     # === WAJIB untuk Attendance / models.py ===
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-        'SQLALCHEMY_DATABASE_URI',
-        'sqlite:///app.sqlite'
-    )
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     app.config['RADAR_UPLOAD_FOLDER'] = os.path.join(app.root_path, 'uploads', 'radarviewer')
@@ -54,7 +54,16 @@ def create_app():
 
     # === init db sebelum register blueprint attendance ===
     db.init_app(app)
-
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = "auth.login"
+    login_manager.login_message = "Silakan login terlebih dahulu."
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
+    
+    app.register_blueprint(auth_bp)
     app.register_blueprint(pages_bp)
     app.register_blueprint(xweather_manual_bp)
     app.register_blueprint(twincityjakarta_manual_bp)
@@ -65,7 +74,8 @@ def create_app():
     app.register_blueprint(iris_product_flow_bp)
     app.register_blueprint(hfradar_bp)
     app.register_blueprint(attendance_bp)
-
+    app.register_blueprint(terrindo_solutions_bp)
+    
     @app.route('/xweather/manual.pdf', endpoint='xweather_manual_pdf')
     def xweather_manual_pdf_alias():
         return redirect(url_for('xweather_manual.xweather_manual_pdf'))

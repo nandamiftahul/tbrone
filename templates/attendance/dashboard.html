@@ -1,40 +1,131 @@
 {% extends 'attendance/base.html' %}
 {% block title %}Dashboard · Attendance{% endblock %}
 {% block content %}
+
 <div class="hero">
   <div>
     <div class="eyebrow">Attendance Dashboard</div>
     <h2>Today · {{ today }}</h2>
-    <p>Ringkasan kehadiran harian dalam tampilan yang lebih rapi, tetap memakai statistik backend yang sama.</p>
+    <p>Monitoring cepat kehadiran harian, status absensi, pending approval, dan aktivitas check-in terbaru.</p>
+  </div>
+
+  <div class="top-actions">
+    <a class="btn secondary" href="{{ url_for('attendance.attendance_check') }}">Check-In / Out</a>
+    <a class="btn" href="{{ url_for('attendance.attendance_list') }}">View Records</a>
   </div>
 </div>
 
-<div class="card" style="margin-bottom:14px;">
-  {% if current_user.role == 'admin' %}
-  <form method="post" action="{{ url_for('holiday_create') }}" class="three-col">
-    <div>
-      <label>Holiday date</label>
-      <input type="date" name="date" required>
-    </div>
-    <div>
-      <label>Holiday name</label>
-      <input name="name" placeholder="e.g., National Holiday" required>
-    </div>
-    <div style="display:flex;align-items:end;">
-      <button class="btn" type="submit">Add holiday</button>
-    </div>
-  </form>
-  {% else %}
-  <div class="muted">Tip: Ask admin to add holidays so auto-absent ignores them.</div>
-  {% endif %}
+<div class="grid stats">
+  <div class="card stat">
+    <div class="label">Active Employees</div>
+    <div class="value">{{ stats.employees }}</div>
+  </div>
+
+  <div class="card stat">
+    <div class="label">Today Records</div>
+    <div class="value">{{ stats.total }}</div>
+  </div>
+
+  <div class="card stat">
+    <div class="label">Present / Late</div>
+    <div class="value">{{ stats.present }}</div>
+  </div>
+
+  <div class="card stat">
+    <div class="label">WFH</div>
+    <div class="value">{{ stats.wfh }}</div>
+  </div>
+
+  <div class="card stat">
+    <div class="label">Leave / Sick</div>
+    <div class="value">{{ stats.leave + stats.sick }}</div>
+  </div>
+
+  <div class="card stat">
+    <div class="label">Not Recorded</div>
+    <div class="value">{{ stats.not_recorded }}</div>
+  </div>
 </div>
 
-<div class="grid stats">
-  <div class="card stat"><div class="label">Total Records</div><div class="value">{{ stats.total }}</div></div>
-  <div class="card stat"><div class="label">Present / Late / WFH</div><div class="value">{{ stats.present }}</div></div>
-  <div class="card stat"><div class="label">Leave</div><div class="value">{{ stats.leave }}</div></div>
-  <div class="card stat"><div class="label">Sick</div><div class="value">{{ stats.sick }}</div></div>
-  <div class="card stat"><div class="label">WFH</div><div class="value">{{ stats.wfh }}</div></div>
-  <div class="card stat"><div class="label">Absent</div><div class="value">{{ stats.absent }}</div></div>
+<div class="grid two-col" style="margin-top:18px;">
+  <div class="card">
+    <h3 style="margin-top:0;">Today Summary</h3>
+
+    <div class="tablewrap">
+      <table class="table">
+        <tbody>
+          <tr><th>Present</th><td><span class="badge">{{ stats.present }}</span></td></tr>
+          <tr><th>Late</th><td><span class="badge">{{ stats.late }}</span></td></tr>
+          <tr><th>WFH</th><td><span class="badge">{{ stats.wfh }}</span></td></tr>
+          <tr><th>Leave</th><td><span class="badge">{{ stats.leave }}</span></td></tr>
+          <tr><th>Sick</th><td><span class="badge">{{ stats.sick }}</span></td></tr>
+          <tr><th>Absent</th><td><span class="badge">{{ stats.absent }}</span></td></tr>
+          <tr><th>Pending Leave Approval</th><td><span class="badge">{{ pending_leave }}</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Quick Actions</h3>
+
+    <div class="actions-row">
+      <a class="btn" href="{{ url_for('attendance.attendance_check') }}">Check-In / Out</a>
+      <a class="btn secondary" href="{{ url_for('attendance.attendance_list') }}">Records</a>
+      <a class="btn secondary" href="{{ url_for('attendance.leave_request') }}">Leave Request</a>
+
+      {% if current_user.role in ['admin', 'hrd', 'manager'] %}
+      <a class="btn secondary" href="{{ url_for('attendance.approvals') }}">Approvals</a>
+      {% endif %}
+
+      {% if current_user.role in ['admin', 'hrd'] %}
+      <a class="btn secondary" href="{{ url_for('attendance.employees') }}">Employees</a>
+      {% endif %}
+    </div>
+
+    <p class="muted" style="margin-top:16px;">
+      Login sebagai <strong>{{ current_user.name }}</strong> dengan role
+      <strong>{{ current_user.role }}</strong>.
+    </p>
+  </div>
 </div>
+
+<div class="card" style="margin-top:18px;">
+  <h3 style="margin-top:0;">Recent Check-In Today</h3>
+
+  <div class="tablewrap">
+    <table class="table" style="min-width:900px;">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Name</th>
+          <th>Dept</th>
+          <th>Check-In</th>
+          <th>Check-Out</th>
+          <th>Status</th>
+          <th>Hours</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in recent_records %}
+        <tr>
+          <td>{{ r.employee.code if r.employee else '' }}</td>
+          <td>{{ r.employee.name if r.employee else '' }}</td>
+          <td>{{ r.employee.dept if r.employee else '' }}</td>
+          <td>{{ r.check_in or '-' }}</td>
+          <td>{{ r.check_out or '-' }}</td>
+          <td><span class="badge">{{ r.status }}</span></td>
+          <td>{{ '%.2f'|format(r.duration_hours) }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="muted">Belum ada data attendance hari ini.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 {% endblock %}

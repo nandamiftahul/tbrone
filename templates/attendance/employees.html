@@ -1,0 +1,331 @@
+{% extends 'attendance/base.html' %}
+{% block title %}Employees · Attendance{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div>
+    <div class="eyebrow">Employee Management</div>
+    <h2>Employees & Login Accounts</h2>
+    <p>Kelola data karyawan, role, shift, status aktif, dan akun login yang terhubung ke tabel users.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Search Employee</h3>
+  <form method="get" class="top-actions">
+    <div style="min-width:320px;flex:1;">
+      <label>Keyword</label>
+      <input name="q" placeholder="Search name / email / code / dept" value="{{ q or '' }}">
+    </div>
+    <button class="btn" type="submit">Search</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Create Employee</h3>
+
+  <form method="post" action="{{ url_for('attendance.employee_create') }}">
+    <div class="seven-col">
+      <div>
+        <label>Code</label>
+        <input name="code" placeholder="Code" required>
+      </div>
+
+      <div>
+        <label>Name</label>
+        <input name="name" placeholder="Employee name" required>
+      </div>
+
+      <div>
+        <label>Email</label>
+        <input name="email" placeholder="Employee email">
+      </div>
+
+      <div>
+        <label>Department</label>
+        <input name="dept" placeholder="Department">
+      </div>
+
+      <div>
+        <label>Role</label>
+        <select name="role">
+          <option value="staff">staff</option>
+          <option value="manager">manager</option>
+          <option value="general_manager">general manager</option>
+          <option value="hrd">HRD</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Shift</label>
+        <select name="shift_id">
+          <option value="">No shift</option>
+          {% for s in shifts %}
+          <option value="{{ s.id }}">{{ s.name }} ({{ s.start_time }}-{{ s.end_time }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:end;">
+        <button class="btn" type="submit">Add</button>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);">
+      <label class="chk">
+        <input type="checkbox" id="create_login" name="create_login" value="1" onchange="toggleCreateLogin()">
+        Create login account for this employee
+      </label>
+
+      <div id="createLoginBox" class="three-col" style="display:none;margin-top:12px;">
+        <div>
+          <label>Login Email</label>
+          <input name="login_email" placeholder="user@company.com">
+        </div>
+
+        <div>
+          <label>Initial Password</label>
+          <input name="login_password" placeholder="Initial password" type="password">
+        </div>
+
+        <div style="display:flex;align-items:end;">
+          <span class="muted">Password will be stored as hash.</span>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Employee List</h3>
+
+  <div class="tablewrap">
+    <table class="table" style="min-width:1280px;">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Name</th>
+          <th>Employee Email</th>
+          <th>Dept</th>
+          <th>Role</th>
+          <th>Shift</th>
+          <th>Login Username</th>
+          <th>Active</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><strong>{{ r.code }}</strong></td>
+          <td class="truncate" title="{{ r.name }}">{{ r.name }}</td>
+          <td class="truncate" title="{{ r.email or '' }}">{{ r.email or '' }}</td>
+          <td>{{ r.dept or '' }}</td>
+          <td><span class="badge">{{ r.role or (r.user.role if r.user else '') }}</span></td>
+          <td>{{ r.shift.name if r.shift else '' }}</td>
+          <td class="truncate" title="{{ r.user.email if r.user else '' }}">{{ r.user.email if r.user else '-' }}</td>
+          <td>{{ 'Yes' if r.is_active else 'No' }}</td>
+
+          <td class="actions-cell">
+            <div class="actions-row">
+              <button
+                type="button"
+                class="btn secondary btn-sm js-edit"
+                data-id="{{ r.id }}"
+                data-code="{{ r.code|e }}"
+                data-name="{{ r.name|e }}"
+                data-email="{{ (r.email or '')|e }}"
+                data-dept="{{ (r.dept or '')|e }}"
+                data-role="{{ (r.role or (r.user.role if r.user else 'staff'))|e }}"
+                data-shift="{{ (r.shift_id or '') }}"
+                data-active="{{ '1' if r.is_active else '0' }}"
+                data-login="{{ (r.user.email if r.user else '')|e }}"
+                data-haslogin="{{ '1' if r.user else '0' }}"
+              >Edit</button>
+
+              <form method="post"
+                    action="{{ url_for('attendance.employee_delete', emp_id=r.id) }}"
+                    onsubmit="return confirm('Delete {{ r.name }}?')">
+                <button class="btn danger btn-sm" type="submit">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="muted" style="margin-top:10px;">
+    Tip: swipe/drag table ke kanan-kiri untuk melihat semua kolom.
+  </div>
+</div>
+
+<div id="editModal" class="modal">
+  <div class="modal-box">
+    <h3 style="margin-top:0;">Edit Employee</h3>
+
+    <form id="editForm" method="post">
+      <div class="two-col">
+        <div>
+          <label>Code</label>
+          <input name="code" id="e_code" required>
+        </div>
+
+        <div>
+          <label>Name</label>
+          <input name="name" id="e_name" required>
+        </div>
+
+        <div>
+          <label>Employee Email</label>
+          <input name="email" id="e_email">
+        </div>
+
+        <div>
+          <label>Department</label>
+          <input name="dept" id="e_dept">
+        </div>
+
+        <div>
+          <label>Role</label>
+          <select name="role" id="e_role">
+            <option value="staff">staff</option>
+            <option value="manager">manager</option>
+            <option value="general_manager">general manager</option>
+            <option value="hrd">HRD</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Shift</label>
+          <select name="shift_id" id="e_shift">
+            <option value="">No shift</option>
+            {% for s in shifts %}
+            <option value="{{ s.id }}">{{ s.name }} ({{ s.start_time }}-{{ s.end_time }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line);">
+        <h4 style="margin:0 0 12px 0;">Login Account</h4>
+
+        <div id="loginExistsBox" style="display:none;">
+          <label>Login username / email</label>
+          <input name="login_email" id="e_login_email" placeholder="user@company.com">
+
+          <label class="chk" style="margin-top:12px;">
+            <input type="checkbox" name="reset_password" value="1" id="e_reset_pw" onchange="toggleResetPw()">
+            Reset password
+          </label>
+
+          <div id="resetPwBox" style="display:none;margin-top:10px;">
+            <label>New password</label>
+            <input name="new_password" id="e_new_pw" type="password" placeholder="New password">
+          </div>
+        </div>
+
+        <div id="loginCreateBox" style="display:none;">
+          <label class="chk">
+            <input type="checkbox" name="create_login" value="1" id="e_create_login" onchange="toggleCreateInModal()">
+            Create login for this employee
+          </label>
+
+          <div id="createPwBox" style="display:none;margin-top:10px;">
+            <label>Login username / email</label>
+            <input name="login_email" id="e_login_email2" placeholder="user@company.com">
+
+            <label style="margin-top:10px;">Initial password</label>
+            <input name="new_password" id="e_new_pw2" type="password" placeholder="Initial password">
+          </div>
+        </div>
+      </div>
+
+      <label class="chk" style="margin-top:16px;">
+        <input type="checkbox" name="is_active" id="e_active">
+        Active
+      </label>
+
+      <div class="modal-actions">
+        <button class="btn secondary" type="button" id="btnCancel">Cancel</button>
+        <button class="btn" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleCreateLogin(){
+  const box = document.getElementById('createLoginBox');
+  const cb  = document.getElementById('create_login');
+  box.style.display = cb.checked ? 'grid' : 'none';
+}
+
+function toggleResetPw(){
+  const cb = document.getElementById('e_reset_pw');
+  document.getElementById('resetPwBox').style.display = cb.checked ? 'block' : 'none';
+}
+
+function toggleCreateInModal(){
+  const cb = document.getElementById('e_create_login');
+  document.getElementById('createPwBox').style.display = cb.checked ? 'block' : 'none';
+}
+
+(function(){
+  const modal = document.getElementById('editModal');
+  const form  = document.getElementById('editForm');
+
+  function openModal() { modal.style.display = 'flex'; }
+  function closeModal(){ modal.style.display = 'none'; }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  document.getElementById('btnCancel').addEventListener('click', closeModal);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  document.querySelectorAll('.js-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+
+      form.action = `/attendance/employees/${id}/update`;
+
+      document.getElementById('e_code').value = btn.dataset.code || '';
+      document.getElementById('e_name').value = btn.dataset.name || '';
+      document.getElementById('e_email').value = btn.dataset.email || '';
+      document.getElementById('e_dept').value = btn.dataset.dept || '';
+      document.getElementById('e_role').value = btn.dataset.role || 'staff';
+      document.getElementById('e_shift').value = btn.dataset.shift || '';
+      document.getElementById('e_active').checked = (btn.dataset.active === '1');
+
+      const hasLogin = (btn.dataset.haslogin === '1');
+
+      document.getElementById('loginExistsBox').style.display = hasLogin ? 'block' : 'none';
+      document.getElementById('loginCreateBox').style.display = hasLogin ? 'none' : 'block';
+
+      document.getElementById('e_reset_pw').checked = false;
+      document.getElementById('resetPwBox').style.display = 'none';
+      document.getElementById('e_create_login').checked = false;
+      document.getElementById('createPwBox').style.display = 'none';
+
+      if (hasLogin){
+        document.getElementById('e_login_email').value = btn.dataset.login || '';
+        document.getElementById('e_new_pw').value = '';
+      } else {
+        document.getElementById('e_login_email2').value = '';
+        document.getElementById('e_new_pw2').value = '';
+      }
+
+      openModal();
+    });
+  });
+})();
+</script>
+
+{% endblock %}

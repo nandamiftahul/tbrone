@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Login - Terrindo One</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #fff7ed, #f6f2f2);
+    }
+
+    .login-card {
+      width: 380px;
+      background: white;
+      padding: 32px;
+      border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.12);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      color: #2f2323;
+    }
+
+    p {
+      margin: 0 0 24px;
+      color: #6f6666;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px 14px;
+      margin-bottom: 14px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      font-size: 15px;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: 0;
+      border-radius: 14px;
+      background: #f28c28;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .flash {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #fee2e2;
+      color: #991b1b;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <form class="login-card" method="POST">
+    <h1>Terrindo One</h1>
+    <p>Login untuk mengakses sistem internal.</p>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for msg in messages %}
+          <div class="flash">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+<input
+  type="text"
+  name="email"
+  placeholder="Username"
+  autocomplete="username"
+  required
+>
+
+<input
+  type="password"
+  name="password"
+  placeholder="Password"
+  autocomplete="current-password"
+  required
+>
+    <button type="submit">Login</button>
+  </form>
+</body>
+</html>
