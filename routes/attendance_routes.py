@@ -967,10 +967,34 @@ def mobile_api_face_verify():
     if current_emb is None:
         return jsonify({"ok": False, "error": "Face image invalid"}), 400
 
-    stored_emb = np.frombuffer(emp.face_embedding, dtype=np.float32)
-
+    try:
+        stored_bytes = bytes(emp.face_embedding)
+    
+        if len(stored_bytes) % np.dtype(np.float32).itemsize != 0:
+            emp.face_embedding = None
+            emp.face_updated_at = None
+            db.session.commit()
+            return jsonify({
+                "ok": False,
+                "error": "Data face lama tidak valid. Silakan enroll ulang di Profile > Enroll Face."
+            }), 400
+    
+        stored_emb = np.frombuffer(stored_bytes, dtype=np.float32)
+    
+    except Exception:
+        return jsonify({
+            "ok": False,
+            "error": "Gagal membaca face embedding. Silakan enroll ulang."
+        }), 400
+    
     if stored_emb.size != current_emb.size:
-        return jsonify({"ok": False, "error": "Face embedding mismatch. Silakan enroll ulang."}), 400
+        emp.face_embedding = None
+        emp.face_updated_at = None
+        db.session.commit()
+        return jsonify({
+            "ok": False,
+            "error": "Format face embedding lama tidak cocok. Silakan enroll ulang."
+        }), 400
 
     distance = float(np.linalg.norm(stored_emb - current_emb))
 
