@@ -6,6 +6,9 @@ import csv
 import io
 import json
 from openpyxl import Workbook
+import base64
+import numpy as np
+
 attendance_bp = Blueprint("attendance", __name__, url_prefix="/attendance")
 
 
@@ -889,3 +892,100 @@ def mobile_api_announcements_active():
         })
 
     return jsonify({"ok": True, "rows": data})
+
+def _simple_face_embedding_from_data_url(data_url):
+    """
+    Temporary lightweight embedding.
+    Ini belum face recognition OpenCV/LBPH beneran,
+    tapi sudah menyimpan signature numerik ke Employee.face_embedding.
+    """
+    if not data_url or "," not in data_url:
+        return None
+
+    raw = base64.b64decode(data_url.split(",", 1)[1])
+
+    arr = np.frombuffer(raw, dtype=np.uint8)
+
+    if arr.size == 0:
+        return None
+
+    # Buat embedding fixed-size 128 float32 dari byte image.
+    bins = np.array_split(arr, 128)
+    emb = np.array([b.mean() if b.size else 0 for b in bins], dtype=np.float32)
+
+    norm = np.linalg.norm(emb)
+    if norm > 0:
+        emb = emb / norm
+
+    return emb
+
+@attendance_bp.route("/api/face/enroll", methods=["POST"])
+@login_required
+def mobile_api_face_enroll():
+    data = request.get_json(force=True, silent=True) or {}
+    image = data.get("image")
+
+    emp = Employee.query.filter_by(user_id=current_user.id).first()
+    if not emp:
+        return jsonify({"ok": False, "error": "Employee profile tidak ditemukan"}), 404
+
+    emb = _simple_face_embedding_from_data_url(image)
+    if emb is None:
+        return jsonify({"ok": False, "error": "Face image invalid"}), 400
+
+    emp.face_embedding = emb.tobytes()
+    emp.face_updated_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "message": "Face enrolled"
+    })
+
+
+@attendance_bp.route("/api/face/verify", methods=["POST"])
+@login_required
+def mobile_api_face_verify():
+    data = request.get_json(force=True, silent=True) or {}
+    image = data.get("image")
+    action = data.get("action")
+
+    if action not in ["check_in", "check_out"]:
+        return jsonify({"ok": False, "error": "Invalid action"}), 400
+
+    emp = Employee.query.filter_by(user_id=current_user.id).first()
+    if not emp:
+        return jsonify({"ok": False, "error": "Employee profile tidak ditemukan"}), 404
+
+    if not emp.face_embedding:
+        return jsonify({
+            "ok": False,
+            "error": "Face belum dienroll. Buka Profile > Enroll Face dulu."
+        }), 400
+
+    current_emb = _simple_face_embedding_from_data_url(image)
+    if current_emb is None:
+        return jsonify({"ok": False, "error": "Face image invalid"}), 400
+
+    stored_emb = np.frombuffer(emp.face_embedding, dtype=np.float32)
+
+    if stored_emb.size != current_emb.size:
+        return jsonify({"ok": False, "error": "Face embedding mismatch. Silakan enroll ulang."}), 400
+
+    distance = float(np.linalg.norm(stored_emb - current_emb))
+
+    # Threshold ini untuk lightweight embedding, perlu tuning.
+    threshold = 0.35
+
+    if distance > threshold:
+        return jsonify({
+            "ok": False,
+            "error": f"Face tidak cocok. Distance={distance:.3f}"
+        }), 401
+
+    return jsonify({
+        "ok": True,
+        "token": f"face-ok-{current_user.id}-{int(datetime.utcnow().timestamp())}",
+        "distance": distance,
+        "message": "Face verified"
+    })
