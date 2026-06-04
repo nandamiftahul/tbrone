@@ -874,6 +874,11 @@
               </div>
 
               <div class="field">
+                <label for="tzOffset">Timezone<br><small>UTC offset</small></label>
+                <select id="tzOffset" class="input" onchange="saveTimezoneOffset()"></select>
+              </div>
+
+              <div class="field">
                 <label for="q">Search</label>
                 <input id="q" class="input" type="text" placeholder="Cari asset / type / time..." oninput="applyFilters()">
               </div>
@@ -1268,6 +1273,44 @@
     const DTFMT_DEFAULT = "excel"; // excel | id | iso | date
     let dtFmt = DTFMT_DEFAULT;
 
+    const TZ_OFFSET_KEY = "xw_tz_offset_v1";
+    let tzOffsetHours = 0;
+
+    function tzLabel(offset){
+      if (offset === 0) return "UTC";
+      return `UTC${offset > 0 ? "+" : ""}${offset}`;
+    }
+
+    function initTimezoneSelect(){
+      const sel = document.getElementById("tzOffset");
+      if (!sel) return;
+      sel.innerHTML = "";
+      for (let h = -23; h <= 23; h++){
+        const opt = document.createElement("option");
+        opt.value = String(h);
+        opt.textContent = tzLabel(h);
+        sel.appendChild(opt);
+      }
+      try{
+        const raw = localStorage.getItem(TZ_OFFSET_KEY);
+        tzOffsetHours = Number.isFinite(Number(raw)) ? Number(raw) : 0;
+      }catch(e){ tzOffsetHours = 0; }
+      tzOffsetHours = Math.max(-23, Math.min(23, Math.trunc(tzOffsetHours || 0)));
+      sel.value = String(tzOffsetHours);
+    }
+
+    function saveTimezoneOffset(){
+      const sel = document.getElementById("tzOffset");
+      tzOffsetHours = Math.max(-23, Math.min(23, Math.trunc(Number(sel?.value || 0))));
+      try{ localStorage.setItem(TZ_OFFSET_KEY, String(tzOffsetHours)); }catch(e){}
+      loadMonth();
+    }
+
+    function applyTimezone(d){
+      if (!d) return null;
+      return new Date(d.getTime() + (tzOffsetHours * 60 * 60 * 1000));
+    }
+
     function loadDateFmt(){
       try{
         const raw = localStorage.getItem(DTFMT_KEY);
@@ -1308,15 +1351,16 @@
 
     function formatDTForMode(d, mode){
       if (!d) return "";
-      const y = d.getUTCFullYear();
-      const mo = pad2(d.getUTCMonth()+1);
-      const da = pad2(d.getUTCDate());
-      const hh = pad2(d.getUTCHours());
-      const mi = pad2(d.getUTCMinutes());
-      const ss = pad2(d.getUTCSeconds());
+      const shifted = applyTimezone(d);
+      const y = shifted.getUTCFullYear();
+      const mo = pad2(shifted.getUTCMonth()+1);
+      const da = pad2(shifted.getUTCDate());
+      const hh = pad2(shifted.getUTCHours());
+      const mi = pad2(shifted.getUTCMinutes());
+      const ss = pad2(shifted.getUTCSeconds());
 
       if (mode === "date") return `${y}-${mo}-${da}`;
-      if (mode === "iso") return `${y}-${mo}-${da}T${hh}:${mi}:${ss}Z`;
+      if (mode === "iso") return `${y}-${mo}-${da}T${hh}:${mi}:${ss} ${tzLabel(tzOffsetHours)}`;
       if (mode === "id") return `${da}/${mo}/${y} ${hh}:${mi}`;
       // excel default
       return `${y}-${mo}-${da} ${hh}:${mi}:${ss}`;
@@ -1331,7 +1375,8 @@
     function firstEventMonth(raw){
       const d = parseAnyDate(raw);
       if (!d) return "";
-      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}`;
+      const shifted = applyTimezone(d);
+      return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth()+1)}`;
     }
 
     function openDateFmtDialog(){
@@ -1554,6 +1599,29 @@
       });
     }
 
+    function shiftMonth(month, delta){
+      const m = String(month || "").match(/^(\d{4})-(\d{2})$/);
+      if (!m) return month;
+      const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1 + delta, 1));
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}`;
+    }
+
+    async function fetchRowsForAdjustedMonth(month){
+      const months = [shiftMonth(month, -1), month, shiftMonth(month, 1)];
+      const seen = new Set();
+      const allRows = [];
+      for (const m of months){
+        const js = await fetchJson(`/api/xweather/monthly-report?month=${encodeURIComponent(m)}`);
+        (js.rows || []).forEach(row => {
+          const key = row.id ?? `${row.asset_name}|${row.first_event_time}|${row.severity}|${row.duration_min}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          allRows.push(row);
+        });
+      }
+      return allRows;
+    }
+
     async function loadMonth(){
       const month = document.getElementById("month").value.trim();
       if (!month){
@@ -1563,10 +1631,8 @@
       setCsvLinks(month);
 
       try{
-        const js = await fetchJson(`/api/xweather/monthly-report?month=${encodeURIComponent(month)}`);
-
         const tbody = document.getElementById("tbody");
-        const sourceRows = js.rows || [];
+        const sourceRows = await fetchRowsForAdjustedMonth(month);
         loadAssetsFromRows(sourceRows, month);
         const rows = sourceRows.filter(r => firstEventMonth(r.first_event_time) === month);
 
@@ -1662,7 +1728,8 @@
 
     function dateKeyFromDate(d){
       if (!d) return "";
-      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())}`;
+      const shifted = applyTimezone(d);
+      return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth()+1)}-${pad2(shifted.getUTCDate())}`;
     }
 
     function minutesBetween(start, end){
@@ -1893,7 +1960,8 @@
       const laneEnds = [];
       return events
         .map(r => {
-          const minutes = r.firstTime.getUTCHours() * 60 + r.firstTime.getUTCMinutes();
+          const shifted = applyTimezone(r.firstTime);
+          const minutes = shifted.getUTCHours() * 60 + shifted.getUTCMinutes();
           const startSlot = Math.max(0, Math.min(143, Math.floor(minutes / 10)));
           const span = Math.max(1, Math.ceil(Math.max(r.duration || 10, 10) / 10));
           const endSlot = Math.min(144, startSlot + span);
@@ -1912,9 +1980,10 @@
         });
     }
 
-    // init: set default month to current UTC YYYY-MM, then load
+    // init: set default month based on selected timezone, then load
     (function init(){
-      const d = new Date();
+      initTimezoneSelect();
+      const d = applyTimezone(new Date());
       const y = d.getUTCFullYear();
       const m = String(d.getUTCMonth()+1).padStart(2,"0");
       const month = `${y}-${m}`;
@@ -1948,7 +2017,7 @@
       </tr>
     `).join("");
 
-    if (note) note.innerText = `Expert stats month: ${month} · metrics: ${metrics.length}`;
+    if (note) note.innerText = `Ringkasan bulan ${month} · ${metrics.length} indikator.`;
   }
   </script>
 </body>
