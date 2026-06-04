@@ -885,7 +885,7 @@
               <div class="value" id="statClearCompliance">-</div>
             </div>
             <div class="stat-tile">
-              <div class="label">Warning ke evakuasi</div>
+              <div class="label">Waspada ke evakuasi</div>
               <div class="value" id="statWarningConversion">-</div>
             </div>
           </div>
@@ -914,7 +914,7 @@
 
           <div class="chart-grid">
             <div class="chart-panel">
-              <h3>Warning-to-Evacuation Conversion</h3>
+              <h3>Waspada ke Evakuasi</h3>
               <div class="bar-list" id="chartWarningConversion"></div>
             </div>
             <div class="chart-panel">
@@ -1663,7 +1663,7 @@
           insights.push(`<strong>${compliancePct.toFixed(0)}%</strong> event evakuasi memiliki jeda Xweather clear minimal 30 menit dari last event; gunakan ini sebagai bahan review, bukan keputusan K3 final.`);
         }
         if (conversionPct !== null){
-          insights.push(`Rasio Warning-to-Evacuation sebesar <strong>${conversionPct.toFixed(0)}%</strong>; nilai tinggi menunjukkan area perlu kesiapan evakuasi lebih cepat setelah status Warning.`);
+          insights.push(`Rasio Waspada ke Evakuasi sebesar <strong>${conversionPct.toFixed(0)}%</strong>; nilai tinggi menunjukkan area perlu kesiapan evakuasi lebih cepat setelah status Waspada.`);
         }
       }else{
         insights.push(`Tidak ada evakuasi pada filter ini; kondisi ini bisa dipakai sebagai bukti periode operasi yang relatif aman.`);
