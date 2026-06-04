@@ -881,7 +881,7 @@
               <div class="value" id="statMaxStrength">-</div>
             </div>
             <div class="stat-tile">
-              <div class="label">Clear time sesuai SOP</div>
+              <div class="label">Clear time Xweather >= 30 menit</div>
               <div class="value" id="statClearCompliance">-</div>
             </div>
             <div class="stat-tile">
@@ -907,7 +907,7 @@
               <div class="bar-list" id="chartEvacDuration"></div>
             </div>
             <div class="chart-panel">
-              <h3>Return-to-Work Compliance</h3>
+              <h3>Clear Time Review</h3>
               <div class="bar-list" id="chartClearCompliance"></div>
             </div>
           </div>
@@ -988,7 +988,7 @@
               <li><b>First event time</b>: waktu pertama kali event petir memicu severity itu.</li>
               <li><b>Active time</b>: waktu status mulai aktif (umumnya sama dengan first event time).</li>
               <li><b>Last event time</b>: waktu event petir terakhir sebelum status menuju clear.</li>
-              <li><b>Clear time</b>: waktu status kembali aman setelah tidak ada event (mengikuti clear time setting).</li>
+              <li><b>Clear time</b>: waktu status clear dari Xweather setelah tidak ada event (mengikuti clear time setting).</li>
               <li><b>Duration (min)</b>: total durasi status aktif (menit).</li>
               <li><b>Strength (kA)</b>: kekuatan petir (kiloampere), biasanya peak current.</li>
               <li><b>Type</b>: tipe petir (misal <span class="kbd">CG-</span>, <span class="kbd">CG+</span>, dst).</li>
@@ -1647,8 +1647,8 @@
       renderBarChart("chartSeverityMix", topEntries(severityCounts, 3));
       renderBarChart("chartEvacDuration", topEntries(alarmDurationByAsset, 6), " min");
       renderBarChart("chartClearCompliance", [
-        ["Clear >= 30 min", compliantClear],
-        ["Perlu review", reviewClear],
+        ["Xweather clear >= 30 min", compliantClear],
+        ["Xweather clear < 30 min", reviewClear],
       ]);
       renderBarChart("chartWarningConversion", topEntries(conversionByAsset, 6), "%");
 
@@ -1660,7 +1660,7 @@
           insights.push(`Durasi evakuasi terpanjang berada di <strong>${escapeHtml(longestAlarm.asset || "Unknown")}</strong> selama <strong>${Math.round(longestAlarm.duration)} menit</strong>, berguna untuk evaluasi delay operasional.`);
         }
         if (compliancePct !== null){
-          insights.push(`Kepatuhan clear time minimal 30 menit berada di <strong>${compliancePct.toFixed(0)}%</strong>; area yang masuk "Perlu review" sebaiknya dicek terhadap SOP return-to-work.`);
+          insights.push(`<strong>${compliancePct.toFixed(0)}%</strong> event evakuasi memiliki jeda Xweather clear minimal 30 menit dari last event; gunakan ini sebagai bahan review, bukan keputusan K3 final.`);
         }
         if (conversionPct !== null){
           insights.push(`Rasio Warning-to-Evacuation sebesar <strong>${conversionPct.toFixed(0)}%</strong>; nilai tinggi menunjukkan area perlu kesiapan evakuasi lebih cepat setelah status Warning.`);
@@ -1676,7 +1676,7 @@
       }
 
       document.getElementById("wbnInsights").innerHTML = insights.map(i => `<li>${i}</li>`).join("");
-      document.getElementById("wbnStatsNote").innerText = `Chart berbasis ${rows.length} row yang sedang tampil. Evakuasi mengikuti severity ${sevLabel("alarm")}; clear time >= 30 menit dipakai sebagai indikator return-to-work.`;
+      document.getElementById("wbnStatsNote").innerText = `Chart berbasis ${rows.length} row yang sedang tampil. Evakuasi mengikuti severity ${sevLabel("alarm")}; clear time adalah status dari Xweather dan dipakai sebagai indikator review operasional.`;
     }
 
     // init: set default month to current UTC YYYY-MM, then load
