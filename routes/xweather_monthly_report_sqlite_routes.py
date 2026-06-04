@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, jsonify, g, make_response, Response
+from werkzeug.exceptions import HTTPException
 import os
 import csv
 import io
@@ -22,6 +23,20 @@ load_dotenv()
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
 
+
+@xweather_report_bp.errorhandler(Exception)
+def handle_xweather_api_error(error):
+    if not request.path.startswith("/api/"):
+        raise error
+
+    status_code = 500
+    message = str(error) or error.__class__.__name__
+    if isinstance(error, HTTPException):
+        status_code = error.code or status_code
+        message = error.description
+
+    return jsonify({"ok": False, "error": message}), status_code
+
 # =========================================================
 # PostgreSQL (Railway) - drop-in replacement for sqlite layer
 # =========================================================
@@ -30,7 +45,7 @@ def get_db():
         dsn = os.getenv("DATABASE_URL")
         if not dsn:
             raise RuntimeError("DATABASE_URL not set. Add Railway PostgreSQL and ensure env is injected.")
-        g.db = psycopg.connect(dsn, row_factory=dict_row)
+        g.db = psycopg.connect(dsn, row_factory=dict_row, connect_timeout=5)
         # we manually commit/rollback on teardown
         g.db.autocommit = False
     return g.db
@@ -97,6 +112,45 @@ def init_db():
         cur.execute("ALTER TABLE golf_locations ADD COLUMN IF NOT EXISTS rule2_min_strikes INTEGER DEFAULT 1;")
         cur.execute("ALTER TABLE golf_locations ADD COLUMN IF NOT EXISTS rule2_window_sec INTEGER DEFAULT 60;")    
     db.commit()
+
+
+_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
+
+
+def _event_time_expr():
+    return (
+        "COALESCE(NULLIF(first_event_time, ''), NULLIF(active_time, ''), "
+        "NULLIF(last_event_time, ''), NULLIF(clear_time, ''))"
+    )
+
+
+def _event_month_expr():
+    dt = _event_time_expr()
+    return f"""
+        CASE
+            WHEN {dt} ~ '^\\d{{4}}-\\d{{2}}' THEN substring({dt} from 1 for 7)
+            WHEN {dt} ~ '^\\d{{2}}\\.\\d{{2}}\\.\\d{{4}}' THEN substring({dt} from 7 for 4) || '-' || substring({dt} from 4 for 2)
+            ELSE NULL
+        END
+    """
+
+
+def _event_sort_expr():
+    dt = _event_time_expr()
+    return f"""
+        CASE
+            WHEN {dt} ~ '^\\d{{4}}-\\d{{2}}-\\d{{2}}' THEN replace(replace({dt}, 'T', ' '), 'Z', '')
+            WHEN {dt} ~ '^\\d{{2}}\\.\\d{{2}}\\.\\d{{4}}' THEN substring({dt} from 7 for 4) || '-' || substring({dt} from 4 for 2) || '-' || substring({dt} from 1 for 2) || substring({dt} from 11)
+            ELSE {dt}
+        END
+    """
+
+
+def _month_arg():
+    month = (request.args.get("month") or "").strip()
+    if not _MONTH_RE.match(month):
+        return None
+    return month
 
 
 # =========================================================
@@ -195,7 +249,6 @@ def _percentile(sorted_vals, p):
 # =========================================================
 @xweather_report_bp.route("/xweather/monthly-report")
 def xweather_monthly_report_viewer():
-    init_db()
     return render_template("project/xweather_monthly_report_sqlite.html")
 
 
@@ -213,18 +266,18 @@ def xweather_monthly_report_editor():
 # =========================================================
 @xweather_report_bp.route("/api/xweather/monthly-report", methods=["GET"])
 def api_list_monthly_report():
-    init_db()
-    month = (request.args.get("month") or "").strip()
+    month = _month_arg()
     if not month:
         return jsonify({"ok": False, "error": "missing month (YYYY-MM)"}), 400
 
+    init_db()
     db = get_db()
     with db.cursor() as cur:
-        cur.execute("""
+        cur.execute(f"""
             SELECT *
             FROM monthly_lightning_alerts
-            WHERE report_month = %s
-            ORDER BY id DESC
+            WHERE {_event_month_expr()} = %s
+            ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
         """, (month,))
         rows = cur.fetchall()
 
@@ -237,17 +290,17 @@ def api_list_monthly_report():
 # =========================================================
 @xweather_report_bp.route("/api/xweather/monthly-report/assets", methods=["GET"])
 def api_monthly_report_assets():
-    init_db()
-    month = (request.args.get("month") or "").strip()
+    month = _month_arg()
     if not month:
         return jsonify({"ok": False, "error": "missing month (YYYY-MM)"}), 400
 
+    init_db()
     db = get_db()
     with db.cursor() as cur:
-        cur.execute("""
+        cur.execute(f"""
             SELECT DISTINCT asset_name
             FROM monthly_lightning_alerts
-            WHERE report_month = %s
+            WHERE {_event_month_expr()} = %s
             ORDER BY asset_name ASC
         """, (month,))
         rows = cur.fetchall()
@@ -403,19 +456,19 @@ def api_delete_monthly_report_row(row_id: int):
 # =========================================================
 @xweather_report_bp.route("/xweather/monthly-report.csv", methods=["GET"])
 def monthly_report_csv():
-    init_db()
-    month = (request.args.get("month") or "").strip()
+    month = _month_arg()
     if not month:
         return "missing month (YYYY-MM)", 400
 
+    init_db()
     db = get_db()
     with db.cursor() as cur:
-        cur.execute("""
+        cur.execute(f"""
             SELECT severity, asset_name, extent_km, first_event_time, active_time,
                    last_event_time, clear_time, duration_min, strength_ka, event_type
             FROM monthly_lightning_alerts
-            WHERE report_month = %s
-            ORDER BY id DESC
+            WHERE {_event_month_expr()} = %s
+            ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
         """, (month,))
         rows = cur.fetchall()
 
@@ -588,17 +641,18 @@ def api_import_monthly_report_csv():
 # =========================================================
 @xweather_report_bp.route("/api/xweather/monthly-report/expert", methods=["GET"])
 def api_monthly_report_expert():
-    init_db()
-    month = (request.args.get("month") or "").strip()
+    month = _month_arg()
     if not month:
         return jsonify({"ok": False, "error": "missing month (YYYY-MM)"}), 400
 
+    init_db()
     db = get_db()
     with db.cursor() as cur:
-        cur.execute("""
-            SELECT severity, first_event_time, duration_min, strength_ka, event_type
+        cur.execute(f"""
+            SELECT severity, {_event_time_expr()} AS analysis_event_time,
+                   duration_min, strength_ka, event_type
             FROM monthly_lightning_alerts
-            WHERE report_month = %s
+            WHERE {_event_month_expr()} = %s
         """, (month,))
         rows = cur.fetchall()
 
@@ -640,7 +694,7 @@ def api_monthly_report_expert():
 
     hours = []
     for r in rows:
-        h = _parse_hour_utc(r.get("first_event_time"))
+        h = _parse_hour_utc(r.get("analysis_event_time"))
         if h is not None:
             hours.append(h)
     hour_counts = Counter(hours)
@@ -723,28 +777,29 @@ def api_monthly_report_expert():
 
 @xweather_report_bp.route("/xweather/monthly-report.xlsx", methods=["GET"])
 def monthly_report_xlsx():
-    init_db()
-    month = (request.args.get("month") or "").strip()
+    month = _month_arg()
     if not month:
         return "missing month (YYYY-MM)", 400
 
+    init_db()
     db = get_db()
     with db.cursor() as cur:
         # 1) data report
-        cur.execute("""
+        cur.execute(f"""
             SELECT severity, asset_name, extent_km, first_event_time, active_time,
                    last_event_time, clear_time, duration_min, strength_ka, event_type
             FROM monthly_lightning_alerts
-            WHERE report_month = %s
-            ORDER BY id DESC
+            WHERE {_event_month_expr()} = %s
+            ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
         """, (month,))
         report_rows = cur.fetchall()
 
         # 2) data expert (ambil data mentah yang dibutuhkan)
-        cur.execute("""
-            SELECT severity, first_event_time, duration_min, strength_ka, event_type
+        cur.execute(f"""
+            SELECT severity, {_event_time_expr()} AS analysis_event_time,
+                   duration_min, strength_ka, event_type
             FROM monthly_lightning_alerts
-            WHERE report_month = %s
+            WHERE {_event_month_expr()} = %s
         """, (month,))
         expert_rows = cur.fetchall()
 
@@ -815,7 +870,7 @@ def monthly_report_xlsx():
 
     hours = []
     for r in expert_rows:
-        h = _parse_hour_utc(r.get("first_event_time"))
+        h = _parse_hour_utc(r.get("analysis_event_time"))
         if h is not None:
             hours.append(h)
     hour_counts = Counter(hours)

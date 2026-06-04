@@ -606,7 +606,7 @@
       <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
       <div class="title">
         <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
-        <span>Monthly Lightning Alert Report (CSV Download)</span>
+        <span>Monthly Lightning Alert Report (Excel Download)</span>
       </div>
     </div>
 
@@ -614,7 +614,7 @@
       <a class="btn print-hide" href="#report">Report</a>
       <a class="btn print-hide" href="#legend">Legend</a>
       <!-- NOTE: href will be overwritten by JS to include month -->
-      <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.csv?month=">Download CSV</a>
+      <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.xlsx?month=">Download Excel</a>
       <button id="btnAliasTop" class="btn print-hide" onclick="openAliasDialog()">⚙ Labels</button>
       <button class="btn print-hide" onclick="window.print()">Print / Save as PDF</button>
     </div>
@@ -630,7 +630,7 @@
         </p>
       </div>
       <nav class="nav">
-        <a href="#report"><div class="badge">1</div><div class="meta"><strong>Monthly Report</strong><span>Tabel utama + filter + download CSV</span></div></a>
+        <a href="#report"><div class="badge">1</div><div class="meta"><strong>Monthly Report</strong><span>Tabel utama + filter + download Excel</span></div></a>
         <a href="#expert">
           <div class="badge">2</div>
           <div class="meta">
@@ -653,7 +653,7 @@
             <h2>Monthly Lightning Alert Report</h2>
             <p>
               Tabel ini menampilkan log alert petir (Info/Warning/Alarm) per asset.
-              Gunakan filter untuk mempermudah pencarian, lalu unduh sebagai CSV.
+              Bulan laporan difilter dari datetime event, lalu bisa dicari dan diunduh.
             </p>
           </div>
           <div class="chip">Monthly Report</div>
@@ -667,7 +667,7 @@
               <!-- ✅ Month selector added (minimal, still same style) -->
               <div class="field">
                 <label for="month">Month<br><small>(YYYY-MM)</small></label>
-                <input id="month" class="input" type="text" placeholder="2026-01" onkeydown="if(event.key==='Enter'){loadMonth();}">
+                <input id="month" class="input" type="month" placeholder="2026-01" onchange="loadMonth()" onkeydown="if(event.key==='Enter'){loadMonth();}">
               </div>
 
               <div class="field">
@@ -695,7 +695,7 @@
 
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn" onclick="loadMonth()">🔄 Load</button>
-              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.csv?month=">⬇ Download CSV</a>
+              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.xlsx?month=">⬇ Download Excel</a>
               <button class="btn" onclick="window.print()">🖨 Print</button>
               <button class="btn" onclick="openAliasDialog()">⚙ Labels</button>
               <button class="btn" onclick="openDateFmtDialog()">📅 Date Format</button>
@@ -728,8 +728,8 @@
           <div class="mini" id="rowCount"></div>
 
           <div class="callout">
-            <strong>Catatan:</strong> Tombol <span class="kbd">Download CSV</span> akan mengambil data bulan yang dipilih dalam format CSV,
-            sehingga bisa langsung dipakai untuk laporan bulanan (HSE/ops).
+            <strong>Catatan:</strong> Tombol <span class="kbd">Download Excel</span> akan mengambil data bulan yang dipilih dalam format XLSX,
+            berdasarkan datetime event sehingga konsisten dengan tabel laporan.
           </div>
         </div>
       </section>
@@ -817,14 +817,14 @@
       <div class="mhead">
         <div>
           <h3>Date/Time Format</h3>
-          <p>Pilih format tampilan waktu di tabel, dan format yang dipakai saat <b>Download CSV (Excel)</b>.</p>
+          <p>Pilih format tampilan waktu di tabel.</p>
         </div>
         <button class="btn" style="background:rgba(0,0,0,.06); color:var(--text); border-color:var(--border);" onclick="closeDateFmtDialog()">✕</button>
       </div>
 
       <div class="mbody">
         <div class="help-mini">
-          <b>Catatan:</b> Data dari backend tidak diubah. Ini hanya mengubah <i>penyajian</i> dan file CSV yang di-generate dari tabel untuk kebutuhan Excel.
+          <b>Catatan:</b> Data dari backend tidak diubah. Ini hanya mengubah <i>penyajian</i> datetime di tabel.
         </div>
 
         <div class="radio-row">
@@ -938,6 +938,27 @@
         .replaceAll("'","&#039;");
     }
 
+    async function fetchJson(url){
+      const res = await fetch(url, { headers: { "Accept": "application/json" } });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")){
+        const text = await res.text();
+        throw new Error(`API returned ${res.status} ${res.statusText || ""}: ${text.slice(0, 120)}`);
+      }
+
+      const js = await res.json();
+      if (!res.ok || !js.ok){
+        throw new Error(js.error || `API returned ${res.status}`);
+      }
+      return js;
+    }
+
+    function showTableError(message){
+      const tbody = document.getElementById("tbody");
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:left;color:#b91c1c;">${escapeHtml(message)}</td></tr>`;
+      document.getElementById("rowCount").innerText = "Rows shown: 0 / 0";
+    }
+
     function setCsvLinks(month){
       const url = "/xweather/monthly-report.xlsx?month=" + encodeURIComponent(month);
       document.getElementById("btnCsv").href = url;
@@ -978,6 +999,13 @@
       if (m){
         const y=+m[1], mo=+m[2]-1, da=+m[3], hh=+m[4], mi=+m[5], ss=+(m[6]||0);
         // Assume UTC for backend timestamps (common in DB exports)
+        return new Date(Date.UTC(y,mo,da,hh,mi,ss));
+      }
+
+      // Try "DD.MM.YYYY HH:MM:SS" or "DD.MM.YYYY HH:MM"
+      const dmy = str.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (dmy){
+        const da=+dmy[1], mo=+dmy[2]-1, y=+dmy[3], hh=+(dmy[4]||0), mi=+(dmy[5]||0), ss=+(dmy[6]||0);
         return new Date(Date.UTC(y,mo,da,hh,mi,ss));
       }
 
@@ -1211,9 +1239,7 @@
     async function loadAssets(month){
       const sel = document.getElementById("asset");
       sel.innerHTML = `<option value="">All</option>`;
-      const res = await fetch(`/api/xweather/monthly-report/assets?month=${encodeURIComponent(month)}`);
-      const js = await res.json();
-      if (!js.ok) return;
+      const js = await fetchJson(`/api/xweather/monthly-report/assets?month=${encodeURIComponent(month)}`);
       (js.assets || []).forEach(a => {
         const opt = document.createElement("option");
         opt.value = a;
@@ -1230,39 +1256,41 @@
       }
       setCsvLinks(month);
 
-      await loadAssets(month);
+      try{
+        await loadAssets(month);
 
-      const res = await fetch(`/api/xweather/monthly-report?month=${encodeURIComponent(month)}`);
-      const js = await res.json();
-      if (!js.ok){
-        alert(js.error || "Failed to load data");
-        return;
+        const js = await fetchJson(`/api/xweather/monthly-report?month=${encodeURIComponent(month)}`);
+
+        const tbody = document.getElementById("tbody");
+        const rows = js.rows || [];
+
+        tbody.innerHTML = rows.map(r => {
+          const sev = norm(r.severity);
+          const asset = r.asset_name || "";
+          return `
+            <tr data-sev="${escapeHtml(sev)}" data-asset="${escapeHtml(asset)}">
+              <td><span class="sev"><span class="dot"></span>${sevLabel(sev)}</span></td>
+              <td>${escapeHtml(asset)}</td>
+              <td>${escapeHtml(r.extent_km ?? "")}</td>
+              <td data-dt="first" data-raw="${escapeHtml(r.first_event_time ?? "")}">${escapeHtml(fmtDT(r.first_event_time ?? ""))}</td>
+              <td data-dt="active" data-raw="${escapeHtml(r.active_time ?? "")}">${escapeHtml(fmtDT(r.active_time ?? ""))}</td>
+              <td data-dt="last" data-raw="${escapeHtml(r.last_event_time ?? "")}">${escapeHtml(fmtDT(r.last_event_time ?? ""))}</td>
+              <td data-dt="clear" data-raw="${escapeHtml(r.clear_time ?? "")}">${escapeHtml(fmtDT(r.clear_time ?? ""))}</td>
+              <td>${escapeHtml(r.duration_min ?? "")}</td>
+              <td>${escapeHtml(r.strength_ka ?? "")}</td>
+              <td>${escapeHtml(r.event_type ?? "")}</td>
+            </tr>
+          `;
+        }).join("");
+
+        applyFilters();
+        await loadExpert(month);
+      }catch(err){
+        const msg = err && err.message ? err.message : "Failed to load data";
+        showTableError(msg);
+        const expertTbody = document.getElementById("expertTbody");
+        expertTbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:#b91c1c;">${escapeHtml(msg)}</td></tr>`;
       }
-
-      const tbody = document.getElementById("tbody");
-      const rows = js.rows || [];
-
-      tbody.innerHTML = rows.map(r => {
-        const sev = norm(r.severity);
-        const asset = r.asset_name || "";
-        return `
-          <tr data-sev="${escapeHtml(sev)}" data-asset="${escapeHtml(asset)}">
-            <td><span class="sev"><span class="dot"></span>${sevLabel(sev)}</span></td>
-            <td>${escapeHtml(asset)}</td>
-            <td>${escapeHtml(r.extent_km ?? "")}</td>
-            <td data-dt="first" data-raw="${escapeHtml(r.first_event_time ?? "")}">${escapeHtml(fmtDT(r.first_event_time ?? ""))}</td>
-            <td data-dt="active" data-raw="${escapeHtml(r.active_time ?? "")}">${escapeHtml(fmtDT(r.active_time ?? ""))}</td>
-            <td data-dt="last" data-raw="${escapeHtml(r.last_event_time ?? "")}">${escapeHtml(fmtDT(r.last_event_time ?? ""))}</td>
-            <td data-dt="clear" data-raw="${escapeHtml(r.clear_time ?? "")}">${escapeHtml(fmtDT(r.clear_time ?? ""))}</td>
-            <td>${escapeHtml(r.duration_min ?? "")}</td>
-            <td>${escapeHtml(r.strength_ka ?? "")}</td>
-            <td>${escapeHtml(r.event_type ?? "")}</td>
-          </tr>
-        `;
-      }).join("");
-
-      applyFilters();
-      await loadExpert(month);
     }
 
     function applyFilters(){
@@ -1316,11 +1344,12 @@
     tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:var(--muted);">Loading...</td></tr>`;
     if (note) note.innerText = "";
 
-    const res = await fetch(`/api/xweather/monthly-report/expert?month=${encodeURIComponent(month)}`);
-    const js = await res.json();
-
-    if (!js.ok){
-      tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:#b91c1c;">${escapeHtml(js.error || "Failed to load expert stats")}</td></tr>`;
+    let js;
+    try{
+      js = await fetchJson(`/api/xweather/monthly-report/expert?month=${encodeURIComponent(month)}`);
+    }catch(err){
+      const msg = err && err.message ? err.message : "Failed to load expert stats";
+      tbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:#b91c1c;">${escapeHtml(msg)}</td></tr>`;
       return;
     }
 
