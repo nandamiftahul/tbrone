@@ -533,6 +533,7 @@
     .timeline-grid{
       --slot-w: 18px;
       --lane-h: 14px;
+      --row-h: 54px;
       display:grid;
       grid-template-columns: 180px repeat(144, var(--slot-w));
       min-width: calc(180px + (144 * var(--slot-w)));
@@ -544,7 +545,7 @@
     .timeline-cell{
       border-right:1px solid rgba(17,24,39,.08);
       border-bottom:1px solid rgba(17,24,39,.08);
-      min-height:var(--row-h, 28px);
+      min-height:var(--row-h);
     }
     .timeline-corner,
     .timeline-hour{
@@ -1845,10 +1846,10 @@
         .filter(r => dateKeyFromDate(r.firstTime) === selectedDate)
         .sort((a, b) => (a.asset || "").localeCompare(b.asset || "") || a.firstTime - b.firstTime);
 
-      const assets = [...new Set(dayRows.map(r => r.asset || "Unknown"))].sort((a, b) => a.localeCompare(b));
+      const assets = [...new Set(rows.map(r => r.asset || "Unknown").filter(Boolean))].sort((a, b) => a.localeCompare(b));
       if (!selectedDate || !assets.length){
         grid.innerHTML = `<div class="timeline-corner">Area</div>${Array.from({length:24}, (_, h) => `<div class="timeline-hour">${pad2(h)}:00</div>`).join("")}`;
-        if (note) note.innerText = "Tidak ada alert pada tanggal/filter ini.";
+        if (note) note.innerText = "Tidak ada area untuk filter saat ini.";
         return;
       }
 
@@ -1862,16 +1863,15 @@
         const assetEvents = layoutTimelineEvents(dayRows.filter(r => (r.asset || "Unknown") === asset));
         const laneCount = Math.max(1, ...assetEvents.map(e => e.lane + 1));
         maxLaneCount = Math.max(maxLaneCount, laneCount);
-        const rowHeight = 8 + (laneCount * 18);
 
-        cells.push(`<div class="timeline-area" title="${escapeHtml(asset)}" style="grid-column:1;grid-row:${gridRow};--row-h:${rowHeight}px;">${escapeHtml(asset)}</div>`);
+        cells.push(`<div class="timeline-area" title="${escapeHtml(asset)}" style="grid-column:1;grid-row:${gridRow};">${escapeHtml(asset)}</div>`);
         for (let slot = 0; slot < 144; slot++){
           const cls = slot % 6 === 0 ? "timeline-cell hour-mark" : "timeline-cell";
-          cells.push(`<div class="${cls}" style="grid-column:${slot + 2};grid-row:${gridRow};--row-h:${rowHeight}px;"></div>`);
+          cells.push(`<div class="${cls}" style="grid-column:${slot + 2};grid-row:${gridRow};"></div>`);
         }
 
         assetEvents.forEach(r => {
-          const laneFromTop = r.lane;
+          const laneFromTop = Math.min(r.lane, 2);
           bars.push(`
             <div class="timeline-bar ${escapeHtml(r.severity)}"
                  title="${escapeHtml(asset)} · ${escapeHtml(sevLabel(r.severity))} · ${escapeHtml(fmtDT(r.firstTime))} · ${Math.round(r.duration || 0)} min"
