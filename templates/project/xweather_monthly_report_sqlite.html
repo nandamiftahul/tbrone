@@ -892,7 +892,7 @@
 
           <div class="chart-grid">
             <div class="chart-panel">
-              <h3>Top Area Evakuasi</h3>
+              <h3>Ranking Semua Area Evakuasi</h3>
               <div class="bar-list" id="chartEvacAreas"></div>
             </div>
             <div class="chart-panel">
@@ -903,7 +903,7 @@
 
           <div class="chart-grid">
             <div class="chart-panel">
-              <h3>Top Downtime Area</h3>
+              <h3>Ranking Semua Area Downtime</h3>
               <div class="bar-list" id="chartEvacDuration"></div>
             </div>
             <div class="chart-panel">
@@ -1561,10 +1561,9 @@
       return Number.isFinite(minutes) ? minutes : null;
     }
 
-    function topEntries(map, limit = 6){
+    function rankedEntries(map){
       return Object.entries(map)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, limit);
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     }
 
     function renderBarChart(id, entries, suffix = ""){
@@ -1615,11 +1614,12 @@
         alarmDurationByAsset[asset] = (alarmDurationByAsset[asset] || 0) + r.duration;
       });
 
-      const topAlarm = topEntries(alarmByAsset, 1)[0] || ["-", 0];
+      const rankedAlarmAreas = rankedEntries(alarmByAsset);
+      const topAlarm = rankedAlarmAreas[0] || ["-", 0];
       const totalAlarmMinutes = alarms.reduce((sum, r) => sum + r.duration, 0);
       const maxStrength = rows.reduce((max, r) => Math.max(max, Math.abs(r.strength || 0)), 0);
       const longestAlarm = alarms.reduce((best, r) => r.duration > (best?.duration || 0) ? r : best, null);
-      const dominantType = topEntries(typeCounts, 1)[0] || ["-", 0];
+      const dominantType = rankedEntries(typeCounts)[0] || ["-", 0];
       const alarmShare = rows.length ? (alarms.length / rows.length * 100) : 0;
       const complianceRows = alarms
         .map(r => ({ ...r, clearDelay: minutesBetween(r.lastTime, r.clearTime) }))
@@ -1643,14 +1643,14 @@
       document.getElementById("statClearCompliance").textContent = compliancePct === null ? "-" : `${compliancePct.toFixed(0)}%`;
       document.getElementById("statWarningConversion").textContent = conversionPct === null ? "-" : `${conversionPct.toFixed(0)}%`;
 
-      renderBarChart("chartEvacAreas", topEntries(alarmByAsset, 6));
-      renderBarChart("chartSeverityMix", topEntries(severityCounts, 3));
-      renderBarChart("chartEvacDuration", topEntries(alarmDurationByAsset, 6), " min");
+      renderBarChart("chartEvacAreas", rankedAlarmAreas);
+      renderBarChart("chartSeverityMix", rankedEntries(severityCounts));
+      renderBarChart("chartEvacDuration", rankedEntries(alarmDurationByAsset), " min");
       renderBarChart("chartClearCompliance", [
         ["Xweather clear >= 30 min", compliantClear],
         ["Xweather clear < 30 min", reviewClear],
       ]);
-      renderBarChart("chartWarningConversion", topEntries(conversionByAsset, 6), "%");
+      renderBarChart("chartWarningConversion", rankedEntries(conversionByAsset), "%");
 
       const insights = [];
       if (alarms.length){
