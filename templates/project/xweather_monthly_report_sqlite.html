@@ -423,7 +423,7 @@
 
     .stats-grid{
       display:grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap:10px;
       margin-top:14px;
     }
@@ -743,7 +743,7 @@
       <div class="head">
         <p class="h">Daftar Isi</p>
         <p class="s">
-          Laporan bulanan alert petir per asset: severity, durasi, dan strength (kA).
+          Laporan bulanan alert petir per area kerja: status risiko, durasi, dan kekuatan petir.
         </p>
       </div>
       <nav class="nav">
@@ -753,7 +753,7 @@
           <div class="badge">3</div>
           <div class="meta">
             <strong>Expert Statistical Analysis</strong>
-            <span>Ringkasan statistik dari SQLite</span>
+            <span>Ringkasan risiko untuk evaluasi bulanan</span>
           </div>
         </a>        
         <a href="#legend"><div class="badge">4</div><div class="meta"><strong>Legend</strong><span>Arti kolom dan severity</span></div></a>
@@ -836,7 +836,7 @@
                 </tr>
               </thead>
               <tbody id="tbody">
-                <!-- rows injected from SQLite -->
+                <!-- rows injected from report data -->
               </tbody>
             </table>
           </div>
@@ -880,6 +880,14 @@
               <div class="label">Peak current maksimum</div>
               <div class="value" id="statMaxStrength">-</div>
             </div>
+            <div class="stat-tile">
+              <div class="label">Clear time sesuai SOP</div>
+              <div class="value" id="statClearCompliance">-</div>
+            </div>
+            <div class="stat-tile">
+              <div class="label">Warning ke evakuasi</div>
+              <div class="value" id="statWarningConversion">-</div>
+            </div>
           </div>
 
           <div class="chart-grid">
@@ -895,8 +903,19 @@
 
           <div class="chart-grid">
             <div class="chart-panel">
-              <h3>Area Dengan Durasi Evakuasi Tertinggi</h3>
+              <h3>Top Downtime Area</h3>
               <div class="bar-list" id="chartEvacDuration"></div>
+            </div>
+            <div class="chart-panel">
+              <h3>Return-to-Work Compliance</h3>
+              <div class="bar-list" id="chartClearCompliance"></div>
+            </div>
+          </div>
+
+          <div class="chart-grid">
+            <div class="chart-panel">
+              <h3>Warning-to-Evacuation Conversion</h3>
+              <div class="bar-list" id="chartWarningConversion"></div>
             </div>
             <div class="chart-panel">
               <h3>Insight Penting untuk WBN</h3>
@@ -914,8 +933,7 @@
           <div>
             <h2>Expert Statistical Analysis</h2>
             <p>
-              Statistik ringkasan otomatis dari data SQLite pada bulan terpilih.
-              Mengikuti format “Expert Statistical Analysis” di file Excel.
+              Ringkasan pendukung untuk membaca pola risiko petir, durasi gangguan, dan intensitas kejadian.
             </p>
           </div>
           <div class="chip">Expert</div>
@@ -939,9 +957,8 @@
           <div class="mini" id="expertNote"></div>
 
           <div class="callout">
-            <strong>Catatan:</strong> Perhitungan berbasis event yang tersimpan di SQLite pada bulan tersebut
-            (severity, duration, hour, type, strength). Jika format waktu di data bervariasi, sistem akan
-            mencoba ekstrak jam dengan beberapa pola umum.
+            <strong>Catatan:</strong> Gunakan ringkasan ini sebagai bahan evaluasi bulanan K3, kesiapan shelter,
+            efektivitas evakuasi, dan prioritas pengendalian risiko petir di area kerja WBN.
           </div>
         </div>
       </section>
@@ -998,7 +1015,7 @@
 
       <div class="mbody">
         <div class="help-mini">
-          <b>Catatan:</b> Data dari backend tidak diubah. Ini hanya mengubah <i>penyajian</i> datetime di tabel.
+          <b>Catatan:</b> Pilihan ini hanya mengubah tampilan waktu di layar agar mudah dibaca oleh pengguna laporan.
         </div>
 
         <div class="radio-row">
@@ -1169,7 +1186,7 @@
       const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
       if (m){
         const y=+m[1], mo=+m[2]-1, da=+m[3], hh=+m[4], mi=+m[5], ss=+(m[6]||0);
-        // Assume UTC for backend timestamps (common in DB exports)
+        // Assume UTC for report timestamps.
         return new Date(Date.UTC(y,mo,da,hh,mi,ss));
       }
 
@@ -1524,14 +1541,24 @@
         .filter(tr => tr.hasAttribute("data-sev"))
         .map(tr => {
           const cells = Array.from(tr.querySelectorAll("td")).map(td => td.innerText.trim());
+          const lastRaw = tr.querySelector('td[data-dt="last"]')?.getAttribute("data-raw") || "";
+          const clearRaw = tr.querySelector('td[data-dt="clear"]')?.getAttribute("data-raw") || "";
           return {
             severity: norm(tr.getAttribute("data-sev")),
             asset: tr.getAttribute("data-asset") || cells[1] || "",
             duration: toNumber(cells[7]),
             strength: toNumber(cells[8]),
             type: cells[9] || "",
+            lastTime: parseAnyDate(lastRaw),
+            clearTime: parseAnyDate(clearRaw),
           };
         });
+    }
+
+    function minutesBetween(start, end){
+      if (!start || !end) return null;
+      const minutes = (end.getTime() - start.getTime()) / 60000;
+      return Number.isFinite(minutes) ? minutes : null;
     }
 
     function topEntries(map, limit = 6){
@@ -1567,6 +1594,7 @@
       const alarms = rows.filter(r => r.severity === "alarm");
       const alarmByAsset = {};
       const alarmDurationByAsset = {};
+      const warningAlarmByAsset = {};
       const severityCounts = { [sevLabel("alarm")]: 0, [sevLabel("warning")]: 0, [sevLabel("info")]: 0 };
       const typeCounts = {};
 
@@ -1574,6 +1602,11 @@
         const label = sevLabel(r.severity);
         severityCounts[label] = (severityCounts[label] || 0) + 1;
         if (r.type) typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
+        if (r.severity === "warning" || r.severity === "alarm"){
+          const asset = r.asset || "Unknown";
+          if (!warningAlarmByAsset[asset]) warningAlarmByAsset[asset] = { warning: 0, alarm: 0 };
+          warningAlarmByAsset[asset][r.severity] += 1;
+        }
       });
 
       alarms.forEach(r => {
@@ -1588,15 +1621,36 @@
       const longestAlarm = alarms.reduce((best, r) => r.duration > (best?.duration || 0) ? r : best, null);
       const dominantType = topEntries(typeCounts, 1)[0] || ["-", 0];
       const alarmShare = rows.length ? (alarms.length / rows.length * 100) : 0;
+      const complianceRows = alarms
+        .map(r => ({ ...r, clearDelay: minutesBetween(r.lastTime, r.clearTime) }))
+        .filter(r => r.clearDelay !== null);
+      const compliantClear = complianceRows.filter(r => r.clearDelay >= 30).length;
+      const reviewClear = complianceRows.filter(r => r.clearDelay < 30).length;
+      const compliancePct = complianceRows.length ? (compliantClear / complianceRows.length * 100) : null;
+      const warningAlarmTotal = rows.filter(r => r.severity === "warning" || r.severity === "alarm").length;
+      const conversionPct = warningAlarmTotal ? (alarms.length / warningAlarmTotal * 100) : null;
+      const conversionByAsset = Object.fromEntries(
+        Object.entries(warningAlarmByAsset).map(([asset, counts]) => {
+          const total = counts.warning + counts.alarm;
+          return [asset, total ? (counts.alarm / total * 100) : 0];
+        })
+      );
 
       document.getElementById("statTopEvacArea").textContent = topAlarm[0];
       document.getElementById("statEvacCount").textContent = String(alarms.length);
       document.getElementById("statEvacMinutes").textContent = `${Math.round(totalAlarmMinutes)} min`;
       document.getElementById("statMaxStrength").textContent = maxStrength ? `${maxStrength.toFixed(1)} kA` : "-";
+      document.getElementById("statClearCompliance").textContent = compliancePct === null ? "-" : `${compliancePct.toFixed(0)}%`;
+      document.getElementById("statWarningConversion").textContent = conversionPct === null ? "-" : `${conversionPct.toFixed(0)}%`;
 
       renderBarChart("chartEvacAreas", topEntries(alarmByAsset, 6));
       renderBarChart("chartSeverityMix", topEntries(severityCounts, 3));
       renderBarChart("chartEvacDuration", topEntries(alarmDurationByAsset, 6), " min");
+      renderBarChart("chartClearCompliance", [
+        ["Clear >= 30 min", compliantClear],
+        ["Perlu review", reviewClear],
+      ]);
+      renderBarChart("chartWarningConversion", topEntries(conversionByAsset, 6), "%");
 
       const insights = [];
       if (alarms.length){
@@ -1604,6 +1658,12 @@
         insights.push(`Porsi evakuasi adalah <strong>${alarmShare.toFixed(1)}%</strong> dari semua alert yang tampil; angka ini membantu WBN mengukur jam kerja yang paling terdampak risiko petir.`);
         if (longestAlarm){
           insights.push(`Durasi evakuasi terpanjang berada di <strong>${escapeHtml(longestAlarm.asset || "Unknown")}</strong> selama <strong>${Math.round(longestAlarm.duration)} menit</strong>, berguna untuk evaluasi delay operasional.`);
+        }
+        if (compliancePct !== null){
+          insights.push(`Kepatuhan clear time minimal 30 menit berada di <strong>${compliancePct.toFixed(0)}%</strong>; area yang masuk "Perlu review" sebaiknya dicek terhadap SOP return-to-work.`);
+        }
+        if (conversionPct !== null){
+          insights.push(`Rasio Warning-to-Evacuation sebesar <strong>${conversionPct.toFixed(0)}%</strong>; nilai tinggi menunjukkan area perlu kesiapan evakuasi lebih cepat setelah status Warning.`);
         }
       }else{
         insights.push(`Tidak ada evakuasi pada filter ini; kondisi ini bisa dipakai sebagai bukti periode operasi yang relatif aman.`);
@@ -1616,7 +1676,7 @@
       }
 
       document.getElementById("wbnInsights").innerHTML = insights.map(i => `<li>${i}</li>`).join("");
-      document.getElementById("wbnStatsNote").innerText = `Chart berbasis ${rows.length} row yang sedang tampil di tabel. Evakuasi mengikuti severity ${sevLabel("alarm")}.`;
+      document.getElementById("wbnStatsNote").innerText = `Chart berbasis ${rows.length} row yang sedang tampil. Evakuasi mengikuti severity ${sevLabel("alarm")}; clear time >= 30 menit dipakai sebagai indikator return-to-work.`;
     }
 
     // init: set default month to current UTC YYYY-MM, then load
