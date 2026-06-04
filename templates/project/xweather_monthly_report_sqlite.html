@@ -653,7 +653,7 @@
             <h2>Monthly Lightning Alert Report</h2>
             <p>
               Tabel ini menampilkan log alert petir (Info/Warning/Alarm) per asset.
-              Bulan laporan difilter dari datetime event, lalu bisa dicari dan diunduh.
+              Bulan laporan pada tabel difilter dari kolom First event time.
             </p>
           </div>
           <div class="chip">Monthly Report</div>
@@ -729,7 +729,7 @@
 
           <div class="callout">
             <strong>Catatan:</strong> Tombol <span class="kbd">Download Excel</span> akan mengambil data bulan yang dipilih dalam format XLSX,
-            berdasarkan datetime event sehingga konsisten dengan tabel laporan.
+            sementara tampilan tabel menyaring row berdasarkan kolom First event time.
           </div>
         </div>
       </section>
@@ -990,10 +990,6 @@
       const str = String(s).trim();
       if (!str) return null;
 
-      // If already ISO or with TZ offset, Date can parse directly
-      let d = new Date(str);
-      if (!isNaN(d)) return d;
-
       // Try "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DD HH:MM"
       const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
       if (m){
@@ -1008,6 +1004,10 @@
         const da=+dmy[1], mo=+dmy[2]-1, y=+dmy[3], hh=+(dmy[4]||0), mi=+(dmy[5]||0), ss=+(dmy[6]||0);
         return new Date(Date.UTC(y,mo,da,hh,mi,ss));
       }
+
+      // If already ISO or with TZ offset, Date can parse directly
+      const d = new Date(str);
+      if (!isNaN(d)) return d;
 
       return null;
     }
@@ -1032,6 +1032,12 @@
       const d = parseAnyDate(raw);
       if (!d) return raw ?? "";
       return formatDTForMode(d, dtFmt);
+    }
+
+    function firstEventMonth(raw){
+      const d = parseAnyDate(raw);
+      if (!d) return "";
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}`;
     }
 
     function openDateFmtDialog(){
@@ -1236,11 +1242,17 @@
     });
 
 
-    async function loadAssets(month){
+    function loadAssetsFromRows(rows, month){
       const sel = document.getElementById("asset");
       sel.innerHTML = `<option value="">All</option>`;
-      const js = await fetchJson(`/api/xweather/monthly-report/assets?month=${encodeURIComponent(month)}`);
-      (js.assets || []).forEach(a => {
+      const assets = [...new Set(
+        rows
+          .filter(r => firstEventMonth(r.first_event_time) === month)
+          .map(r => r.asset_name || "")
+          .filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b));
+
+      assets.forEach(a => {
         const opt = document.createElement("option");
         opt.value = a;
         opt.textContent = a;
@@ -1257,12 +1269,12 @@
       setCsvLinks(month);
 
       try{
-        await loadAssets(month);
-
         const js = await fetchJson(`/api/xweather/monthly-report?month=${encodeURIComponent(month)}`);
 
         const tbody = document.getElementById("tbody");
-        const rows = js.rows || [];
+        const sourceRows = js.rows || [];
+        loadAssetsFromRows(sourceRows, month);
+        const rows = sourceRows.filter(r => firstEventMonth(r.first_event_time) === month);
 
         tbody.innerHTML = rows.map(r => {
           const sev = norm(r.severity);

@@ -300,12 +300,12 @@ def api_list_monthly_report():
     init_db()
     db = get_db()
     with db.cursor() as cur:
-        cur.execute(f"""
+        cur.execute("""
             SELECT *
             FROM monthly_lightning_alerts
-            WHERE {_event_month_filter_expr()}
-            ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
-        """, _event_month_filter_params(month))
+            WHERE report_month = %s
+            ORDER BY id DESC
+        """, (month,))
         rows = cur.fetchall()
 
     return jsonify({"ok": True, "month": month, "rows": rows})
@@ -324,12 +324,12 @@ def api_monthly_report_assets():
     init_db()
     db = get_db()
     with db.cursor() as cur:
-        cur.execute(f"""
+        cur.execute("""
             SELECT DISTINCT asset_name
             FROM monthly_lightning_alerts
-            WHERE {_event_month_filter_expr()}
+            WHERE report_month = %s
             ORDER BY asset_name ASC
-        """, _event_month_filter_params(month))
+        """, (month,))
         rows = cur.fetchall()
 
     assets = [r["asset_name"] for r in rows]
