@@ -304,6 +304,26 @@
       align-items:center;
       min-width: 0;
     }
+    .report-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .card .body .btn{
+      border-color: var(--border);
+      background:#fff;
+      color: var(--text);
+      box-shadow: 0 8px 18px rgba(17,24,39,.06);
+    }
+    .card .body .btn:hover{
+      background:#F8FAFF;
+      border-color: rgba(0,58,143,.22);
+    }
+    .card .body .btn.primary{
+      background: linear-gradient(135deg, var(--tbr-orange) 0%, #FFB565 100%);
+      border-color: rgba(242,140,40,.45);
+      color:#1A1A1A;
+    }
     .field{
       display:flex;
       flex-direction:column;
@@ -330,12 +350,13 @@
     }
 
     .table-wrap{
-      overflow-x:auto;
+      overflow:auto;
       -webkit-overflow-scrolling: touch;
       border:1px solid var(--border);
       border-radius: 14px;
       background:#fff;
       max-width: 100%;
+      max-height: min(64vh, 720px);
     }
     table.report-table{
       width:100%;
@@ -486,13 +507,10 @@
         width:100%;
         justify-content:center;
       }
-      /* keep 4 buttons: 2x2 grid */
-      .action-row > div:last-child .btn:nth-child(3),
-      .action-row > div:last-child .btn:nth-child(4){
-        grid-column: span 1;
-      }
-
       /* Table spacing */
+      .table-wrap{
+        max-height: 58vh;
+      }
       .report-table th, .report-table td{
         padding: 9px 8px;
         font-size:12.5px;
@@ -616,7 +634,6 @@
       <!-- NOTE: href will be overwritten by JS to include month -->
       <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.xlsx?month=">Download Excel</a>
       <button id="btnAliasTop" class="btn print-hide" onclick="openAliasDialog()">⚙ Labels</button>
-      <button class="btn print-hide" onclick="window.print()">Print / Save as PDF</button>
     </div>
   </div>
 
@@ -693,13 +710,11 @@
               </div>
             </div>
 
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="btn" onclick="loadMonth()">🔄 Load</button>
-              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.xlsx?month=">⬇ Download Excel</a>
-              <button class="btn" onclick="window.print()">🖨 Print</button>
+            <div class="report-actions">
+              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.xlsx?month=">Download Excel</a>
               <button class="btn" onclick="openAliasDialog()">⚙ Labels</button>
-              <button class="btn" onclick="openDateFmtDialog()">📅 Date Format</button>
-              <button class="btn" onclick="resetFilters()">↺ Reset</button>
+              <button class="btn" onclick="openDateFmtDialog()">Format Waktu</button>
+              <button class="btn" onclick="resetFilters()">Reset</button>
             </div>
           </div>
 
