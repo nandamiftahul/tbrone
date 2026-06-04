@@ -119,9 +119,20 @@ _MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 
 def _event_time_expr():
     return (
-        "COALESCE(NULLIF(first_event_time, ''), NULLIF(active_time, ''), "
-        "NULLIF(last_event_time, ''), NULLIF(clear_time, ''))"
+        "COALESCE(NULLIF(BTRIM(first_event_time), ''), NULLIF(BTRIM(active_time), ''), "
+        "NULLIF(BTRIM(last_event_time), ''), NULLIF(BTRIM(clear_time), ''))"
     )
+
+
+def _month_from_datetime_expr(column):
+    dt = f"NULLIF(BTRIM({column}), '')"
+    return f"""
+        CASE
+            WHEN {dt} ~ '^\\d{{4}}-\\d{{2}}' THEN substring({dt} from 1 for 7)
+            WHEN {dt} ~ '^\\d{{2}}\\.\\d{{2}}\\.\\d{{4}}' THEN substring({dt} from 7 for 4) || '-' || substring({dt} from 4 for 2)
+            ELSE NULL
+        END
+    """
 
 
 def _event_month_expr():
@@ -133,6 +144,22 @@ def _event_month_expr():
             ELSE NULL
         END
     """
+
+
+def _event_month_filter_expr():
+    month_exprs = [
+        _month_from_datetime_expr("first_event_time"),
+        _month_from_datetime_expr("active_time"),
+        _month_from_datetime_expr("last_event_time"),
+        _month_from_datetime_expr("clear_time"),
+    ]
+    has_selected_month = " OR ".join(f"({expr}) = %s" for expr in month_exprs)
+    no_other_month = " AND ".join(f"(({expr}) IS NULL OR ({expr}) = %s)" for expr in month_exprs)
+    return f"(({has_selected_month}) AND ({no_other_month}))"
+
+
+def _event_month_filter_params(month):
+    return (month,) * 8
 
 
 def _event_sort_expr():
@@ -276,9 +303,9 @@ def api_list_monthly_report():
         cur.execute(f"""
             SELECT *
             FROM monthly_lightning_alerts
-            WHERE {_event_month_expr()} = %s
+            WHERE {_event_month_filter_expr()}
             ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
-        """, (month,))
+        """, _event_month_filter_params(month))
         rows = cur.fetchall()
 
     return jsonify({"ok": True, "month": month, "rows": rows})
@@ -300,9 +327,9 @@ def api_monthly_report_assets():
         cur.execute(f"""
             SELECT DISTINCT asset_name
             FROM monthly_lightning_alerts
-            WHERE {_event_month_expr()} = %s
+            WHERE {_event_month_filter_expr()}
             ORDER BY asset_name ASC
-        """, (month,))
+        """, _event_month_filter_params(month))
         rows = cur.fetchall()
 
     assets = [r["asset_name"] for r in rows]
@@ -467,9 +494,9 @@ def monthly_report_csv():
             SELECT severity, asset_name, extent_km, first_event_time, active_time,
                    last_event_time, clear_time, duration_min, strength_ka, event_type
             FROM monthly_lightning_alerts
-            WHERE {_event_month_expr()} = %s
+            WHERE {_event_month_filter_expr()}
             ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
-        """, (month,))
+        """, _event_month_filter_params(month))
         rows = cur.fetchall()
 
     output = io.StringIO()
@@ -652,8 +679,8 @@ def api_monthly_report_expert():
             SELECT severity, {_event_time_expr()} AS analysis_event_time,
                    duration_min, strength_ka, event_type
             FROM monthly_lightning_alerts
-            WHERE {_event_month_expr()} = %s
-        """, (month,))
+            WHERE {_event_month_filter_expr()}
+        """, _event_month_filter_params(month))
         rows = cur.fetchall()
 
     total = len(rows)
@@ -789,9 +816,9 @@ def monthly_report_xlsx():
             SELECT severity, asset_name, extent_km, first_event_time, active_time,
                    last_event_time, clear_time, duration_min, strength_ka, event_type
             FROM monthly_lightning_alerts
-            WHERE {_event_month_expr()} = %s
+            WHERE {_event_month_filter_expr()}
             ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
-        """, (month,))
+        """, _event_month_filter_params(month))
         report_rows = cur.fetchall()
 
         # 2) data expert (ambil data mentah yang dibutuhkan)
@@ -799,8 +826,8 @@ def monthly_report_xlsx():
             SELECT severity, {_event_time_expr()} AS analysis_event_time,
                    duration_min, strength_ka, event_type
             FROM monthly_lightning_alerts
-            WHERE {_event_month_expr()} = %s
-        """, (month,))
+            WHERE {_event_month_filter_expr()}
+        """, _event_month_filter_params(month))
         expert_rows = cur.fetchall()
 
     # ===== Build Expert Metrics (mengikuti logic expert yang sudah ada) =====
