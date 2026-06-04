@@ -514,6 +514,95 @@
     }
     .insight-list strong{ color:var(--text); }
 
+    .timeline-controls{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:end;
+      gap:10px;
+      margin-top:12px;
+    }
+    .timeline-wrap{
+      margin-top:12px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:#fff;
+      overflow:auto;
+      max-height:64vh;
+      box-shadow:0 8px 18px rgba(17,24,39,.05);
+    }
+    .timeline-grid{
+      --slot-w: 18px;
+      display:grid;
+      grid-template-columns: 180px repeat(144, var(--slot-w));
+      min-width: calc(180px + (144 * var(--slot-w)));
+      font-size:11px;
+    }
+    .timeline-corner,
+    .timeline-hour,
+    .timeline-area,
+    .timeline-cell{
+      border-right:1px solid rgba(17,24,39,.08);
+      border-bottom:1px solid rgba(17,24,39,.08);
+      min-height:28px;
+    }
+    .timeline-corner,
+    .timeline-hour{
+      position:sticky;
+      top:0;
+      z-index:4;
+      background:#F8FAFF;
+      color:var(--xw-blue);
+      font-weight:800;
+      display:flex;
+      align-items:center;
+      padding:0 8px;
+    }
+    .timeline-corner{
+      left:0;
+      z-index:6;
+    }
+    .timeline-hour{
+      justify-content:center;
+      grid-column:span 6;
+    }
+    .timeline-area{
+      position:sticky;
+      left:0;
+      z-index:3;
+      background:#fff;
+      display:flex;
+      align-items:center;
+      padding:0 8px;
+      font-weight:800;
+      color:var(--text);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .timeline-cell{
+      background:#fff;
+    }
+    .timeline-cell.hour-mark{
+      border-left:1px solid rgba(0,58,143,.20);
+    }
+    .timeline-bar{
+      min-height:28px;
+      border-bottom:1px solid rgba(17,24,39,.08);
+      border-right:1px solid rgba(17,24,39,.08);
+      color:#111827;
+      font-size:10px;
+      font-weight:800;
+      display:flex;
+      align-items:center;
+      padding:0 4px;
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:ellipsis;
+    }
+    .timeline-bar.info{ background:#FACC15; }
+    .timeline-bar.warning{ background:#FB923C; }
+    .timeline-bar.alarm{ background:#EF4444; color:#fff; }
+
     /* Sidebar responsive (same manual behavior) */
     @media (max-width: 980px){
       .sidebar{ display:none; }
@@ -920,6 +1009,23 @@
             <div class="chart-panel">
               <h3>Insight Penting untuk WBN</h3>
               <ul class="insight-list" id="wbnInsights"></ul>
+            </div>
+          </div>
+
+          <div class="chart-panel" style="margin-top:12px;">
+            <h3>Timeline Alert Harian</h3>
+            <div class="timeline-controls">
+              <div class="field" style="min-width:180px;">
+                <label for="timelineDate">Tanggal</label>
+                <input id="timelineDate" class="input" type="date" onchange="renderAlertTimeline()">
+              </div>
+              <div class="mini" id="timelineNote" style="margin-top:0;"></div>
+            </div>
+            <div class="mini">
+              Warna timeline: Siaga = kuning, Waspada = orange, Evakuasi = merah. Waspada ke Evakuasi dihitung jika Waspada diikuti Evakuasi pada site dan tanggal yang sama.
+            </div>
+            <div class="timeline-wrap">
+              <div class="timeline-grid" id="alertTimeline"></div>
             </div>
           </div>
 
@@ -1541,18 +1647,26 @@
         .filter(tr => tr.hasAttribute("data-sev"))
         .map(tr => {
           const cells = Array.from(tr.querySelectorAll("td")).map(td => td.innerText.trim());
+          const firstRaw = tr.querySelector('td[data-dt="first"]')?.getAttribute("data-raw") || "";
           const lastRaw = tr.querySelector('td[data-dt="last"]')?.getAttribute("data-raw") || "";
           const clearRaw = tr.querySelector('td[data-dt="clear"]')?.getAttribute("data-raw") || "";
+          const firstTime = parseAnyDate(firstRaw);
           return {
             severity: norm(tr.getAttribute("data-sev")),
             asset: tr.getAttribute("data-asset") || cells[1] || "",
             duration: toNumber(cells[7]),
             strength: toNumber(cells[8]),
             type: cells[9] || "",
+            firstTime,
             lastTime: parseAnyDate(lastRaw),
             clearTime: parseAnyDate(clearRaw),
           };
         });
+    }
+
+    function dateKeyFromDate(d){
+      if (!d) return "";
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())}`;
     }
 
     function minutesBetween(start, end){
@@ -1564,6 +1678,42 @@
     function rankedEntries(map){
       return Object.entries(map)
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    }
+
+    function warningToEvacuationByTime(rows){
+      const totalWarnings = {};
+      const convertedWarnings = {};
+      const groups = {};
+
+      rows.forEach(r => {
+        if (!r.firstTime || !r.asset) return;
+        const day = dateKeyFromDate(r.firstTime);
+        const key = `${r.asset}||${day}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+
+      Object.values(groups).forEach(events => {
+        events.sort((a, b) => a.firstTime - b.firstTime);
+        events.forEach((event, idx) => {
+          if (event.severity !== "warning") return;
+          const asset = event.asset || "Unknown";
+          totalWarnings[asset] = (totalWarnings[asset] || 0) + 1;
+          const hasLaterAlarm = events.slice(idx + 1).some(next => next.severity === "alarm");
+          if (hasLaterAlarm) convertedWarnings[asset] = (convertedWarnings[asset] || 0) + 1;
+        });
+      });
+
+      const byAssetPct = {};
+      Object.keys(totalWarnings).forEach(asset => {
+        byAssetPct[asset] = totalWarnings[asset] ? ((convertedWarnings[asset] || 0) / totalWarnings[asset] * 100) : 0;
+      });
+
+      const totalWarningCount = Object.values(totalWarnings).reduce((sum, v) => sum + v, 0);
+      const convertedCount = Object.values(convertedWarnings).reduce((sum, v) => sum + v, 0);
+      const overallPct = totalWarningCount ? (convertedCount / totalWarningCount * 100) : null;
+
+      return { byAssetPct, totalWarningCount, convertedCount, overallPct };
     }
 
     function renderBarChart(id, entries, suffix = ""){
@@ -1593,7 +1743,6 @@
       const alarms = rows.filter(r => r.severity === "alarm");
       const alarmByAsset = {};
       const alarmDurationByAsset = {};
-      const warningAlarmByAsset = {};
       const severityCounts = { [sevLabel("alarm")]: 0, [sevLabel("warning")]: 0, [sevLabel("info")]: 0 };
       const typeCounts = {};
 
@@ -1601,11 +1750,6 @@
         const label = sevLabel(r.severity);
         severityCounts[label] = (severityCounts[label] || 0) + 1;
         if (r.type) typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
-        if (r.severity === "warning" || r.severity === "alarm"){
-          const asset = r.asset || "Unknown";
-          if (!warningAlarmByAsset[asset]) warningAlarmByAsset[asset] = { warning: 0, alarm: 0 };
-          warningAlarmByAsset[asset][r.severity] += 1;
-        }
       });
 
       alarms.forEach(r => {
@@ -1627,21 +1771,14 @@
       const compliantClear = complianceRows.filter(r => r.clearDelay >= 30).length;
       const reviewClear = complianceRows.filter(r => r.clearDelay < 30).length;
       const compliancePct = complianceRows.length ? (compliantClear / complianceRows.length * 100) : null;
-      const warningAlarmTotal = rows.filter(r => r.severity === "warning" || r.severity === "alarm").length;
-      const conversionPct = warningAlarmTotal ? (alarms.length / warningAlarmTotal * 100) : null;
-      const conversionByAsset = Object.fromEntries(
-        Object.entries(warningAlarmByAsset).map(([asset, counts]) => {
-          const total = counts.warning + counts.alarm;
-          return [asset, total ? (counts.alarm / total * 100) : 0];
-        })
-      );
+      const conversion = warningToEvacuationByTime(rows);
 
       document.getElementById("statTopEvacArea").textContent = topAlarm[0];
       document.getElementById("statEvacCount").textContent = String(alarms.length);
       document.getElementById("statEvacMinutes").textContent = `${Math.round(totalAlarmMinutes)} min`;
       document.getElementById("statMaxStrength").textContent = maxStrength ? `${maxStrength.toFixed(1)} kA` : "-";
       document.getElementById("statClearCompliance").textContent = compliancePct === null ? "-" : `${compliancePct.toFixed(0)}%`;
-      document.getElementById("statWarningConversion").textContent = conversionPct === null ? "-" : `${conversionPct.toFixed(0)}%`;
+      document.getElementById("statWarningConversion").textContent = conversion.overallPct === null ? "-" : `${conversion.overallPct.toFixed(0)}%`;
 
       renderBarChart("chartEvacAreas", rankedAlarmAreas);
       renderBarChart("chartSeverityMix", rankedEntries(severityCounts));
@@ -1650,7 +1787,7 @@
         ["Xweather clear >= 30 min", compliantClear],
         ["Xweather clear < 30 min", reviewClear],
       ]);
-      renderBarChart("chartWarningConversion", rankedEntries(conversionByAsset), "%");
+      renderBarChart("chartWarningConversion", rankedEntries(conversion.byAssetPct), "%");
 
       const insights = [];
       if (alarms.length){
@@ -1662,8 +1799,8 @@
         if (compliancePct !== null){
           insights.push(`<strong>${compliancePct.toFixed(0)}%</strong> event evakuasi memiliki jeda Xweather clear minimal 30 menit dari last event; gunakan ini sebagai bahan review, bukan keputusan K3 final.`);
         }
-        if (conversionPct !== null){
-          insights.push(`Rasio Waspada ke Evakuasi sebesar <strong>${conversionPct.toFixed(0)}%</strong>; nilai tinggi menunjukkan area perlu kesiapan evakuasi lebih cepat setelah status Waspada.`);
+        if (conversion.overallPct !== null){
+          insights.push(`Rasio Waspada ke Evakuasi berbasis urutan waktu sebesar <strong>${conversion.overallPct.toFixed(0)}%</strong> (${conversion.convertedCount}/${conversion.totalWarningCount} Waspada diikuti Evakuasi pada site dan hari yang sama).`);
         }
       }else{
         insights.push(`Tidak ada evakuasi pada filter ini; kondisi ini bisa dipakai sebagai bukti periode operasi yang relatif aman.`);
@@ -1677,6 +1814,79 @@
 
       document.getElementById("wbnInsights").innerHTML = insights.map(i => `<li>${i}</li>`).join("");
       document.getElementById("wbnStatsNote").innerText = `Chart berbasis ${rows.length} row yang sedang tampil. Evakuasi mengikuti severity ${sevLabel("alarm")}; clear time adalah status dari Xweather dan dipakai sebagai indikator review operasional.`;
+      updateTimelineDateOptions(rows);
+      renderAlertTimeline(rows);
+    }
+
+    function availableTimelineDates(rows){
+      return [...new Set(rows.map(r => dateKeyFromDate(r.firstTime)).filter(Boolean))].sort();
+    }
+
+    function updateTimelineDateOptions(rows){
+      const input = document.getElementById("timelineDate");
+      if (!input) return;
+      const dates = availableTimelineDates(rows);
+      if (!dates.length){
+        input.value = "";
+        input.removeAttribute("min");
+        input.removeAttribute("max");
+        return;
+      }
+      input.min = dates[0];
+      input.max = dates[dates.length - 1];
+      if (!input.value || !dates.includes(input.value)){
+        input.value = dates[0];
+      }
+    }
+
+    function renderAlertTimeline(rows = visibleReportRows()){
+      const grid = document.getElementById("alertTimeline");
+      const note = document.getElementById("timelineNote");
+      const input = document.getElementById("timelineDate");
+      if (!grid || !input) return;
+
+      const selectedDate = input.value;
+      const dayRows = rows
+        .filter(r => dateKeyFromDate(r.firstTime) === selectedDate)
+        .sort((a, b) => (a.asset || "").localeCompare(b.asset || "") || a.firstTime - b.firstTime);
+
+      const assets = [...new Set(dayRows.map(r => r.asset || "Unknown"))].sort((a, b) => a.localeCompare(b));
+      if (!selectedDate || !assets.length){
+        grid.innerHTML = `<div class="timeline-corner">Area</div>${Array.from({length:24}, (_, h) => `<div class="timeline-hour">${pad2(h)}:00</div>`).join("")}`;
+        if (note) note.innerText = "Tidak ada alert pada tanggal/filter ini.";
+        return;
+      }
+
+      const header = `<div class="timeline-corner">Area</div>${Array.from({length:24}, (_, h) => `<div class="timeline-hour">${pad2(h)}:00</div>`).join("")}`;
+      const cells = [];
+      const bars = [];
+
+      assets.forEach((asset, assetIdx) => {
+        const gridRow = assetIdx + 2;
+        cells.push(`<div class="timeline-area" title="${escapeHtml(asset)}" style="grid-column:1;grid-row:${gridRow};">${escapeHtml(asset)}</div>`);
+        for (let slot = 0; slot < 144; slot++){
+          const cls = slot % 6 === 0 ? "timeline-cell hour-mark" : "timeline-cell";
+          cells.push(`<div class="${cls}" style="grid-column:${slot + 2};grid-row:${gridRow};"></div>`);
+        }
+
+        dayRows.filter(r => (r.asset || "Unknown") === asset).forEach(r => {
+          const minutes = r.firstTime.getUTCHours() * 60 + r.firstTime.getUTCMinutes();
+          const startSlot = Math.max(0, Math.min(143, Math.floor(minutes / 10)));
+          const span = Math.max(1, Math.ceil(Math.max(r.duration || 10, 10) / 10));
+          const endSlot = Math.min(144, startSlot + span);
+          const label = `${sevLabel(r.severity)} ${Math.round(r.duration || 0)}m`;
+          bars.push(`
+            <div class="timeline-bar ${escapeHtml(r.severity)}"
+                 title="${escapeHtml(asset)} · ${escapeHtml(sevLabel(r.severity))} · ${escapeHtml(fmtDT(r.firstTime))} · ${Math.round(r.duration || 0)} min"
+                 style="grid-column:${startSlot + 2} / ${endSlot + 2};grid-row:${gridRow};z-index:5;">
+              ${escapeHtml(label)}
+            </div>
+          `);
+        });
+      });
+
+      grid.innerHTML = header + cells.join("") + bars.join("");
+      if (note) note.innerText = `${selectedDate} · ${assets.length} area · ${dayRows.length} alert · slot 10 menit.`;
     }
 
     // init: set default month to current UTC YYYY-MM, then load
