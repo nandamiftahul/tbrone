@@ -10,6 +10,7 @@ import queue
 import time
 import urllib.error
 import urllib.request
+import hashlib
 from datetime import datetime
 from collections import Counter
 from collections import deque
@@ -390,6 +391,35 @@ def _parse_hour_utc(s: str):
     return None
 
 
+def _is_blank(v):
+    return v is None or str(v).strip() == ""
+
+
+def _stable_index(key, length):
+    if length <= 0:
+        return 0
+    digest = hashlib.sha256(str(key).encode("utf-8")).hexdigest()
+    return int(digest[:12], 16) % length
+
+
+def _most_common_value(values):
+    cleaned = [str(v).strip() for v in values if not _is_blank(v)]
+    if not cleaned:
+        return None
+    return Counter(cleaned).most_common(1)[0][0]
+
+
+def _fallback_strength(severity, key):
+    ranges = {
+        "alarm": (25.0, 80.0),
+        "warning": (12.0, 45.0),
+        "info": (5.0, 25.0),
+    }
+    lo, hi = ranges.get(_norm_sev(severity), (8.0, 40.0))
+    step = _stable_index(key, 1000) / 999
+    return round(lo + ((hi - lo) * step), 1)
+
+
 def _percentile(sorted_vals, p):
     if not sorted_vals:
         return None
@@ -685,6 +715,129 @@ def api_delete_monthly_report_row(row_id: int):
         return jsonify({"ok": False, "error": "row not found"}), 404
 
     return jsonify({"ok": True, "deleted_id": row_id})
+
+
+@xweather_report_bp.route("/api/xweather/monthly-report/fill-missing", methods=["POST"])
+def api_fill_missing_monthly_report_fields():
+    payload = request.get_json(force=True, silent=True) or {}
+    report_month = (payload.get("report_month") or "").strip()
+    if not _MONTH_RE.match(report_month):
+        return jsonify({"ok": False, "error": "report_month required (YYYY-MM)"}), 400
+
+    init_db()
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("""
+            SELECT id, report_month, severity, asset_name, first_event_time, strength_ka, event_type
+            FROM monthly_lightning_alerts
+            WHERE report_month = %s
+            ORDER BY first_event_time ASC NULLS LAST, id ASC
+        """, (report_month,))
+        rows = cur.fetchall()
+
+    if not rows:
+        return jsonify({"ok": False, "error": "No data rows found"}), 400
+
+    strength_by_sev = {"info": [], "warning": [], "alarm": []}
+    type_by_sev = {"info": [], "warning": [], "alarm": []}
+    all_strengths = []
+    all_types = []
+    groups = {}
+
+    for row in rows:
+        sev = _norm_sev(row.get("severity"))
+        if row.get("strength_ka") is not None:
+            strength = float(row["strength_ka"])
+            strength_by_sev.setdefault(sev, []).append(strength)
+            all_strengths.append(strength)
+        if not _is_blank(row.get("event_type")):
+            event_type = str(row["event_type"]).strip()
+            type_by_sev.setdefault(sev, []).append(event_type)
+            all_types.append(event_type)
+
+        time_key = str(row.get("first_event_time") or "").strip()
+        if time_key:
+            groups.setdefault(time_key, []).append(row)
+
+    updates = []
+    generated_by_time = {}
+
+    for row in rows:
+        sev = _norm_sev(row.get("severity"))
+        time_key = str(row.get("first_event_time") or "").strip()
+        group_rows = groups.get(time_key, [row]) if time_key else [row]
+        group_key = time_key or f"row:{row['id']}"
+
+        needs_strength = row.get("strength_ka") is None
+        needs_type = _is_blank(row.get("event_type"))
+        if not needs_strength and not needs_type:
+            continue
+
+        group_strengths = [
+            float(r["strength_ka"])
+            for r in group_rows
+            if r.get("strength_ka") is not None
+        ]
+        group_types = [
+            str(r["event_type"]).strip()
+            for r in group_rows
+            if not _is_blank(r.get("event_type"))
+        ]
+
+        if group_key not in generated_by_time:
+            strength_pool = group_strengths or strength_by_sev.get(sev) or all_strengths
+            type_pool = group_types or type_by_sev.get(sev) or all_types
+
+            if strength_pool:
+                fill_strength = strength_pool[_stable_index(f"{group_key}:strength", len(strength_pool))]
+            else:
+                fill_strength = _fallback_strength(sev, group_key)
+
+            fill_type = (
+                _most_common_value(group_types)
+                or (type_pool[_stable_index(f"{group_key}:type", len(type_pool))] if type_pool else None)
+                or {"alarm": "CG-", "warning": "CG-", "info": "IC"}.get(sev, "CG-")
+            )
+
+            generated_by_time[group_key] = (round(float(fill_strength), 1), str(fill_type).strip())
+
+        fill_strength, fill_type = generated_by_time[group_key]
+        new_strength = fill_strength if needs_strength else row.get("strength_ka")
+        new_type = fill_type if needs_type else row.get("event_type")
+        updates.append((new_strength, new_type, row["id"], needs_strength, needs_type))
+
+    if not updates:
+        return jsonify({
+            "ok": True,
+            "report_month": report_month,
+            "updated": 0,
+            "strength_filled": 0,
+            "type_filled": 0,
+        })
+
+    strength_filled = sum(1 for _, _, _, needs_strength, _ in updates if needs_strength)
+    type_filled = sum(1 for _, _, _, _, needs_type in updates if needs_type)
+
+    try:
+        with db.cursor() as cur:
+            for strength, event_type, row_id, _, _ in updates:
+                cur.execute("""
+                    UPDATE monthly_lightning_alerts
+                    SET strength_ka = %s, event_type = %s
+                    WHERE id = %s
+                """, (strength, event_type, row_id))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return jsonify({"ok": False, "error": f"fill missing failed: {e}"}), 500
+
+    return jsonify({
+        "ok": True,
+        "report_month": report_month,
+        "updated": len(updates),
+        "strength_filled": strength_filled,
+        "type_filled": type_filled,
+    })
 
 
 # =========================================================
