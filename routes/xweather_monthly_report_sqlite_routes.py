@@ -26,13 +26,6 @@ load_dotenv()
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
 
-DEFAULT_GOOGLE_DRIVE_FILE_ID = "19Pmm6dTxhI9QErH9rbcWKHX89hp7Q9JB"
-DEFAULT_GOOGLE_DRIVE_FILE_URL = (
-    "https://drive.google.com/file/d/"
-    f"{DEFAULT_GOOGLE_DRIVE_FILE_ID}/view"
-)
-
-
 @xweather_report_bp.errorhandler(Exception)
 def handle_xweather_api_error(error):
     if not request.path.startswith("/api/"):
@@ -957,20 +950,23 @@ def api_sync_monthly_report_google_sheet():
     report_month = (payload.get("report_month") or request.form.get("report_month") or "").strip()
     mode = (payload.get("mode") or request.form.get("mode") or "replace").strip().lower()
     url = (
-        payload.get("url")
-        or request.form.get("url")
-        or os.getenv("XWEATHER_GOOGLE_DRIVE_FILE_URL")
+        os.getenv("XWEATHER_GOOGLE_DRIVE_FILE_URL")
         or os.getenv("XWEATHER_GOOGLE_SHEET_CSV_URL")
-        or DEFAULT_GOOGLE_DRIVE_FILE_URL
+        or ""
     )
 
     if not report_month:
         return jsonify({"ok": False, "error": "report_month required (YYYY-MM)"}), 400
     if mode not in ("append", "replace"):
         return jsonify({"ok": False, "error": "mode must be append or replace"}), 400
+    if not url:
+        return jsonify({
+            "ok": False,
+            "error": "XWEATHER_GOOGLE_DRIVE_FILE_URL belum diset di environment server."
+        }), 500
 
     try:
-        raw, content_type, source_url = _download_google_workbook(url)
+        raw, content_type, _ = _download_google_workbook(url)
     except Exception as e:
         return jsonify({
             "ok": False,
@@ -1005,7 +1001,6 @@ def api_sync_monthly_report_google_sheet():
     init_db()
     result, status = _import_monthly_rows(rows_data, report_month, mode)
     result["source"] = "google_drive"
-    result["source_url"] = source_url
     result["required_sheet"] = _sheet_name_from_month(report_month)
     result["selected_sheet"] = meta.get("selected_sheet")
     return jsonify(result), status
