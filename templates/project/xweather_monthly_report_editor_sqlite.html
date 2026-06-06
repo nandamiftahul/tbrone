@@ -499,6 +499,7 @@
     onchange="uploadCSV(event)">
 </div>
 
+              <button class="btn" onclick="syncGoogleSheet()">Sync Google Sheet</button>
               <button class="btn primary" onclick="openModalNew()">＋ Add Row</button>
               <a class="btn primary" id="btnCsv" href="#">⬇ Download CSV</a>
             </div>
@@ -884,6 +885,43 @@
         if (statusEl) statusEl.innerText = "";
       }finally{
         event.target.value = "";
+      }
+    }
+
+    async function syncGoogleSheet(){
+      const month = document.getElementById("month").value.trim();
+      if (!month){
+        alert("Please input month (YYYY-MM) first.");
+        return;
+      }
+
+      const replace = confirm(
+        "Sync Google Sheet:\n\nOK = REPLACE data bulan ini dari Google Sheet\nCancel = APPEND data dari Google Sheet"
+      );
+      const mode = replace ? "replace" : "append";
+      const statusEl = document.getElementById("importStatus");
+      if (statusEl) statusEl.innerText = "Syncing Google Sheet...";
+
+      try{
+        const res = await fetch("/api/xweather/monthly-report/sync-google-sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ report_month: month, mode })
+        });
+        const js = await res.json();
+        if (!js.ok){
+          alert(js.error || "Google Sheet sync failed");
+          if (statusEl) statusEl.innerText = "";
+          return;
+        }
+
+        if (statusEl){
+          statusEl.innerText = `✅ Google Sheet sync success (${js.mode}) — inserted: ${js.inserted}, skipped: ${js.skipped}`;
+        }
+        await loadMonth();
+      }catch(e){
+        alert("Google Sheet sync failed: " + e);
+        if (statusEl) statusEl.innerText = "";
       }
     }
   </script>

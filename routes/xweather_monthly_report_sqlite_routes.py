@@ -8,6 +8,8 @@ import json
 import threading
 import queue
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime
 from collections import Counter
 from collections import deque
@@ -16,12 +18,17 @@ from psycopg.rows import dict_row
 from openpyxl import load_workbook
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
-from flask_login import login_required
+from flask_login import current_user, login_required
 from routes.auth_utils import role_required
 from dotenv import load_dotenv
 load_dotenv()
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
+
+DEFAULT_GOOGLE_SHEET_CSV_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "19Pmm6dTxhI9QErH9rbcWKHX89hp7Q9JB/export?format=csv&gid=1748962257"
+)
 
 
 @xweather_report_bp.errorhandler(Exception)
@@ -269,6 +276,84 @@ def _percentile(sorted_vals, p):
     if f == c:
         return float(sorted_vals[f])
     return float(sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f))
+
+
+def _import_monthly_rows(rows_data, report_month, mode):
+    if not rows_data:
+        return {"ok": False, "error": "No data rows found"}, 400
+
+    header_map = {k.strip().lower(): k for k in rows_data[0].keys()}
+
+    def h(*names):
+        for n in names:
+            key = n.strip().lower()
+            if key in header_map:
+                return header_map[key]
+        return None
+
+    H_SEV = h("Severity")
+    H_ASSET = h("Asset name", "Asset")
+    H_EXT = h("Extent (km)", "Extent")
+    H_FIRST = h("First event time", "First")
+    H_ACTIVE = h("Active time", "Active")
+    H_LAST = h("Last event time", "Last")
+    H_CLEAR = h("Clear time", "Clear")
+    H_DUR = h("Duration (min)", "Duration")
+    H_KA = h("Strength (kA)", "Strength")
+    H_TYPE = h("Type", "Event type")
+
+    if not H_SEV or not H_ASSET:
+        return {"ok": False, "error": "Data must contain at least: Severity, Asset name"}, 400
+
+    db = get_db()
+    inserted = 0
+    skipped = 0
+
+    try:
+        with db.cursor() as cur:
+            if mode == "replace":
+                cur.execute("DELETE FROM monthly_lightning_alerts WHERE report_month = %s", (report_month,))
+
+            for row in rows_data:
+                asset = str(row.get(H_ASSET) or "").strip()
+                if not asset:
+                    skipped += 1
+                    continue
+
+                cur.execute("""
+                    INSERT INTO monthly_lightning_alerts(
+                        report_month, severity, asset_name, extent_km,
+                        first_event_time, active_time, last_event_time, clear_time,
+                        duration_min, strength_ka, event_type, created_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (
+                    report_month,
+                    _norm_sev(row.get(H_SEV)),
+                    asset,
+                    _to_float(row.get(H_EXT)),
+                    str(row.get(H_FIRST) or "").strip(),
+                    str(row.get(H_ACTIVE) or "").strip(),
+                    str(row.get(H_LAST) or "").strip(),
+                    str(row.get(H_CLEAR) or "").strip(),
+                    _to_int(row.get(H_DUR)),
+                    _to_float(row.get(H_KA)),
+                    str(row.get(H_TYPE) or "").strip(),
+                    _now_iso()
+                ))
+                inserted += 1
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        return {"ok": False, "error": f"import failed: {e}"}, 500
+
+    return {
+        "ok": True,
+        "mode": mode,
+        "report_month": report_month,
+        "inserted": inserted,
+        "skipped": skipped
+    }, 200
 
 
 # =========================================================
@@ -584,82 +669,77 @@ def api_import_monthly_report_csv():
         # keep behavior strict: only CSV/XLSX
         return jsonify({"ok": False, "error": "Unsupported file type. Use CSV or XLSX"}), 400
 
-    if not rows_data:
-        return jsonify({"ok": False, "error": "No data rows found"}), 400
+    result, status = _import_monthly_rows(rows_data, report_month, mode)
+    return jsonify(result), status
 
-    header_map = {k.strip().lower(): k for k in rows_data[0].keys()}
 
-    def h(*names):
-        for n in names:
-            key = n.strip().lower()
-            if key in header_map:
-                return header_map[key]
-        return None
+@xweather_report_bp.route("/api/xweather/monthly-report/sync-google-sheet", methods=["POST"])
+def api_sync_monthly_report_google_sheet():
+    payload = request.get_json(silent=True) or {}
+    sync_token = os.getenv("XWEATHER_GOOGLE_SYNC_TOKEN", "").strip()
+    supplied_token = (
+        payload.get("token")
+        or request.form.get("token")
+        or request.args.get("token")
+        or request.headers.get("X-Sync-Token")
+        or ""
+    )
+    token_ok = bool(sync_token and supplied_token == sync_token)
+    try:
+        user_ok = bool(current_user.is_authenticated and getattr(current_user, "role", "") == "admin")
+    except Exception:
+        user_ok = False
+    if not token_ok and not user_ok:
+        return jsonify({"ok": False, "error": "admin login or valid sync token required"}), 403
 
-    H_SEV = h("Severity")
-    H_ASSET = h("Asset name", "Asset")
-    H_EXT = h("Extent (km)", "Extent")
-    H_FIRST = h("First event time", "First")
-    H_ACTIVE = h("Active time", "Active")
-    H_LAST = h("Last event time", "Last")
-    H_CLEAR = h("Clear time", "Clear")
-    H_DUR = h("Duration (min)", "Duration")
-    H_KA = h("Strength (kA)", "Strength")
-    H_TYPE = h("Type", "Event type")
+    report_month = (payload.get("report_month") or request.form.get("report_month") or "").strip()
+    mode = (payload.get("mode") or request.form.get("mode") or "replace").strip().lower()
+    url = (
+        payload.get("url")
+        or request.form.get("url")
+        or os.getenv("XWEATHER_GOOGLE_SHEET_CSV_URL")
+        or DEFAULT_GOOGLE_SHEET_CSV_URL
+    )
 
-    if not H_SEV or not H_ASSET:
-        return jsonify({"ok": False, "error": "CSV/Excel must contain at least: Severity, Asset name"}), 400
-
-    db = get_db()
-
-    inserted = 0
-    skipped = 0
+    if not report_month:
+        return jsonify({"ok": False, "error": "report_month required (YYYY-MM)"}), 400
+    if mode not in ("append", "replace"):
+        return jsonify({"ok": False, "error": "mode must be append or replace"}), 400
 
     try:
-        with db.cursor() as cur:
-            if mode == "replace":
-                cur.execute("DELETE FROM monthly_lightning_alerts WHERE report_month = %s", (report_month,))
-
-            for row in rows_data:
-                asset = str(row.get(H_ASSET) or "").strip()
-                if not asset:
-                    skipped += 1
-                    continue
-
-                cur.execute("""
-                    INSERT INTO monthly_lightning_alerts(
-                        report_month, severity, asset_name, extent_km,
-                        first_event_time, active_time, last_event_time, clear_time,
-                        duration_min, strength_ka, event_type, created_at
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (
-                    report_month,
-                    _norm_sev(row.get(H_SEV)),
-                    asset,
-                    _to_float(row.get(H_EXT)),
-                    str(row.get(H_FIRST) or "").strip(),
-                    str(row.get(H_ACTIVE) or "").strip(),
-                    str(row.get(H_LAST) or "").strip(),
-                    str(row.get(H_CLEAR) or "").strip(),
-                    _to_int(row.get(H_DUR)),
-                    _to_float(row.get(H_KA)),
-                    str(row.get(H_TYPE) or "").strip(),
-                    _now_iso()
-                ))
-                inserted += 1
-
-        db.commit()
+        req = urllib.request.Request(str(url), headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as res:
+            raw = res.read()
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheet tidak bisa diakses server. Share/publish sheet sebagai CSV atau set XWEATHER_GOOGLE_SHEET_CSV_URL yang public."
+            }), 502
+        return jsonify({"ok": False, "error": f"Google Sheet download failed: HTTP {e.code}"}), 502
     except Exception as e:
-        db.rollback()
-        return jsonify({"ok": False, "error": f"import failed: {e}"}), 500
+        return jsonify({"ok": False, "error": f"Google Sheet download failed: {e}"}), 502
 
-    return jsonify({
-        "ok": True,
-        "mode": mode,
-        "report_month": report_month,
-        "inserted": inserted,
-        "skipped": skipped
-    })
+    try:
+        text = raw.decode("utf-8-sig")
+    except Exception:
+        text = raw.decode("latin-1")
+
+    if "<html" in text[:500].lower() or "<!doctype" in text[:500].lower():
+        return jsonify({
+            "ok": False,
+            "error": "Google Sheet mengembalikan halaman HTML, bukan CSV. Pastikan link export CSV dapat diakses publik oleh server."
+        }), 502
+
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return jsonify({"ok": False, "error": "Google Sheet CSV has no header"}), 400
+
+    rows_data = list(reader)
+    init_db()
+    result, status = _import_monthly_rows(rows_data, report_month, mode)
+    result["source"] = "google_sheet"
+    return jsonify(result), status
 
 
 # =========================================================
