@@ -568,7 +568,7 @@
                   onchange="uploadCSV(event)">
               </div>
 
-              <button class="btn" onclick="syncGoogleSheet()"><svg><use href="#icon-cloud-sync"></use></svg>Sync Google Sheet</button>
+              <button class="btn" onclick="syncGoogleSheet()"><svg><use href="#icon-cloud-sync"></use></svg>Sync Google Drive</button>
               <button class="btn primary" onclick="openModalNew()"><svg><use href="#icon-plus"></use></svg>Add Row</button>
               <a class="btn primary" id="btnCsv" href="#"><svg><use href="#icon-download"></use></svg>Download CSV</a>
             </div>
@@ -965,11 +965,11 @@
       }
 
       const replace = confirm(
-        "Sync Google Sheet:\n\nOK = REPLACE data bulan ini dari Google Sheet\nCancel = APPEND data dari Google Sheet"
+        "Sync Google Drive:\n\nOK = REPLACE data bulan ini dari file Drive\nCancel = APPEND data dari file Drive"
       );
       const mode = replace ? "replace" : "append";
       const statusEl = document.getElementById("importStatus");
-      if (statusEl) statusEl.innerText = "Syncing Google Sheet...";
+      if (statusEl) statusEl.innerText = "Syncing Google Drive...";
 
       try{
         const res = await fetch("/api/xweather/monthly-report/sync-google-sheet", {
@@ -979,17 +979,18 @@
         });
         const js = await res.json();
         if (!js.ok){
-          alert(js.error || "Google Sheet sync failed");
+          alert(js.error || "Google Drive sync failed");
           if (statusEl) statusEl.innerText = "";
           return;
         }
 
         if (statusEl){
-          statusEl.innerText = `Google Sheet sync success (${js.mode}) - inserted: ${js.inserted}, skipped: ${js.skipped}`;
+          const sheetInfo = js.selected_sheet ? ` - sheet: ${js.selected_sheet}` : "";
+          statusEl.innerText = `Google Drive sync success (${js.mode})${sheetInfo} - inserted: ${js.inserted}, skipped: ${js.skipped}`;
         }
         await loadMonth();
       }catch(e){
-        alert("Google Sheet sync failed: " + e);
+        alert("Google Drive sync failed: " + e);
         if (statusEl) statusEl.innerText = "";
       }
     }

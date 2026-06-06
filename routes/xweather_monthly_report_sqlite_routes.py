@@ -25,9 +25,10 @@ load_dotenv()
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
 
-DEFAULT_GOOGLE_SHEET_CSV_URL = (
-    "https://docs.google.com/spreadsheets/d/"
-    "19Pmm6dTxhI9QErH9rbcWKHX89hp7Q9JB/export?format=csv&gid=1748962257"
+DEFAULT_GOOGLE_DRIVE_FILE_ID = "19Pmm6dTxhI9QErH9rbcWKHX89hp7Q9JB"
+DEFAULT_GOOGLE_DRIVE_FILE_URL = (
+    "https://drive.google.com/file/d/"
+    f"{DEFAULT_GOOGLE_DRIVE_FILE_ID}/view"
 )
 
 
@@ -185,6 +186,130 @@ def _month_arg():
     if not _MONTH_RE.match(month):
         return None
     return month
+
+
+def _sheet_name_from_month(report_month):
+    return str(report_month or "").strip().replace("-", "")
+
+
+def _extract_google_file_id(url):
+    url = str(url or "").strip()
+    patterns = [
+        r"/file/d/([A-Za-z0-9_-]+)",
+        r"/spreadsheets/d/([A-Za-z0-9_-]+)",
+        r"[?&]id=([A-Za-z0-9_-]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _google_download_candidates(url):
+    url = str(url or "").strip()
+    file_id = _extract_google_file_id(url)
+    candidates = []
+
+    if file_id:
+        candidates.append(
+            f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
+        )
+        candidates.append(
+            f"https://drive.google.com/uc?export=download&id={file_id}"
+        )
+    if url:
+        candidates.append(url)
+
+    deduped = []
+    seen = set()
+    for candidate in candidates:
+        if candidate not in seen:
+            deduped.append(candidate)
+            seen.add(candidate)
+    return deduped
+
+
+def _download_google_workbook(url):
+    errors = []
+    for candidate in _google_download_candidates(url):
+        try:
+            req = urllib.request.Request(candidate, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as res:
+                raw = res.read()
+                content_type = (res.headers.get("Content-Type") or "").lower()
+
+            head = raw[:500].decode("utf-8", errors="ignore").lower()
+            if "<html" in head or "<!doctype" in head:
+                errors.append(f"{candidate}: returned HTML page")
+                continue
+
+            return raw, content_type, candidate
+        except urllib.error.HTTPError as e:
+            errors.append(f"{candidate}: HTTP {e.code}")
+        except Exception as e:
+            errors.append(f"{candidate}: {e}")
+
+    raise RuntimeError("; ".join(errors) or "no download URL candidates")
+
+
+def _worksheet_rows(ws, header_row_idx):
+    headers = [str(c.value).strip() if c.value else "" for c in ws[header_row_idx]]
+    rows_data = []
+    for rr in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
+        if all(v is None or str(v).strip() == "" for v in rr):
+            continue
+        row = {headers[i]: (rr[i] if i < len(rr) else None) for i in range(len(headers))}
+        rows_data.append(row)
+    return rows_data
+
+
+def _find_header_row(ws):
+    for r in range(1, min(ws.max_row, 12) + 1):
+        headers = [str(c.value).strip() if c.value else "" for c in ws[r]]
+        hlow = [h.lower() for h in headers]
+        if "severity" in hlow and "asset name" in hlow:
+            return r
+    return None
+
+
+def _rows_from_workbook(file_obj, report_month=None, require_month_sheet=False):
+    wb = load_workbook(file_obj, data_only=True)
+    target_sheet = _sheet_name_from_month(report_month)
+
+    chosen_ws = None
+    if target_sheet and target_sheet in wb.sheetnames:
+        chosen_ws = wb[target_sheet]
+    elif require_month_sheet:
+        return [], {
+            "ok": False,
+            "error": f"Sheet {target_sheet} tidak ditemukan. Nama sheet harus mengikuti bulan laporan (YYYYMM).",
+            "available_sheets": wb.sheetnames,
+            "required_sheet": target_sheet,
+        }, 400
+
+    if chosen_ws:
+        header_row_idx = _find_header_row(chosen_ws)
+        if not header_row_idx:
+            return [], {
+                "ok": False,
+                "error": f"Sheet {chosen_ws.title}: cannot find header row (Severity, Asset name)",
+                "selected_sheet": chosen_ws.title,
+            }, 400
+        return _worksheet_rows(chosen_ws, header_row_idx), {
+            "selected_sheet": chosen_ws.title,
+            "available_sheets": wb.sheetnames,
+        }, 200
+
+    for ws in wb.worksheets:
+        header_row_idx = _find_header_row(ws)
+        if header_row_idx:
+            return _worksheet_rows(ws, header_row_idx), {
+                "selected_sheet": ws.title,
+                "available_sheets": wb.sheetnames,
+            }, 200
+
+    return [], {"ok": False, "error": "Excel: cannot find header row (Severity, Asset name)"}, 400
 
 
 # =========================================================
@@ -639,37 +764,21 @@ def api_import_monthly_report_csv():
 
     # ---------- XLSX ----------
     elif filename.endswith(".xlsx"):
-        wb = load_workbook(f, data_only=True)
-
-        # auto detect sheet/header like your example (Lightning Events)
-        chosen_ws = None
-        header_row_idx = 1
-        for ws in wb.worksheets:
-            for r in range(1, 6):
-                headers = [str(c.value).strip() if c.value else "" for c in ws[r]]
-                hlow = [h.lower() for h in headers]
-                if "severity" in hlow and "asset name" in hlow:
-                    chosen_ws = ws
-                    header_row_idx = r
-                    break
-            if chosen_ws:
-                break
-
-        if not chosen_ws:
-            return jsonify({"ok": False, "error": "Excel: cannot find header row (Severity, Asset name)"}), 400
-
-        headers = [str(c.value).strip() if c.value else "" for c in chosen_ws[header_row_idx]]
-        for rr in chosen_ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
-            if all(v is None or str(v).strip() == "" for v in rr):
-                continue
-            row = {headers[i]: (rr[i] if i < len(rr) else None) for i in range(len(headers))}
-            rows_data.append(row)
+        rows_data, meta, meta_status = _rows_from_workbook(
+            f,
+            report_month=report_month,
+            require_month_sheet=False,
+        )
+        if meta_status != 200:
+            return jsonify(meta), meta_status
 
     else:
         # keep behavior strict: only CSV/XLSX
         return jsonify({"ok": False, "error": "Unsupported file type. Use CSV or XLSX"}), 400
 
     result, status = _import_monthly_rows(rows_data, report_month, mode)
+    if filename.endswith(".xlsx") and status == 200:
+        result["selected_sheet"] = meta.get("selected_sheet")
     return jsonify(result), status
 
 
@@ -697,8 +806,9 @@ def api_sync_monthly_report_google_sheet():
     url = (
         payload.get("url")
         or request.form.get("url")
+        or os.getenv("XWEATHER_GOOGLE_DRIVE_FILE_URL")
         or os.getenv("XWEATHER_GOOGLE_SHEET_CSV_URL")
-        or DEFAULT_GOOGLE_SHEET_CSV_URL
+        or DEFAULT_GOOGLE_DRIVE_FILE_URL
     )
 
     if not report_month:
@@ -707,38 +817,44 @@ def api_sync_monthly_report_google_sheet():
         return jsonify({"ok": False, "error": "mode must be append or replace"}), 400
 
     try:
-        req = urllib.request.Request(str(url), headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=30) as res:
-            raw = res.read()
-    except urllib.error.HTTPError as e:
-        if e.code in (401, 403):
-            return jsonify({
-                "ok": False,
-                "error": "Google Sheet tidak bisa diakses server. Share/publish sheet sebagai CSV atau set XWEATHER_GOOGLE_SHEET_CSV_URL yang public."
-            }), 502
-        return jsonify({"ok": False, "error": f"Google Sheet download failed: HTTP {e.code}"}), 502
+        raw, content_type, source_url = _download_google_workbook(url)
     except Exception as e:
-        return jsonify({"ok": False, "error": f"Google Sheet download failed: {e}"}), 502
-
-    try:
-        text = raw.decode("utf-8-sig")
-    except Exception:
-        text = raw.decode("latin-1")
-
-    if "<html" in text[:500].lower() or "<!doctype" in text[:500].lower():
         return jsonify({
             "ok": False,
-            "error": "Google Sheet mengembalikan halaman HTML, bukan CSV. Pastikan link export CSV dapat diakses publik oleh server."
+            "error": f"Google Drive file tidak bisa diakses server: {e}. Pastikan file dapat diakses publik atau gunakan token sync dari server."
         }), 502
 
-    reader = csv.DictReader(io.StringIO(text))
-    if not reader.fieldnames:
-        return jsonify({"ok": False, "error": "Google Sheet CSV has no header"}), 400
+    rows_data = []
+    meta = {}
+    if raw[:2] == b"PK" or "spreadsheet" in content_type or "excel" in content_type:
+        rows_data, meta, meta_status = _rows_from_workbook(
+            io.BytesIO(raw),
+            report_month=report_month,
+            require_month_sheet=True,
+        )
+        if meta_status != 200:
+            return jsonify(meta), meta_status
+    else:
+        try:
+            text = raw.decode("utf-8-sig")
+        except Exception:
+            text = raw.decode("latin-1")
 
-    rows_data = list(reader)
+        reader = csv.DictReader(io.StringIO(text))
+        if not reader.fieldnames:
+            return jsonify({"ok": False, "error": "Google Drive file has no readable Excel/CSV header"}), 400
+        rows_data = list(reader)
+        meta = {
+            "selected_sheet": None,
+            "required_sheet": _sheet_name_from_month(report_month),
+        }
+
     init_db()
     result, status = _import_monthly_rows(rows_data, report_month, mode)
-    result["source"] = "google_sheet"
+    result["source"] = "google_drive"
+    result["source_url"] = source_url
+    result["required_sheet"] = _sheet_name_from_month(report_month)
+    result["selected_sheet"] = meta.get("selected_sheet")
     return jsonify(result), status
 
 
