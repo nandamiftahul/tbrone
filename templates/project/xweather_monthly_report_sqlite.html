@@ -816,8 +816,8 @@
     <div class="top-actions">
       <a class="btn print-hide" href="#report">Report</a>
       <a class="btn print-hide" href="#legend">Legend</a>
-      <!-- NOTE: href will be overwritten by JS to include month -->
-      <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.xlsx?month=">Download Excel</a>
+      <button id="btnCsvTop" class="btn primary print-hide" onclick="downloadExcelCsv()">Download Excel</button>
+      <button class="btn print-hide" onclick="window.print()">Download PDF</button>
       <button id="btnAliasTop" class="btn print-hide" onclick="openAliasDialog()">⚙ Labels</button>
     </div>
   </div>
@@ -902,7 +902,8 @@
             </div>
 
             <div class="report-actions">
-              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.xlsx?month=">Download Excel</a>
+              <button id="btnCsv" class="btn primary" onclick="downloadExcelCsv()">Download Excel</button>
+              <button class="btn" onclick="window.print()">Download PDF</button>
               <button class="btn" onclick="openAliasDialog()">⚙ Labels</button>
               <button class="btn" onclick="openDateFmtDialog()">Format Waktu</button>
               <button class="btn" onclick="resetFilters()">Reset</button>
@@ -1259,9 +1260,11 @@
     }
 
     function setCsvLinks(month){
-      const url = "/xweather/monthly-report.xlsx?month=" + encodeURIComponent(month);
-      document.getElementById("btnCsv").href = url;
-      document.getElementById("btnCsvTop").href = url;
+      const label = `Download Excel (${tzLabel(tzOffsetHours)})`;
+      const btn = document.getElementById("btnCsv");
+      const btnTop = document.getElementById("btnCsvTop");
+      if (btn) btn.textContent = label;
+      if (btnTop) btnTop.textContent = label;
     }
 
     
@@ -1427,38 +1430,40 @@
       });
     }
 
-    function csvEscape(v){
-      const s = (v === null || v === undefined) ? "" : String(v);
-      if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
-      return s;
-    }
-
     function downloadExcelCsv(){
-      // Export current (filtered/visible) rows from table with current date format
       const table = document.getElementById("reportTable");
       if (!table) return;
 
       const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.innerText.replace(/\s+/g," ").trim());
-      const lines = [];
-      lines.push(headers.map(csvEscape).join(","));
-
       const trs = Array.from(table.querySelectorAll("tbody tr")).filter(tr => tr.style.display !== "none");
-      trs.forEach(tr => {
-        const tds = Array.from(tr.querySelectorAll("td"));
-        const row = tds.map((td, i) => {
-          // Severity column contains dot+label -> take text only
-          let val = td.innerText.replace(/\s+/g," ").trim();
-          return csvEscape(val);
-        });
-        lines.push(row.join(","));
-      });
-
+      const rowsHtml = trs.map(tr => {
+        const cells = Array.from(tr.querySelectorAll("td")).map(td => `<td>${escapeHtml(td.innerText.replace(/\s+/g," ").trim())}</td>`).join("");
+        return `<tr>${cells}</tr>`;
+      }).join("");
+      const headHtml = headers.map(h => `<th>${escapeHtml(h)}</th>`).join("");
       const month = (document.getElementById("month")?.value || "monthly").trim() || "monthly";
-      const blob = new Blob(["\ufeff" + lines.join("\n")], {type:"text/csv;charset=utf-8"});
+      const html = `
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              table{border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;}
+              th,td{border:1px solid #999;padding:6px 8px;white-space:nowrap;}
+              th{background:#dbeafe;color:#003A8F;font-weight:bold;}
+            </style>
+          </head>
+          <body>
+            <p>Timezone: ${escapeHtml(tzLabel(tzOffsetHours))}</p>
+            <table><thead><tr>${headHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
+          </body>
+        </html>
+      `;
+
+      const blob = new Blob(["\ufeff" + html], {type:"application/vnd.ms-excel;charset=utf-8"});
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `xweather_monthly_${month}_excel.csv`;
+      a.download = `xweather_monthly_${month}_${tzLabel(tzOffsetHours).replace("+","plus").replace("-","minus")}.xls`;
       document.body.appendChild(a);
       a.click();
       a.remove();
