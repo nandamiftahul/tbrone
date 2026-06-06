@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Xweather Protect – Monthly Report Editor (SQLite)</title>
+  <title>Xweather Protect - Monthly Report Editor</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -66,6 +66,16 @@
       white-space:nowrap;
     }
     .btn:hover{transform:translateY(-1px); background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.24);}
+    .btn svg{
+      width:16px;
+      height:16px;
+      stroke:currentColor;
+      stroke-width:2;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      fill:none;
+      flex:0 0 auto;
+    }
     .btn.primary{
       background:linear-gradient(135deg,var(--tbr-orange) 0%, #FFB565 100%);
       border-color:rgba(255,255,255,.10);
@@ -172,6 +182,21 @@
     }
     .left-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; min-width:0;}
     .right-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .card .body .btn{
+      border-color:var(--border);
+      background:#fff;
+      color:var(--text);
+      box-shadow:0 8px 18px rgba(17,24,39,.06);
+    }
+    .card .body .btn:hover{
+      background:#F8FAFF;
+      border-color:rgba(0,58,143,.22);
+    }
+    .card .body .btn.primary{
+      background:linear-gradient(135deg,var(--tbr-orange) 0%, #FFB565 100%);
+      border-color:rgba(242,140,40,.45);
+      color:#1A1A1A;
+    }
 
     .table-wrap{
       overflow-x:auto;
@@ -315,7 +340,7 @@
       cursor: pointer;
     }
 
-    /* ✅ MOBILE IMPROVEMENTS ONLY */
+    /* Mobile layout refinements */
     @media (max-width: 640px){
       .topbar{
         padding: 10px 12px;
@@ -418,19 +443,63 @@
 </head>
 
 <body>
+  <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+    <symbol id="icon-report" viewBox="0 0 24 24">
+      <path d="M3 3v18h18"></path>
+      <path d="M7 15v2"></path>
+      <path d="M12 10v7"></path>
+      <path d="M17 6v11"></path>
+    </symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <path d="M7 10l5 5 5-5"></path>
+      <path d="M12 15V3"></path>
+    </symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      <path d="M14 2v6h6"></path>
+      <path d="M9 13h6"></path>
+      <path d="M9 17h6"></path>
+    </symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24">
+      <path d="M21 12a9 9 0 0 1-15.5 6.3"></path>
+      <path d="M3 12A9 9 0 0 1 18.5 5.7"></path>
+      <path d="M18 2v4h4"></path>
+      <path d="M6 22v-4H2"></path>
+    </symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <path d="M17 8l-5-5-5 5"></path>
+      <path d="M12 3v12"></path>
+    </symbol>
+    <symbol id="icon-cloud-sync" viewBox="0 0 24 24">
+      <path d="M17.5 19H18a4 4 0 0 0 .4-8 6.5 6.5 0 0 0-12.2-2A5 5 0 0 0 6 19h1"></path>
+      <path d="M9 16a3 3 0 0 1 5-2.2"></path>
+      <path d="M15 13v3h-3"></path>
+    </symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24">
+      <path d="M12 5v14"></path>
+      <path d="M5 12h14"></path>
+    </symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24">
+      <path d="M18 6L6 18"></path>
+      <path d="M6 6l12 12"></path>
+    </symbol>
+  </svg>
+
   <div class="topbar">
     <div class="brand">
       <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Xweather icon" />
       <div class="title">
         <strong>Terrindo Bumi Raya · Vaisala Xweather</strong>
-        <span>Monthly Report Editor (SQLite)</span>
+        <span>Monthly Report Editor</span>
       </div>
     </div>
 
     <div class="top-actions">
-      <a class="btn" href="/xweather/monthly-report-editor">Editor</a>
-      <a class="btn primary" id="btnCsvTop" href="#">Download CSV</a>
-      <button class="btn" onclick="window.print()">Print</button>
+      <a class="btn" href="/xweather/monthly-report"><svg><use href="#icon-report"></use></svg>Monthly Report</a>
+      <a class="btn primary" id="btnCsvTop" href="#"><svg><use href="#icon-download"></use></svg>Download CSV</a>
+      <button class="btn" onclick="window.print()"><svg><use href="#icon-file"></use></svg>Download PDF</button>
     </div>
   </div>
 
@@ -438,10 +507,10 @@
     <aside class="sidebar">
       <div class="head">
         <p class="h">Daftar Isi</p>
-        <p class="s">Kelola data laporan bulanan (tersimpan di SQLite server).</p>
+        <p class="s">Kelola data laporan bulanan Xweather untuk kebutuhan review WBN.</p>
       </div>
       <nav class="nav">
-        <a href="#editor"><div class="badge">1</div><div class="meta"><strong>Editor</strong><span>Add/Edit/Delete + filter per bulan</span></div></a>
+        <a href="#editor"><div class="badge">1</div><div class="meta"><strong>Editor</strong><span>Tambah, edit, hapus, dan filter per bulan</span></div></a>
         <a href="/xweather/manual"><div class="badge">M</div><div class="meta"><strong>Manual</strong><span>Kembali ke Xweather manual</span></div></a>
       </nav>
     </aside>
@@ -450,10 +519,10 @@
       <section id="editor" class="card">
         <div class="card-head">
           <div>
-            <h2>Monthly Report Editor (SQLite)</h2>
-            <p>Data tersimpan di server. Pilih bulan <span class="kbd">YYYY-MM</span>, lalu kelola row (add/edit/delete).</p>
+            <h2>Monthly Report Editor</h2>
+            <p>Pilih bulan <span class="kbd">YYYY-MM</span>, lalu kelola data laporan Xweather.</p>
           </div>
-          <div class="chip">Server-Side</div>
+          <div class="chip">Data Editor</div>
         </div>
 
         <div class="body">
@@ -487,21 +556,21 @@
               </div>
             </div>        
             <div class="right-actions">
-              <button class="btn" onclick="loadMonth()">🔄 Load</button>
+              <button class="btn" onclick="loadMonth()"><svg><use href="#icon-refresh"></use></svg>Load</button>
 
-<div class="btn upload-btn">
-  <span class="upload-icon">📤</span>
-  <span class="upload-text">Upload CSV / Excel</span>
-  <input
-    id="csvFile"
-    type="file"
-    accept=".csv,.xls,.xlsx"
-    onchange="uploadCSV(event)">
-</div>
+              <div class="btn upload-btn">
+                <svg><use href="#icon-upload"></use></svg>
+                <span class="upload-text">Upload CSV / Excel</span>
+                <input
+                  id="csvFile"
+                  type="file"
+                  accept=".csv,.xls,.xlsx"
+                  onchange="uploadCSV(event)">
+              </div>
 
-              <button class="btn" onclick="syncGoogleSheet()">Sync Google Sheet</button>
-              <button class="btn primary" onclick="openModalNew()">＋ Add Row</button>
-              <a class="btn primary" id="btnCsv" href="#">⬇ Download CSV</a>
+              <button class="btn" onclick="syncGoogleSheet()"><svg><use href="#icon-cloud-sync"></use></svg>Sync Google Sheet</button>
+              <button class="btn primary" onclick="openModalNew()"><svg><use href="#icon-plus"></use></svg>Add Row</button>
+              <a class="btn primary" id="btnCsv" href="#"><svg><use href="#icon-download"></use></svg>Download CSV</a>
             </div>
           </div>
 
@@ -538,7 +607,7 @@
   </div>
 
   <div class="footer">
-    © Terrindo Bumi Raya · Xweather Monthly Report Editor · SQLite-backed.
+    © Terrindo Bumi Raya · Xweather Monthly Report Editor.
   </div>
 
   <div class="modal-backdrop" id="modalBackdrop" onclick="closeModalIfBackdrop(event)">
@@ -546,9 +615,9 @@
       <div class="mh">
         <div>
           <h3 id="modalTitle">Add Row</h3>
-          <p>Isi kolom, lalu Save (akan tersimpan ke SQLite).</p>
+          <p>Isi kolom, lalu simpan perubahan data laporan.</p>
         </div>
-        <button class="btn" onclick="closeModal()">✕ Close</button>
+        <button class="btn" onclick="closeModal()"><svg><use href="#icon-x"></use></svg>Close</button>
       </div>
 
       <div class="mb">
@@ -876,7 +945,7 @@
         }
 
         if (statusEl){
-          statusEl.innerText = `✅ Import success (${js.mode}) — inserted: ${js.inserted}, skipped: ${js.skipped}`;
+          statusEl.innerText = `Import success (${js.mode}) - inserted: ${js.inserted}, skipped: ${js.skipped}`;
         }
 
         await loadMonth();
@@ -916,7 +985,7 @@
         }
 
         if (statusEl){
-          statusEl.innerText = `✅ Google Sheet sync success (${js.mode}) — inserted: ${js.inserted}, skipped: ${js.skipped}`;
+          statusEl.innerText = `Google Sheet sync success (${js.mode}) - inserted: ${js.inserted}, skipped: ${js.skipped}`;
         }
         await loadMonth();
       }catch(e){
