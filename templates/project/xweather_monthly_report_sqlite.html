@@ -817,7 +817,7 @@
       <a class="btn print-hide" href="#report">Report</a>
       <a class="btn print-hide" href="#legend">Legend</a>
       <button id="btnCsvTop" class="btn primary print-hide" onclick="downloadExcelCsv()">Download Excel</button>
-      <button class="btn print-hide" onclick="window.print()">Download PDF</button>
+      <button class="btn print-hide" id="btnPdfTop" onclick="downloadPdf()">Download PDF</button>
       <button id="btnAliasTop" class="btn print-hide" onclick="openAliasDialog()">⚙ Labels</button>
     </div>
   </div>
@@ -903,7 +903,7 @@
 
             <div class="report-actions">
               <button id="btnCsv" class="btn primary" onclick="downloadExcelCsv()">Download Excel</button>
-              <button class="btn" onclick="window.print()">Download PDF</button>
+              <button class="btn" onclick="downloadPdf()">Download PDF</button>
               <button class="btn" onclick="openAliasDialog()">⚙ Labels</button>
               <button class="btn" onclick="openDateFmtDialog()">Format Waktu</button>
               <button class="btn" onclick="resetFilters()">Reset</button>
@@ -1998,6 +1998,81 @@
       loadDateFmt();
       loadMonth();
     })();
+
+    function downloadPdf(){
+      // collect visible page state and post to server so PDF matches UI
+      const month = (document.getElementById("month") && document.getElementById("month").value) || "";
+      const tz = (typeof tzLabel === 'function') ? tzLabel(tzOffsetHours) : (document.getElementById('tzOffset')?.value || 'UTC');
+      const q = document.getElementById('q')?.value || '';
+      const sev = document.getElementById('sev')?.value || '';
+      const asset = document.getElementById('asset')?.value || '';
+      const rowCount = document.getElementById('rowCount')?.innerText || '';
+
+      // collect expert metrics HTML if present
+      const expertEl = document.getElementById('expertSection') || document.getElementById('expertTbody') || null;
+      const expert_html = expertEl ? expertEl.outerHTML : '';
+
+      // legend section
+      const legendEl = document.getElementById('legend') || document.querySelector('#legend') || null;
+      const legend_html = legendEl ? legendEl.outerHTML : '';
+
+      // collect visible table (only rows that are displayed)
+      const table = document.getElementById('reportTable');
+      let table_html = '';
+      let rows_json = [];
+      if (table){
+        const clone = table.cloneNode(true);
+        // remove hidden rows
+        Array.from(clone.querySelectorAll('tbody tr')).forEach(tr => { if (tr.style.display === 'none') tr.remove(); });
+        table_html = `<div style="overflow:auto">${clone.outerHTML}</div>`;
+
+        // build rows_json from visible rows
+        const trs = Array.from(table.querySelectorAll('tbody tr')).filter(tr => tr.style.display !== 'none');
+        trs.forEach(tr => {
+          const tds = Array.from(tr.querySelectorAll('td'));
+          // prefer canonical fields from data- attributes where available (to preserve aliases on page)
+          const severity_canon = tr.getAttribute('data-sev') || '';
+          const asset_canon = tr.getAttribute('data-asset') || '';
+          const first_raw = (tds[3] && tds[3].getAttribute('data-raw')) || tds[3]?.innerText.replace(/\s+/g,' ').trim() || '';
+          const active_raw = (tds[4] && tds[4].getAttribute('data-raw')) || tds[4]?.innerText.replace(/\s+/g,' ').trim() || '';
+          const last_raw = (tds[5] && tds[5].getAttribute('data-raw')) || tds[5]?.innerText.replace(/\s+/g,' ').trim() || '';
+          const clear_raw = (tds[6] && tds[6].getAttribute('data-raw')) || tds[6]?.innerText.replace(/\s+/g,' ').trim() || '';
+          const vals = tds.map(td => td.innerText.replace(/\s+/g,' ').trim());
+          rows_json.push({
+            severity: severity_canon || vals[0] || '',
+            asset_name: asset_canon || vals[1] || '',
+            extent_km: vals[2] || '',
+            first_event_time: first_raw,
+            active_time: active_raw,
+            last_event_time: last_raw,
+            clear_time: clear_raw,
+            duration_min: vals[7] || '',
+            strength_ka: vals[8] || '',
+            event_type: vals[9] || ''
+          });
+        });
+      }
+
+      // build form and submit POST to open in new tab
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/xweather/monthly-report.pdf';
+      form.target = '_blank';
+      const add = (name, value) => { const i = document.createElement('input'); i.type='hidden'; i.name=name; i.value=value || ''; form.appendChild(i); };
+      add('month', month);
+      add('tz_label', tz);
+      add('q', q);
+      add('sev', sev);
+      add('asset', asset);
+      add('row_count', rowCount);
+      add('table_html', table_html);
+      add('rows_json', rows_json && rows_json.length ? JSON.stringify(rows_json) : '');
+      add('legend_html', legend_html);
+      add('expert_html', expert_html);
+      document.body.appendChild(form);
+      form.submit();
+      form.remove();
+    }
 
   async function loadExpert(month){
     const tbody = document.getElementById("expertTbody");

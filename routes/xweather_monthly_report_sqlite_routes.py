@@ -23,6 +23,12 @@ from flask_login import current_user, login_required
 from routes.auth_utils import role_required
 from dotenv import load_dotenv
 load_dotenv()
+try:
+    from weasyprint import HTML, CSS
+except Exception:
+    HTML = None
+    CSS = None
+# Charts removed: keep PDF generation simple (table + metrics only)
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
 
@@ -426,6 +432,138 @@ def _percentile(sorted_vals, p):
     return float(sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f))
 
 
+def _compute_expert_metrics(rows, month=None):
+    """
+    Compute expert metrics from a list of row dicts. Rows may come from DB (keys like
+    'duration_min', 'strength_ka', 'event_type', 'analysis_event_time', 'severity') or
+    from client (keys like 'duration_min' or 'duration', 'strength_ka' or 'strength', 'event_type', 'first_event_time').
+    Returns a list of {metric, value} dicts.
+    """
+    total = len(rows or [])
+    if total == 0:
+        return [
+            {"metric": "Total events", "value": 0},
+            {"metric": "Period (UTC)", "value": month or ""},
+        ]
+
+    # severity counts
+    sev_counts = Counter([ ( (r.get('severity') or r.get('Severity') or '') ).strip().lower() for r in rows ])
+    alarm = sev_counts.get('alarm', 0)
+    warning = sev_counts.get('warning', 0)
+    info = sev_counts.get('info', 0)
+
+    # durations
+    durations = []
+    for r in rows:
+        for key in ('duration_min', 'duration', 'Duration'):
+            if key in r and r.get(key) is not None and str(r.get(key)).strip() != '':
+                try:
+                    durations.append(float(r.get(key)))
+                except Exception:
+                    try:
+                        durations.append(float(re.sub(r"[^0-9.\-]", "", str(r.get(key)))))
+                    except Exception:
+                        pass
+                break
+    durations.sort()
+
+    # hours
+    hours = []
+    for r in rows:
+        t = r.get('analysis_event_time') or r.get('first_event_time') or r.get('active_time') or r.get('last_event_time') or r.get('clear_time')
+        h = _parse_hour_utc(t)
+        if h is not None:
+            hours.append(h)
+    hour_counts = Counter(hours)
+    most_hour = hour_counts.most_common(1)[0][0] if hour_counts else None
+
+    busiest_window = None
+    busiest_count = None
+    if hour_counts:
+        counts = [hour_counts.get(h, 0) for h in range(24)]
+        best_h, best_sum = 0, -1
+        for h in range(24):
+            s3 = counts[h] + counts[(h + 1) % 24] + counts[(h + 2) % 24]
+            if s3 > best_sum:
+                best_sum = s3
+                best_h = h
+        busiest_window = f"{best_h:02d}:00–{(best_h + 3) % 24:02d}:00"
+        busiest_count = best_sum
+
+    # types
+    types = []
+    cg_minus = 0
+    for r in rows:
+        t = (r.get('event_type') or r.get('Type') or r.get('type') or '')
+        if not t:
+            continue
+        tn = str(t).strip()
+        types.append(tn)
+        if 'cg-' in tn.lower().replace(' ', ''):
+            cg_minus += 1
+    dominant_type = Counter(types).most_common(1)[0][0] if types else None
+    cg_minus_share = (cg_minus / total * 100.0) if total else 0.0
+
+    # strengths
+    strengths = []
+    for r in rows:
+        for key in ('strength_ka', 'strength', 'Strength'):
+            if key in r and r.get(key) is not None and str(r.get(key)).strip() != '':
+                try:
+                    strengths.append(abs(float(r.get(key))))
+                except Exception:
+                    try:
+                        s = str(r.get(key)).replace(',','')
+                        s = re.sub(r"[^0-9.\-\.]", "", s)
+                        if s:
+                            strengths.append(abs(float(s)))
+                    except Exception:
+                        pass
+                break
+
+    metrics = [
+        {"metric": "Total events", "value": total},
+        {"metric": "Period (UTC)", "value": month or ""},
+        {"metric": "Fixed ring logic", "value": "Info=20 km; Warning=10 km; Alarm=4 km"},
+        {"metric": "Alarm share", "value": f"{alarm} ({(alarm/total*100):.1f}%)"},
+        {"metric": "Warning share", "value": f"{warning} ({(warning/total*100):.1f}%)"},
+        {"metric": "Info share", "value": f"{info} ({(info/total*100):.1f}%)"},
+    ]
+
+    if durations:
+        dmin = durations[0]
+        dmax = durations[-1]
+        dmed = _percentile(durations, 50)
+        dmean = (sum(durations) / len(durations)) if durations else None
+        q25 = _percentile(durations, 25)
+        q75 = _percentile(durations, 75)
+        iqr = (q75 - q25) if (q25 is not None and q75 is not None) else None
+        p90 = _percentile(durations, 90)
+        metrics += [
+            {"metric": "Duration min / median / max (min)", "value": f"{dmin:.0f} / {dmed:.0f} / {dmax:.0f}"},
+            {"metric": "Duration mean (min)", "value": f"{dmean:.2f}"},
+            {"metric": "Duration IQR (Q75–Q25) (min)", "value": f"{iqr:.2f}" if iqr is not None else ""},
+            {"metric": "Duration P90 (min)", "value": f"{p90:.2f}" if p90 is not None else ""},
+        ]
+
+    if busiest_window is not None:
+        metrics.append({"metric": "Busiest 3-hour window (UTC)", "value": f"{busiest_window} ({busiest_count})"})
+
+    if dominant_type:
+        metrics.append({"metric": "Dominant event type", "value": dominant_type})
+        metrics.append({"metric": "CG- share", "value": f"{cg_minus} ({cg_minus_share:.1f}%)"})
+
+    if strengths:
+        avg_abs_ka = (sum(strengths) / len(strengths))
+        metrics += [
+            {"metric": "Strength avg (kA)", "value": f"{avg_abs_ka:.2f}"},
+            {"metric": "Strength min (kA)", "value": f"{min(strengths):.2f}"},
+            {"metric": "Strength max (kA)", "value": f"{max(strengths):.2f}"},
+        ]
+
+    return metrics
+
+
 def _import_monthly_rows(rows_data, report_month, mode):
     if not rows_data:
         return {"ok": False, "error": "No data rows found"}, 400
@@ -510,6 +648,124 @@ def _import_monthly_rows(rows_data, report_month, mode):
 @xweather_report_bp.route("/xweather/monthly-report")
 def xweather_monthly_report_viewer():
     return render_template("project/xweather_monthly_report_sqlite.html")
+
+
+@xweather_report_bp.route("/xweather/monthly-report.pdf", methods=["GET","POST"])
+def xweather_monthly_report_pdf():
+    # Server-side PDF generation using WeasyPrint
+    # If client posted rendered HTML/table data, prefer that so the PDF matches the page state
+    if request.method == 'POST' and (request.form.get('table_html') or request.form.get('rows_json')):
+        month = (request.form.get('month') or '').strip() or datetime.utcnow().strftime("%Y-%m")
+        table_html = request.form.get('table_html') or ''
+        legend_html = request.form.get('legend_html') or ''
+        expert_html = request.form.get('expert_html') or ''
+        row_count = request.form.get('row_count') or ''
+        tz_label = request.form.get('tz_label') or ''
+        filters = {
+            'q': request.form.get('q') or '',
+            'sev': request.form.get('sev') or '',
+            'asset': request.form.get('asset') or '',
+        }
+        # Try to use rows_json if present to compute metrics and charts
+        rows_json_raw = request.form.get('rows_json') or ''
+        rows_from_client = []
+        if rows_json_raw:
+            try:
+                rows_from_client = json.loads(rows_json_raw)
+            except Exception:
+                rows_from_client = []
+
+        # compute metrics from rows_from_client if available, else leave empty
+        metrics = []
+        if rows_from_client:
+            total = len(rows_from_client)
+            sev_counts = Counter([ (r.get('severity') or '').strip().lower() for r in rows_from_client ])
+            alarm = sev_counts.get('alarm', 0)
+            warning = sev_counts.get('warning', 0)
+            info = sev_counts.get('info', 0)
+            metrics = [
+                {"metric": "Total events", "value": total},
+                {"metric": "Alarm", "value": f"{alarm} ({(alarm/total*100):.1f}%)"},
+                {"metric": "Warning", "value": f"{warning} ({(warning/total*100):.1f}%)"},
+                {"metric": "Info", "value": f"{info} ({(info/total*100):.1f}%)"},
+            ]
+
+            # strengths list
+            strengths = []
+            for r in rows_from_client:
+                try:
+                    v = r.get('strength_ka')
+                    if v is None or v == '':
+                        continue
+                    if isinstance(v, str):
+                        s = v.replace(',','').strip()
+                        strengths.append(abs(float(re.sub(r"[^0-9.\-\.]", "", s))))
+                    else:
+                        strengths.append(abs(float(v)))
+                except Exception:
+                    try:
+                        s = str(r.get('strength_ka') or '').replace(',','')
+                        s = re.sub(r"[^0-9.\-\.]", "", s)
+                        if s:
+                            strengths.append(abs(float(s)))
+                    except Exception:
+                        pass
+
+            # no chart generation (client requested table-only PDF)
+
+        # compute expert metrics for the Expert Statistical section
+        expert_metrics = _compute_expert_metrics(rows_from_client, month=month)
+
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        html = render_template("project/xweather_monthly_report_pdf.html",
+                   rows=None, metrics=metrics, month=month, now=now,
+                   table_html=table_html, legend_html=legend_html,
+                   expert_html=expert_html, expert_metrics=expert_metrics,
+                   row_count=row_count, tz_label=tz_label,
+                   filters=filters)
+    else:
+        # GET fallback: generate from DB as before
+        month = request.args.get("month") or datetime.utcnow().strftime("%Y-%m")
+        init_db()
+        db = get_db()
+        with db.cursor() as cur:
+            cur.execute("""
+                SELECT *
+                FROM monthly_lightning_alerts
+                WHERE report_month = %s
+                ORDER BY id DESC
+            """, (month,))
+            rows = cur.fetchall()
+
+        # compute expert metrics via existing logic
+        with db.cursor() as cur:
+            cur.execute(f"""
+                SELECT severity, {_event_time_expr()} AS analysis_event_time,
+                       duration_min, strength_ka, event_type
+                FROM monthly_lightning_alerts
+                WHERE {_event_month_filter_expr()}
+            """, _event_month_filter_params(month))
+            expert_rows = cur.fetchall()
+
+        total = len(expert_rows)
+        metrics = [{"metric": "Total events", "value": total}, {"metric": "Period (UTC)", "value": month}]
+        # compute expert metrics from DB rows
+        expert_metrics = _compute_expert_metrics(expert_rows, month=month)
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        html = render_template("project/xweather_monthly_report_pdf.html", rows=rows, metrics=metrics, month=month, now=now, expert_metrics=expert_metrics)
+
+    # Render to PDF if possible
+    if HTML is not None:
+        try:
+            # generate PDF in landscape to avoid column clipping
+            pdf = HTML(string=html, base_url=request.url_root).write_pdf(stylesheets=[CSS(string='@page { size: A4 landscape; margin: 12mm }')])
+            resp = Response(pdf, mimetype='application/pdf')
+            resp.headers['Content-Disposition'] = f'attachment; filename=Monthly_Report_{month}.pdf'
+            return resp
+        except Exception as e:
+            return make_response(html + f"\n<!-- PDF generation failed: {e} -->", 500)
+    else:
+        return make_response(html + "\n<!-- PDF generation not available (WeasyPrint not installed) -->", 200)
 
 
 @xweather_report_bp.route("/xweather/monthly-report-editor")

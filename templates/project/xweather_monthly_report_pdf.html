@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Monthly Report PDF - {{ month }}</title>
+  <style>
+    body{ font-family: Arial, Helvetica, sans-serif; color:#111; margin: 20px; }
+    .header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+    .brand{ display:flex; gap:12px; align-items:center; }
+    .brand img{ height:48px; }
+    h1{ margin:0; font-size:18px; }
+    .meta{ text-align:right; font-size:12px; color:#444; }
+
+    .summary{ margin:18px 0; display:flex; gap:18px; flex-wrap:wrap; }
+    .metric{ background:#f7f9fc; padding:10px 12px; border-radius:8px; border:1px solid #e6eef9; min-width:160px; }
+    .metric h4{ margin:0 0 6px 0; font-size:13px; color:#0a4470 }
+    .metric p{ margin:0; font-size:14px; font-weight:700 }
+
+    /* slightly smaller font for PDF to fit wide tables in landscape */
+    table{ width:100%; border-collapse:collapse; font-size:11px; margin-top:10px; table-layout:auto }
+    table thead th{ background:#f0f7ff; color:#0a4470; padding:8px; border:1px solid #e6eef9; text-align:left; white-space:normal }
+    table tbody td{ padding:6px 8px; border:1px solid #eee; white-space:normal; word-break:break-word }
+    .table-small td{ font-size:11px; padding:6px }
+    /* Ensure last columns can wrap and not be clipped */
+    /* Make Strength and Type columns wider and allow wrapping */
+    table tbody td:nth-child(9), table tbody td:nth-child(10), table thead th:nth-child(9), table thead th:nth-child(10) {
+      min-width: 100px;
+      max-width: 360px;
+      white-space: normal;
+      word-break:break-word;
+    }
+    .chart{ text-align:center; }
+    .metrics-grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:8px }
+    .metrics-grid .metric{ min-width:0 }
+
+    .expert-table{ width:100%; border-collapse:collapse; margin-top:8px }
+    .expert-table td{ padding:6px 8px; border:0; vertical-align:top }
+    .expert-table td.key{ width:55%; font-weight:600; color:#0a4470 }
+    .expert-table td.val{ width:45%; text-align:left; }
+
+    .footer-note{ margin-top:18px; font-size:11px; color:#666 }
+
+    @media print{
+      body{ margin: 12mm }
+    }
+
+    /* Ensure PDF layout uses landscape-friendly widths */
+    @page { size: A4 landscape; margin: 12mm }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="logo">
+      <div>
+        <h1>Terrindo · Xweather Monthly Lightning Alert Report</h1>
+        <div style="font-size:12px;color:#444">Period: {{ month }}</div>
+      </div>
+    </div>
+    <div class="meta">
+      Generated: {{ now }} UTC
+    </div>
+  </div>
+
+  <div class="summary">
+    {% for m in metrics %}
+      <div class="metric">
+        <h4>{{ m.metric }}</h4>
+        <p>{{ m.value }}</p>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- charts removed: PDF contains table and metrics only -->
+
+  <h3>Events</h3>
+  {% if table_html %}
+    <div>
+      <!-- Insert client-provided table (already formatted) -->
+      {{ table_html | safe }}
+    </div>
+  {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Asset</th>
+          <th>Extent (km)</th>
+          <th>First</th>
+          <th>Active</th>
+          <th>Last</th>
+          <th>Clear</th>
+          <th>Duration (min)</th>
+          <th>Strength (kA)</th>
+          <th>Type</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows or [] %}
+        <tr>
+          <td>{{ (r.severity or '')|capitalize }}</td>
+          <td>{{ r.asset_name or '' }}</td>
+          <td>{{ r.extent_km or '' }}</td>
+          <td>{{ r.first_event_time or '' }}</td>
+          <td>{{ r.active_time or '' }}</td>
+          <td>{{ r.last_event_time or '' }}</td>
+          <td>{{ r.clear_time or '' }}</td>
+          <td>{{ r.duration_min or '' }}</td>
+          <td>{{ r.strength_ka or '' }}</td>
+          <td>{{ r.event_type or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  {% if legend_html %}
+    <h3>Legend</h3>
+    <div>{{ legend_html | safe }}</div>
+  {% endif %}
+
+  <h3>Expert Statistical</h3>
+  {% if expert_metrics %}
+    <table class="expert-table report-table">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Metric</th>
+          <th style="text-align:left;">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in expert_metrics %}
+        <tr>
+          <td class="key">{{ m.metric }}</td>
+          <td class="val">{{ m.value }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% elif expert_html %}
+    <div>{{ expert_html | safe }}</div>
+  {% else %}
+    <div style="color:#666">No expert metrics available.</div>
+  {% endif %}
+
+  {% if row_count %}
+    <div style="margin-top:10px;font-size:12px;color:#333">{{ row_count }}</div>
+  {% endif %}
+
+  <div class="footer-note">Report generated by Terrindo Xweather · Source: monthly_lightning_alerts (DB)</div>
+</body>
+</html>
