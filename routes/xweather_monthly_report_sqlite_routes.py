@@ -650,123 +650,87 @@ def xweather_monthly_report_viewer():
     return render_template("project/xweather_monthly_report_sqlite.html")
 
 
-@xweather_report_bp.route("/xweather/monthly-report.pdf", methods=["GET","POST"])
+@xweather_report_bp.route("/xweather/monthly-report.pdf", methods=["GET"])
 def xweather_monthly_report_pdf():
-    # Server-side PDF generation using WeasyPrint
-    # If client posted rendered HTML/table data, prefer that so the PDF matches the page state
-    if request.method == 'POST' and (request.form.get('table_html') or request.form.get('rows_json')):
-        month = (request.form.get('month') or '').strip() or datetime.utcnow().strftime("%Y-%m")
-        table_html = request.form.get('table_html') or ''
-        legend_html = request.form.get('legend_html') or ''
-        expert_html = request.form.get('expert_html') or ''
-        row_count = request.form.get('row_count') or ''
-        tz_label = request.form.get('tz_label') or ''
-        filters = {
-            'q': request.form.get('q') or '',
-            'sev': request.form.get('sev') or '',
-            'asset': request.form.get('asset') or '',
-        }
-        # Try to use rows_json if present to compute metrics and charts
-        rows_json_raw = request.form.get('rows_json') or ''
-        rows_from_client = []
-        if rows_json_raw:
-            try:
-                rows_from_client = json.loads(rows_json_raw)
-            except Exception:
-                rows_from_client = []
+    # PDF dibuat langsung dari database berdasarkan month.
+    # Tidak lagi menerima POST table_html / rows_json agar tidak kena 413 Request Entity Too Large.
 
-        # compute metrics from rows_from_client if available, else leave empty
-        metrics = []
-        if rows_from_client:
-            total = len(rows_from_client)
-            sev_counts = Counter([ (r.get('severity') or '').strip().lower() for r in rows_from_client ])
-            alarm = sev_counts.get('alarm', 0)
-            warning = sev_counts.get('warning', 0)
-            info = sev_counts.get('info', 0)
-            metrics = [
-                {"metric": "Total events", "value": total},
-                {"metric": "Alarm", "value": f"{alarm} ({(alarm/total*100):.1f}%)"},
-                {"metric": "Warning", "value": f"{warning} ({(warning/total*100):.1f}%)"},
-                {"metric": "Info", "value": f"{info} ({(info/total*100):.1f}%)"},
-            ]
+    month = request.args.get("month") or datetime.utcnow().strftime("%Y-%m")
 
-            # strengths list
-            strengths = []
-            for r in rows_from_client:
-                try:
-                    v = r.get('strength_ka')
-                    if v is None or v == '':
-                        continue
-                    if isinstance(v, str):
-                        s = v.replace(',','').strip()
-                        strengths.append(abs(float(re.sub(r"[^0-9.\-\.]", "", s))))
-                    else:
-                        strengths.append(abs(float(v)))
-                except Exception:
-                    try:
-                        s = str(r.get('strength_ka') or '').replace(',','')
-                        s = re.sub(r"[^0-9.\-\.]", "", s)
-                        if s:
-                            strengths.append(abs(float(s)))
-                    except Exception:
-                        pass
+    if not _MONTH_RE.match(month):
+        return "missing month (YYYY-MM)", 400
 
-            # no chart generation (client requested table-only PDF)
+    init_db()
+    db = get_db()
 
-        # compute expert metrics for the Expert Statistical section
-        expert_metrics = _compute_expert_metrics(rows_from_client, month=month)
+    # 1) Ambil data tabel utama
+    with db.cursor() as cur:
+        cur.execute(f"""
+            SELECT severity, asset_name, extent_km, first_event_time, active_time,
+                   last_event_time, clear_time, duration_min, strength_ka, event_type
+            FROM monthly_lightning_alerts
+            WHERE {_event_month_filter_expr()}
+            ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
+        """, _event_month_filter_params(month))
+        rows = cur.fetchall()
 
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        html = render_template("project/xweather_monthly_report_pdf.html",
-                   rows=None, metrics=metrics, month=month, now=now,
-                   table_html=table_html, legend_html=legend_html,
-                   expert_html=expert_html, expert_metrics=expert_metrics,
-                   row_count=row_count, tz_label=tz_label,
-                   filters=filters)
-    else:
-        # GET fallback: generate from DB as before
-        month = request.args.get("month") or datetime.utcnow().strftime("%Y-%m")
-        init_db()
-        db = get_db()
-        with db.cursor() as cur:
-            cur.execute("""
-                SELECT *
-                FROM monthly_lightning_alerts
-                WHERE report_month = %s
-                ORDER BY id DESC
-            """, (month,))
-            rows = cur.fetchall()
+    # 2) Ambil data untuk Expert Statistical Analysis
+    with db.cursor() as cur:
+        cur.execute(f"""
+            SELECT severity, {_event_time_expr()} AS analysis_event_time,
+                   duration_min, strength_ka, event_type
+            FROM monthly_lightning_alerts
+            WHERE {_event_month_filter_expr()}
+        """, _event_month_filter_params(month))
+        expert_rows = cur.fetchall()
 
-        # compute expert metrics via existing logic
-        with db.cursor() as cur:
-            cur.execute(f"""
-                SELECT severity, {_event_time_expr()} AS analysis_event_time,
-                       duration_min, strength_ka, event_type
-                FROM monthly_lightning_alerts
-                WHERE {_event_month_filter_expr()}
-            """, _event_month_filter_params(month))
-            expert_rows = cur.fetchall()
+    # 3) Hitung metrics
+    total = len(expert_rows)
 
-        total = len(expert_rows)
-        metrics = [{"metric": "Total events", "value": total}, {"metric": "Period (UTC)", "value": month}]
-        # compute expert metrics from DB rows
-        expert_metrics = _compute_expert_metrics(expert_rows, month=month)
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        html = render_template("project/xweather_monthly_report_pdf.html", rows=rows, metrics=metrics, month=month, now=now, expert_metrics=expert_metrics)
+    metrics = [
+        {"metric": "Total events", "value": total},
+        {"metric": "Period (UTC)", "value": month},
+    ]
 
-    # Render to PDF if possible
+    expert_metrics = _compute_expert_metrics(expert_rows, month=month)
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+    # 4) Render template PDF
+    html = render_template(
+        "project/xweather_monthly_report_pdf.html",
+        rows=rows,
+        metrics=metrics,
+        month=month,
+        now=now,
+        expert_metrics=expert_metrics,
+    )
+
+    # 5) Convert HTML ke PDF pakai WeasyPrint
     if HTML is not None:
         try:
-            # generate PDF in landscape to avoid column clipping
-            pdf = HTML(string=html, base_url=request.url_root).write_pdf(stylesheets=[CSS(string='@page { size: A4 landscape; margin: 12mm }')])
-            resp = Response(pdf, mimetype='application/pdf')
-            resp.headers['Content-Disposition'] = f'attachment; filename=Monthly_Report_{month}.pdf'
-            return resp
-        except Exception as e:
-            return make_response(html + f"\n<!-- PDF generation failed: {e} -->", 500)
-    else:
-        return make_response(html + "\n<!-- PDF generation not available (WeasyPrint not installed) -->", 200)
+            pdf = HTML(
+                string=html,
+                base_url=request.url_root
+            ).write_pdf(
+                stylesheets=[
+                    CSS(string='@page { size: A4 landscape; margin: 12mm }')
+                ]
+            )
 
+            resp = Response(pdf, mimetype="application/pdf")
+            resp.headers["Content-Disposition"] = f'attachment; filename="Monthly_Report_{month}.pdf"'
+            return resp
+
+        except Exception as e:
+            return make_response(
+                html + f"\n<!-- PDF generation failed: {e} -->",
+                500
+            )
+
+    return make_response(
+        html + "\n<!-- PDF generation not available (WeasyPrint not installed) -->",
+        200
+    )
 
 @xweather_report_bp.route("/xweather/monthly-report-editor")
 @login_required

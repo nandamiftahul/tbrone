@@ -593,7 +593,8 @@
       <a class="btn print-hide" href="#report">Report</a>
       <a class="btn print-hide" href="#legend">Legend</a>
       <!-- NOTE: href will be overwritten by JS to include month -->
-      <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.csv?month=">Download CSV</a>
+      <a id="btnCsvTop" class="btn primary print-hide" href="/xweather/monthly-report.xlsx?month=">Download Excel</a>
+      <a id="btnPdfTop" class="btn primary print-hide" href="/xweather/monthly-report.pdf?month=">Download PDF</a>
       <button id="btnAliasTop" class="btn print-hide" onclick="openAliasDialog()">⚙ Labels</button>
       <button class="btn print-hide" onclick="window.print()">Print / Save as PDF</button>
     </div>
@@ -674,7 +675,8 @@
 
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn" onclick="loadMonth()">🔄 Load</button>
-              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.csv?month=">⬇ Download CSV</a>
+              <a id="btnCsv" class="btn primary" href="/xweather/monthly-report.xlsx?month=">⬇ Download Excel</a>
+              <a id="btnPdf" class="btn primary" href="/xweather/monthly-report.pdf?month=">⬇ Download PDF</a>
               <button class="btn" onclick="window.print()">🖨 Print</button>
               <button class="btn" onclick="openAliasDialog()">⚙ Labels</button>
               <button class="btn" onclick="resetFilters()">↺ Reset</button>
@@ -852,9 +854,17 @@
     }
 
     function setCsvLinks(month){
-      const url = "/xweather/monthly-report.xlsx?month=" + encodeURIComponent(month);
-      document.getElementById("btnCsv").href = url;
-      document.getElementById("btnCsvTop").href = url;
+      const xlsxUrl = "/xweather/monthly-report.xlsx?month=" + encodeURIComponent(month);
+      const pdfUrl  = "/xweather/monthly-report.pdf?month=" + encodeURIComponent(month);
+    
+      document.getElementById("btnCsv").href = xlsxUrl;
+      document.getElementById("btnCsvTop").href = xlsxUrl;
+    
+      const btnPdf = document.getElementById("btnPdf");
+      if (btnPdf) btnPdf.href = pdfUrl;
+    
+      const btnPdfTop = document.getElementById("btnPdfTop");
+      if (btnPdfTop) btnPdfTop.href = pdfUrl;
     }
 
     
