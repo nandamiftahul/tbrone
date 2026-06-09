@@ -2168,10 +2168,9 @@
       loadMonth();
     })();
 
-    async function downloadPdf(){
+    function downloadPdf(){
       // PDF dibuat oleh server via GET agar tidak mengirim table_html / rows_json besar.
-      // Download dipaksa dari browser menggunakan fetch + Blob, bukan window.open,
-      // supaya tidak hanya preview lalu harus Save manual.
+      // Sertakan timezone + filter aktif supaya hasil PDF sinkron dengan tampilan halaman.
       const month = (document.getElementById("month")?.value || "").trim();
       if (!month){
         alert("Please input month (YYYY-MM). Example: 2026-01");
@@ -2189,48 +2188,7 @@
       params.set("label_warning", sevAlias.warning || "Waspada");
       params.set("label_alarm", sevAlias.alarm || "Evakuasi");
 
-      const url = "/xweather/monthly-report.pdf?" + params.toString();
-      const safeTz = tzLabel(tzOffsetHours || 0).replace("+", "plus").replace("-", "minus");
-      const filename = `Monthly_Report_${month}_${safeTz}.pdf`;
-
-      try{
-        setLoading(true, "Preparing PDF download...", 15);
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: { "Accept": "application/pdf" }
-        });
-
-        if (!res.ok){
-          const text = await res.text();
-          throw new Error(`PDF failed ${res.status}: ${text.slice(0, 180)}`);
-        }
-
-        const contentType = (res.headers.get("content-type") || "").toLowerCase();
-        if (!contentType.includes("application/pdf")){
-          const text = await res.text();
-          throw new Error("Server did not return a PDF. " + text.slice(0, 180));
-        }
-
-        updateLoading("Downloading PDF...", 75);
-
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-
-        updateLoading("PDF download started", 100);
-        setTimeout(() => setLoading(false), 350);
-      }catch(err){
-        setLoading(false);
-        const msg = err && err.message ? err.message : "Failed to download PDF";
-        alert(msg);
-      }
+      window.open("/xweather/monthly-report.pdf?" + params.toString(), "_blank");
     }
 
 
