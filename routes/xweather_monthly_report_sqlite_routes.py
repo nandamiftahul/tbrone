@@ -11,7 +11,8 @@ import time
 import urllib.error
 import urllib.request
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
+from html import escape as html_escape
 from collections import Counter
 from collections import deque
 import psycopg
@@ -642,6 +643,367 @@ def _import_monthly_rows(rows_data, report_month, mode):
     }, 200
 
 
+
+# =========================================================
+# PDF helpers: timezone-aware report + WBN chart blocks
+# =========================================================
+def _pdf_tz_offset():
+    try:
+        offset = int(float(request.args.get("tz_offset", "0")))
+    except Exception:
+        offset = 0
+    return max(-23, min(23, offset))
+
+
+def _pdf_tz_label(offset):
+    if offset == 0:
+        return "UTC"
+    return f"UTC{'+' if offset > 0 else ''}{offset}"
+
+
+def _pdf_shift_month(month, delta):
+    m = re.match(r"^(\d{4})-(\d{2})$", str(month or ""))
+    if not m:
+        return month
+    y = int(m.group(1))
+    mo = int(m.group(2)) + delta
+    while mo < 1:
+        y -= 1
+        mo += 12
+    while mo > 12:
+        y += 1
+        mo -= 12
+    return f"{y:04d}-{mo:02d}"
+
+
+def _pdf_parse_any_date(value):
+    if not value:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    fmts = (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S",
+        "%d.%m.%Y %H:%M:%S",
+        "%d.%m.%Y %H:%M",
+        "%d.%m.%Y",
+    )
+    for fmt in fmts:
+        try:
+            return datetime.strptime(s, fmt)
+        except Exception:
+            pass
+    try:
+        cleaned = s.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(cleaned)
+        if dt.tzinfo is not None:
+            return dt.astimezone(tz=None).replace(tzinfo=None)
+        return dt
+    except Exception:
+        return None
+
+
+def _pdf_apply_tz(dt, offset):
+    if not dt:
+        return None
+    return dt + timedelta(hours=offset)
+
+
+def _pdf_format_dt(value, offset=0, mode="excel"):
+    dt = _pdf_parse_any_date(value)
+    if not dt:
+        return str(value or "")
+    shifted = _pdf_apply_tz(dt, offset)
+    label = _pdf_tz_label(offset)
+    mode = (mode or "excel").strip().lower()
+    if mode == "date":
+        return shifted.strftime("%Y-%m-%d")
+    if mode == "iso":
+        return shifted.strftime("%Y-%m-%dT%H:%M:%S") + f" {label}"
+    if mode == "id":
+        return shifted.strftime("%d/%m/%Y %H:%M")
+    return shifted.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _pdf_first_event_month(row, offset):
+    dt = _pdf_parse_any_date(row.get("first_event_time"))
+    if not dt:
+        return ""
+    shifted = _pdf_apply_tz(dt, offset)
+    return shifted.strftime("%Y-%m")
+
+
+def _pdf_to_number(value):
+    if value is None:
+        return 0.0
+    m = re.search(r"[-+]?\d*\.?\d+", str(value).replace(",", "."))
+    if not m:
+        return 0.0
+    try:
+        return float(m.group(0))
+    except Exception:
+        return 0.0
+
+
+def _pdf_date_key(dt, offset):
+    if not dt:
+        return ""
+    return _pdf_apply_tz(dt, offset).strftime("%Y-%m-%d")
+
+
+def _pdf_minutes_between(a, b):
+    if not a or not b:
+        return None
+    return (b - a).total_seconds() / 60.0
+
+
+def _pdf_ranked(counter_dict):
+    return sorted(counter_dict.items(), key=lambda kv: (-kv[1], str(kv[0]).lower()))
+
+
+def _pdf_warning_conversion(rows, offset):
+    total_warnings = {}
+    converted = {}
+    groups = {}
+    for r in rows:
+        ft = r.get("_first_dt")
+        asset = r.get("asset_name") or "Unknown"
+        if not ft:
+            continue
+        key = f"{asset}||{_pdf_date_key(ft, offset)}"
+        groups.setdefault(key, []).append(r)
+
+    for events in groups.values():
+        events.sort(key=lambda x: x.get("_first_dt") or datetime.min)
+        for idx, event in enumerate(events):
+            if _norm_sev(event.get("severity")) != "warning":
+                continue
+            asset = event.get("asset_name") or "Unknown"
+            total_warnings[asset] = total_warnings.get(asset, 0) + 1
+            if any(_norm_sev(n.get("severity")) == "alarm" for n in events[idx + 1:]):
+                converted[asset] = converted.get(asset, 0) + 1
+
+    by_asset_pct = {}
+    for asset, total in total_warnings.items():
+        by_asset_pct[asset] = ((converted.get(asset, 0) / total) * 100.0) if total else 0.0
+    total_warning_count = sum(total_warnings.values())
+    converted_count = sum(converted.values())
+    overall_pct = ((converted_count / total_warning_count) * 100.0) if total_warning_count else None
+    return {
+        "by_asset_pct": by_asset_pct,
+        "total_warning_count": total_warning_count,
+        "converted_count": converted_count,
+        "overall_pct": overall_pct,
+    }
+
+
+def _pdf_make_wbn_stats(rows, offset, sev_labels):
+    parsed = []
+    for r in rows:
+        item = dict(r)
+        item["severity"] = _norm_sev(item.get("severity"))
+        item["asset_name"] = item.get("asset_name") or "Unknown"
+        item["duration"] = _pdf_to_number(item.get("duration_min"))
+        item["strength"] = abs(_pdf_to_number(item.get("strength_ka")))
+        item["_first_dt"] = _pdf_parse_any_date(item.get("first_event_time"))
+        item["_last_dt"] = _pdf_parse_any_date(item.get("last_event_time"))
+        item["_clear_dt"] = _pdf_parse_any_date(item.get("clear_time"))
+        parsed.append(item)
+
+    alarms = [r for r in parsed if r.get("severity") == "alarm"]
+    alarm_by_asset = Counter(r.get("asset_name") or "Unknown" for r in alarms)
+    duration_by_asset = Counter()
+    severity_counts = Counter()
+    type_counts = Counter()
+    for r in parsed:
+        severity_counts[sev_labels.get(r.get("severity"), r.get("severity", ""))] += 1
+        if r.get("event_type"):
+            type_counts[str(r.get("event_type")).strip()] += 1
+    for r in alarms:
+        duration_by_asset[r.get("asset_name") or "Unknown"] += r.get("duration", 0)
+
+    clear_rows = []
+    for r in alarms:
+        delay = _pdf_minutes_between(r.get("_last_dt"), r.get("_clear_dt"))
+        if delay is not None:
+            clear_rows.append(delay)
+    clear_ok = len([v for v in clear_rows if v >= 30])
+    clear_review = len([v for v in clear_rows if v < 30])
+    clear_pct = (clear_ok / len(clear_rows) * 100.0) if clear_rows else None
+
+    conversion = _pdf_warning_conversion(parsed, offset)
+    max_strength = max([r.get("strength", 0) for r in parsed], default=0)
+    total_alarm_minutes = sum(r.get("duration", 0) for r in alarms)
+    top_alarm = _pdf_ranked(alarm_by_asset)[0] if alarm_by_asset else ("-", 0)
+    alarm_share = (len(alarms) / len(parsed) * 100.0) if parsed else 0
+    longest_alarm = max(alarms, key=lambda r: r.get("duration", 0), default=None)
+    dominant_type = _pdf_ranked(type_counts)[0] if type_counts else ("-", 0)
+
+    insights = []
+    if alarms:
+        insights.append(f"{top_alarm[0]} adalah area evakuasi paling sering ({top_alarm[1]} kejadian), cocok menjadi prioritas SOP, briefing, dan kesiapan shelter.")
+        insights.append(f"Porsi evakuasi adalah {alarm_share:.1f}% dari semua alert yang tampil.")
+        if longest_alarm:
+            insights.append(f"Durasi evakuasi terpanjang berada di {longest_alarm.get('asset_name') or 'Unknown'} selama {round(longest_alarm.get('duration', 0))} menit.")
+        if clear_pct is not None:
+            insights.append(f"{clear_pct:.0f}% event evakuasi memiliki jeda clear minimal 30 menit dari last event.")
+        if conversion.get("overall_pct") is not None:
+            insights.append(f"Rasio Waspada ke Evakuasi sebesar {conversion['overall_pct']:.0f}% ({conversion['converted_count']}/{conversion['total_warning_count']}).")
+    else:
+        insights.append("Tidak ada evakuasi pada filter ini; kondisi ini bisa dipakai sebagai bukti periode operasi yang relatif aman.")
+    if dominant_type[0] != "-":
+        insights.append(f"Tipe petir dominan adalah {dominant_type[0]} ({dominant_type[1]} kejadian).")
+    if max_strength:
+        insights.append(f"Peak current maksimum {max_strength:.1f} kA.")
+
+    return {
+        "top_evac_area": top_alarm[0],
+        "evac_count": len(alarms),
+        "evac_minutes": round(total_alarm_minutes),
+        "max_strength": max_strength,
+        "clear_pct": clear_pct,
+        "warning_conversion_pct": conversion.get("overall_pct"),
+        "alarm_by_asset": _pdf_ranked(alarm_by_asset),
+        "severity_mix": _pdf_ranked(severity_counts),
+        "duration_by_asset": _pdf_ranked(duration_by_asset),
+        "clear_review": [("Xweather clear >= 30 min", clear_ok), ("Xweather clear < 30 min", clear_review)],
+        "warning_conversion": _pdf_ranked(conversion.get("by_asset_pct", {})),
+        "insights": insights,
+    }
+
+
+def _pdf_bar_html(entries, suffix="", max_items=10):
+    entries = [(str(k), float(v or 0)) for k, v in (entries or []) if float(v or 0) > 0]
+    if not entries:
+        return '<div class="muted">Tidak ada data untuk filter saat ini.</div>'
+    entries = entries[:max_items]
+    max_v = max([v for _, v in entries] or [1])
+    out = []
+    for label, value in entries:
+        width = max((value / max_v) * 100.0, 3.0) if max_v else 3.0
+        display = f"{value:.1f}" if abs(value - round(value)) > 0.001 else f"{int(round(value))}"
+        out.append(f'''
+        <div class="bar-row">
+          <div class="bar-label">{html_escape(label)}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:{width:.2f}%"></div></div>
+          <div class="bar-value">{html_escape(display + suffix)}</div>
+        </div>''')
+    return "".join(out)
+
+
+def _pdf_build_html(month, rows, expert_metrics, wbn_stats, offset, dtfmt, filters, sev_labels, now):
+    tz_label = _pdf_tz_label(offset)
+    q = filters.get("q") or "All"
+    sev = filters.get("sev") or "All"
+    asset = filters.get("asset") or "All"
+    table_rows = []
+    for r in rows:
+        sev_key = _norm_sev(r.get("severity"))
+        table_rows.append(f'''
+          <tr class="sev-{html_escape(sev_key)}">
+            <td><b>{html_escape(sev_labels.get(sev_key, sev_key))}</b></td>
+            <td>{html_escape(str(r.get('asset_name') or ''))}</td>
+            <td>{html_escape(str(r.get('extent_km') or ''))}</td>
+            <td>{html_escape(_pdf_format_dt(r.get('first_event_time'), offset, dtfmt))}</td>
+            <td>{html_escape(_pdf_format_dt(r.get('active_time'), offset, dtfmt))}</td>
+            <td>{html_escape(_pdf_format_dt(r.get('last_event_time'), offset, dtfmt))}</td>
+            <td>{html_escape(_pdf_format_dt(r.get('clear_time'), offset, dtfmt))}</td>
+            <td>{html_escape(str(r.get('duration_min') or ''))}</td>
+            <td>{html_escape(str(r.get('strength_ka') or ''))}</td>
+            <td>{html_escape(str(r.get('event_type') or ''))}</td>
+          </tr>
+        ''')
+    metric_rows = "".join(f"<tr><td>{html_escape(str(m.get('metric','')))}</td><td>{html_escape(str(m.get('value','')))}</td></tr>" for m in (expert_metrics or []))
+    insight_items = "".join(f"<li>{html_escape(x)}</li>" for x in wbn_stats.get("insights", []))
+    clear_pct = wbn_stats.get("clear_pct")
+    conv_pct = wbn_stats.get("warning_conversion_pct")
+    max_strength = float(wbn_stats.get('max_strength') or 0)
+    return f'''<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Xweather Monthly Report {html_escape(month)}</title>
+<style>
+  @page {{ size: A4 landscape; margin: 10mm; }}
+  body {{ font-family: Arial, sans-serif; color:#1f2937; font-size:10px; }}
+  h1 {{ margin:0 0 3px; color:#003A8F; font-size:20px; }}
+  h2 {{ color:#003A8F; margin:14px 0 8px; font-size:14px; }}
+  h3 {{ color:#003A8F; margin:0 0 7px; font-size:11px; }}
+  .meta {{ color:#6b7280; margin-bottom:10px; }}
+  .pill {{ display:inline-block; padding:3px 7px; border:1px solid #d1d5db; border-radius:999px; margin-right:4px; }}
+  table {{ border-collapse:collapse; width:100%; page-break-inside:auto; }}
+  th,td {{ border:1px solid #d7dde8; padding:4px 5px; vertical-align:top; }}
+  th {{ background:#eaf1ff; color:#003A8F; font-weight:bold; }}
+  tr {{ page-break-inside:avoid; page-break-after:auto; }}
+  .sev-info td {{ background:#eff6ff; }}
+  .sev-warning td {{ background:#fff7ed; }}
+  .sev-alarm td {{ background:#fef2f2; }}
+  .cards {{ display:grid; grid-template-columns: repeat(6, 1fr); gap:6px; margin:8px 0 10px; }}
+  .card {{ border:1px solid #d7dde8; border-radius:8px; padding:7px; background:#fff; }}
+  .card .label {{ font-size:8.5px; color:#6b7280; font-weight:bold; }}
+  .card .value {{ font-size:13px; color:#003A8F; font-weight:bold; margin-top:3px; word-break:break-word; }}
+  .chart-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }}
+  .panel {{ border:1px solid #d7dde8; border-radius:8px; padding:7px; margin-bottom:8px; page-break-inside:avoid; }}
+  .bar-row {{ display:grid; grid-template-columns: 110px 1fr 45px; align-items:center; gap:6px; margin:4px 0; }}
+  .bar-label {{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:bold; }}
+  .bar-track {{ height:8px; background:#eef2f7; border-radius:999px; overflow:hidden; }}
+  .bar-fill {{ height:8px; background:#F28C28; border-radius:999px; }}
+  .bar-value {{ text-align:right; color:#6b7280; font-weight:bold; }}
+  .muted {{ color:#6b7280; }}
+  ul {{ margin:4px 0 0 18px; padding:0; }}
+  li {{ margin-bottom:3px; }}
+  .page-break {{ page-break-before: always; }}
+</style>
+</head>
+<body>
+  <h1>Terrindo Bumi Raya · Xweather Monthly Lightning Alert Report</h1>
+  <div class="meta">
+    <span class="pill">Month: {html_escape(month)}</span>
+    <span class="pill">Timezone: {html_escape(tz_label)}</span>
+    <span class="pill">Generated: {html_escape(now)}</span>
+    <span class="pill">Rows: {len(rows)}</span>
+    <span class="pill">Search: {html_escape(str(q))}</span>
+    <span class="pill">Severity: {html_escape(str(sev))}</span>
+    <span class="pill">Asset: {html_escape(str(asset))}</span>
+  </div>
+
+  <h2>Monthly Lightning Alert Report</h2>
+  <table>
+    <thead><tr>
+      <th>Severity</th><th>Asset name</th><th>Extent (km)</th><th>First event time ({html_escape(tz_label)})</th>
+      <th>Active time ({html_escape(tz_label)})</th><th>Last event time ({html_escape(tz_label)})</th><th>Clear time ({html_escape(tz_label)})</th>
+      <th>Duration (min)</th><th>Strength (kA)</th><th>Type</th>
+    </tr></thead>
+    <tbody>{''.join(table_rows) or '<tr><td colspan="10">No data</td></tr>'}</tbody>
+  </table>
+
+  <div class="page-break"></div>
+  <h2>WBN Operational Charts</h2>
+  <div class="cards">
+    <div class="card"><div class="label">Area paling sering evakuasi</div><div class="value">{html_escape(str(wbn_stats.get('top_evac_area','-')))}</div></div>
+    <div class="card"><div class="label">Total evakuasi</div><div class="value">{wbn_stats.get('evac_count',0)}</div></div>
+    <div class="card"><div class="label">Total durasi evakuasi</div><div class="value">{wbn_stats.get('evac_minutes',0)} min</div></div>
+    <div class="card"><div class="label">Peak current maksimum</div><div class="value">{max_strength:.1f} kA</div></div>
+    <div class="card"><div class="label">Clear time >= 30 menit</div><div class="value">{'-' if clear_pct is None else f'{clear_pct:.0f}%'}</div></div>
+    <div class="card"><div class="label">Waspada ke evakuasi</div><div class="value">{'-' if conv_pct is None else f'{conv_pct:.0f}%'}</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="panel"><h3>Ranking Semua Area Evakuasi</h3>{_pdf_bar_html(wbn_stats.get('alarm_by_asset'))}</div>
+    <div class="panel"><h3>Severity Mix</h3>{_pdf_bar_html(wbn_stats.get('severity_mix'))}</div>
+    <div class="panel"><h3>Ranking Semua Area Downtime</h3>{_pdf_bar_html(wbn_stats.get('duration_by_asset'), ' min')}</div>
+    <div class="panel"><h3>Clear Time Review</h3>{_pdf_bar_html(wbn_stats.get('clear_review'))}</div>
+    <div class="panel"><h3>Waspada ke Evakuasi</h3>{_pdf_bar_html(wbn_stats.get('warning_conversion'), '%')}</div>
+    <div class="panel"><h3>Insight Penting untuk WBN</h3><ul>{insight_items}</ul></div>
+  </div>
+
+  <h2>Expert Statistical Analysis</h2>
+  <table><thead><tr><th style="width:35%">Metric</th><th>Value</th></tr></thead><tbody>{metric_rows}</tbody></table>
+</body>
+</html>'''
+
 # =========================================================
 # Pages (HTML stays the same)
 # =========================================================
@@ -652,85 +1014,90 @@ def xweather_monthly_report_viewer():
 
 @xweather_report_bp.route("/xweather/monthly-report.pdf", methods=["GET"])
 def xweather_monthly_report_pdf():
-    # PDF dibuat langsung dari database berdasarkan month.
-    # Tidak lagi menerima POST table_html / rows_json agar tidak kena 413 Request Entity Too Large.
-
-    month = request.args.get("month") or datetime.utcnow().strftime("%Y-%m")
-
+    # GET-only PDF export. Timezone, date format, and active filters are passed as query params.
+    month = (request.args.get("month") or datetime.utcnow().strftime("%Y-%m")).strip()
     if not _MONTH_RE.match(month):
         return "missing month (YYYY-MM)", 400
 
+    offset = _pdf_tz_offset()
+    dtfmt = (request.args.get("dtfmt") or "excel").strip().lower()
+    q_filter = (request.args.get("q") or "").strip().lower()
+    sev_filter = (request.args.get("sev") or "").strip().lower()
+    asset_filter = (request.args.get("asset") or "").strip().lower()
+    sev_labels = {
+        "info": (request.args.get("label_info") or "Siaga").strip() or "Siaga",
+        "warning": (request.args.get("label_warning") or "Waspada").strip() or "Waspada",
+        "alarm": (request.args.get("label_alarm") or "Evakuasi").strip() or "Evakuasi",
+    }
+
     init_db()
     db = get_db()
+    months = [_pdf_shift_month(month, -1), month, _pdf_shift_month(month, 1)]
 
-    # 1) Ambil data tabel utama
+    # Ambil bulan sebelum/sesudah juga, supaya filtering bulan lokal mengikuti UI yang memakai timezone offset.
     with db.cursor() as cur:
         cur.execute(f"""
             SELECT severity, asset_name, extent_km, first_event_time, active_time,
-                   last_event_time, clear_time, duration_min, strength_ka, event_type
+                   last_event_time, clear_time, duration_min, strength_ka, event_type, id
             FROM monthly_lightning_alerts
-            WHERE {_event_month_filter_expr()}
+            WHERE report_month IN (%s, %s, %s)
             ORDER BY {_event_sort_expr()} DESC NULLS LAST, id DESC
-        """, _event_month_filter_params(month))
-        rows = cur.fetchall()
+        """, tuple(months))
+        source_rows = cur.fetchall()
 
-    # 2) Ambil data untuk Expert Statistical Analysis
-    with db.cursor() as cur:
-        cur.execute(f"""
-            SELECT severity, {_event_time_expr()} AS analysis_event_time,
-                   duration_min, strength_ka, event_type
-            FROM monthly_lightning_alerts
-            WHERE {_event_month_filter_expr()}
-        """, _event_month_filter_params(month))
-        expert_rows = cur.fetchall()
+    rows = []
+    seen = set()
+    for r in source_rows:
+        row = dict(r)
+        key = row.get("id") or f"{row.get('asset_name')}|{row.get('first_event_time')}|{row.get('severity')}|{row.get('duration_min')}"
+        if key in seen:
+            continue
+        seen.add(key)
 
-    # 3) Hitung metrics
-    total = len(expert_rows)
+        # Sinkron dengan UI: bulan dihitung dari First event time setelah timezone offset diterapkan.
+        if _pdf_first_event_month(row, offset) != month:
+            continue
 
-    metrics = [
-        {"metric": "Total events", "value": total},
-        {"metric": "Period (UTC)", "value": month},
-    ]
+        sev = _norm_sev(row.get("severity"))
+        asset = str(row.get("asset_name") or "")
+        if sev_filter and sev != sev_filter:
+            continue
+        if asset_filter and asset.strip().lower() != asset_filter:
+            continue
+        if q_filter:
+            joined = " ".join(str(row.get(k) or "") for k in (
+                "severity", "asset_name", "extent_km", "first_event_time", "active_time",
+                "last_event_time", "clear_time", "duration_min", "strength_ka", "event_type"
+            )).lower()
+            if q_filter not in joined:
+                continue
+        rows.append(row)
 
-    expert_metrics = _compute_expert_metrics(expert_rows, month=month)
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-
-    # 4) Render template PDF
-    html = render_template(
-        "project/xweather_monthly_report_pdf.html",
-        rows=rows,
-        metrics=metrics,
+    expert_metrics = _compute_expert_metrics(rows, month=f"{month} ({_pdf_tz_label(offset)})")
+    wbn_stats = _pdf_make_wbn_stats(rows, offset, sev_labels)
+    now = _pdf_format_dt(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), offset, "excel") + f" {_pdf_tz_label(offset)}"
+    html = _pdf_build_html(
         month=month,
-        now=now,
+        rows=rows,
         expert_metrics=expert_metrics,
+        wbn_stats=wbn_stats,
+        offset=offset,
+        dtfmt=dtfmt,
+        filters={"q": request.args.get("q") or "", "sev": request.args.get("sev") or "", "asset": request.args.get("asset") or ""},
+        sev_labels=sev_labels,
+        now=now,
     )
 
-    # 5) Convert HTML ke PDF pakai WeasyPrint
     if HTML is not None:
         try:
-            pdf = HTML(
-                string=html,
-                base_url=request.url_root
-            ).write_pdf(
-                stylesheets=[
-                    CSS(string='@page { size: A4 landscape; margin: 12mm }')
-                ]
-            )
-
+            pdf = HTML(string=html, base_url=request.url_root).write_pdf()
             resp = Response(pdf, mimetype="application/pdf")
-            resp.headers["Content-Disposition"] = f'attachment; filename="Monthly_Report_{month}.pdf"'
+            resp.headers["Content-Disposition"] = f'attachment; filename="Monthly_Report_{month}_{_pdf_tz_label(offset).replace("+", "plus").replace("-", "minus")}.pdf"'
             return resp
-
         except Exception as e:
-            return make_response(
-                html + f"\n<!-- PDF generation failed: {e} -->",
-                500
-            )
+            return make_response(html + f"\n<!-- PDF generation failed: {e} -->", 500)
 
-    return make_response(
-        html + "\n<!-- PDF generation not available (WeasyPrint not installed) -->",
-        200
-    )
+    return make_response(html + "\n<!-- PDF generation not available (WeasyPrint not installed) -->", 200)
 
 @xweather_report_bp.route("/xweather/monthly-report-editor")
 @login_required

@@ -799,10 +799,126 @@
     .radio .t{ font-weight:600; font-size:13px; }
     .radio .d{ font-size:12px; color:var(--muted); margin-top:2px; line-height:1.45; }
 
+
+    /* === Loading Overlay / Fetch Progress === */
+    .loading-overlay{
+      position:fixed;
+      inset:0;
+      z-index:120;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      background:rgba(244,247,251,.72);
+      backdrop-filter:blur(8px);
+    }
+    body.is-loading{ cursor:progress; }
+    body.is-loading .loading-overlay{ display:flex; }
+    .loading-card{
+      width:min(460px, 100%);
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:18px;
+      box-shadow:0 24px 70px rgba(2,22,55,.22);
+      padding:18px;
+    }
+    .loading-head{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .loading-spinner{
+      width:28px;
+      height:28px;
+      border-radius:999px;
+      border:3px solid rgba(0,58,143,.16);
+      border-top-color:var(--xw-blue);
+      animation:spin .75s linear infinite;
+      flex:0 0 auto;
+    }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+    .loading-title{
+      margin:0;
+      color:var(--xw-blue);
+      font-size:14px;
+      font-weight:850;
+      letter-spacing:.2px;
+    }
+    .loading-subtitle{
+      margin:4px 0 0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+    .loading-track{
+      height:10px;
+      border-radius:999px;
+      background:rgba(17,24,39,.08);
+      overflow:hidden;
+      border:1px solid rgba(17,24,39,.06);
+    }
+    .loading-fill{
+      width:0%;
+      height:100%;
+      border-radius:inherit;
+      background:linear-gradient(90deg, var(--xw-blue) 0%, var(--tbr-orange) 100%);
+      transition:width .25s ease;
+    }
+    .loading-meta{
+      margin-top:9px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      color:var(--muted);
+      font-size:11.5px;
+      line-height:1.4;
+    }
+    .loading-inline{
+      display:none;
+      margin:10px 0 12px;
+      border:1px solid rgba(0,58,143,.14);
+      background:rgba(0,58,143,.04);
+      border-radius:14px;
+      padding:10px 12px;
+      color:var(--xw-blue);
+      font-size:12.5px;
+      font-weight:700;
+    }
+    body.is-loading .loading-inline{ display:block; }
+    .btn[disabled],
+    .input[disabled]{
+      opacity:.62;
+      cursor:not-allowed;
+      pointer-events:none;
+    }
+
+
   </style>
 </head>
 
 <body>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
+    <div class="loading-card" role="status" aria-live="polite">
+      <div class="loading-head">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <div>
+          <p class="loading-title" id="loadingTitle">Loading monthly report...</p>
+          <p class="loading-subtitle" id="loadingSubtitle">Mengambil data dari server.</p>
+        </div>
+      </div>
+      <div class="loading-track">
+        <div class="loading-fill" id="loadingFill"></div>
+      </div>
+      <div class="loading-meta">
+        <span id="loadingStep">Preparing request</span>
+        <span id="loadingPercent">0%</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Topbar -->
   <div class="topbar">
     <div class="brand">
@@ -909,6 +1025,8 @@
               <button class="btn" onclick="resetFilters()">Reset</button>
             </div>
           </div>
+
+          <div id="loadingInline" class="loading-inline">Fetching data...</div>
 
           <div class="table-wrap">
             <table class="report-table" id="reportTable">
@@ -1257,6 +1375,41 @@
       tbody.innerHTML = `<tr><td colspan="10" style="text-align:left;color:#b91c1c;">${escapeHtml(message)}</td></tr>`;
       document.getElementById("rowCount").innerText = "Rows shown: 0 / 0";
       renderWbnStats();
+    }
+
+    function setLoading(active, message = "Loading monthly report...", detail = "Mengambil data dari server.", percent = 0){
+      const overlay = document.getElementById("loadingOverlay");
+      const title = document.getElementById("loadingTitle");
+      const subtitle = document.getElementById("loadingSubtitle");
+      const fill = document.getElementById("loadingFill");
+      const step = document.getElementById("loadingStep");
+      const pct = document.getElementById("loadingPercent");
+      const inline = document.getElementById("loadingInline");
+
+      if (active){
+        document.body.classList.add("is-loading");
+        if (overlay) overlay.setAttribute("aria-hidden", "false");
+      }else{
+        document.body.classList.remove("is-loading");
+        if (overlay) overlay.setAttribute("aria-hidden", "true");
+      }
+
+      const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+      if (title) title.textContent = message;
+      if (subtitle) subtitle.textContent = detail;
+      if (fill) fill.style.width = safePercent + "%";
+      if (step) step.textContent = detail;
+      if (pct) pct.textContent = Math.round(safePercent) + "%";
+      if (inline) inline.textContent = `${message} ${Math.round(safePercent)}% · ${detail}`;
+
+      document.querySelectorAll('#btnCsv,#btnCsvTop,#btnPdf,#btnPdfTop,.report-actions .btn').forEach(btn => {
+        if (!btn) return;
+        btn.disabled = !!active;
+      });
+    }
+
+    function updateLoading(detail, percent, message = "Loading monthly report..."){
+      setLoading(true, message, detail, percent);
     }
 
     function setCsvLinks(month){
@@ -1615,7 +1768,9 @@
       const months = [shiftMonth(month, -1), month, shiftMonth(month, 1)];
       const seen = new Set();
       const allRows = [];
-      for (const m of months){
+      for (let idx = 0; idx < months.length; idx++){
+        const m = months[idx];
+        updateLoading(`Fetching report data for ${m}...`, 20 + (idx * 18));
         const js = await fetchJson(`/api/xweather/monthly-report?month=${encodeURIComponent(m)}`);
         (js.rows || []).forEach(row => {
           const key = row.id ?? `${row.asset_name}|${row.first_event_time}|${row.severity}|${row.duration_min}`;
@@ -1634,13 +1789,21 @@
         return;
       }
       setCsvLinks(month);
+      setLoading(true, "Loading monthly report...", `Preparing ${month} with ${tzLabel(tzOffsetHours)} timezone`, 8);
 
       try{
         const tbody = document.getElementById("tbody");
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:left;color:var(--muted);">Loading data...</td></tr>`;
+        document.getElementById("rowCount").innerText = "Fetching data...";
+
         const sourceRows = await fetchRowsForAdjustedMonth(month);
+        updateLoading("Building asset filter...", 74);
         loadAssetsFromRows(sourceRows, month);
+
+        updateLoading("Filtering rows by selected timezone month...", 82);
         const rows = sourceRows.filter(r => firstEventMonth(r.first_event_time) === month);
 
+        updateLoading("Rendering table rows...", 88);
         tbody.innerHTML = rows.map(r => {
           const sev = norm(r.severity);
           const asset = r.asset_name || "";
@@ -1660,13 +1823,19 @@
           `;
         }).join("");
 
+        updateLoading("Rendering charts and table filters...", 93);
         applyFilters();
+
+        updateLoading("Loading expert statistical analysis...", 96);
         await loadExpert(month);
+        updateLoading("Completed", 100);
       }catch(err){
         const msg = err && err.message ? err.message : "Failed to load data";
         showTableError(msg);
         const expertTbody = document.getElementById("expertTbody");
         expertTbody.innerHTML = `<tr><td colspan="2" style="text-align:left;color:#b91c1c;">${escapeHtml(msg)}</td></tr>`;
+      }finally{
+        setTimeout(() => setLoading(false), 250);
       }
     }
 
@@ -2000,16 +2169,26 @@
     })();
 
     function downloadPdf(){
-      // Server route now accepts GET only.
-      // Do not POST table_html / rows_json because it can cause 413 or 405.
+      // PDF dibuat oleh server via GET agar tidak mengirim table_html / rows_json besar.
+      // Sertakan timezone + filter aktif supaya hasil PDF sinkron dengan tampilan halaman.
       const month = (document.getElementById("month")?.value || "").trim();
       if (!month){
         alert("Please input month (YYYY-MM). Example: 2026-01");
         return;
       }
 
-      const url = "/xweather/monthly-report.pdf?month=" + encodeURIComponent(month);
-      window.open(url, "_blank");
+      const params = new URLSearchParams();
+      params.set("month", month);
+      params.set("tz_offset", String(tzOffsetHours || 0));
+      params.set("dtfmt", dtFmt || "excel");
+      params.set("q", document.getElementById("q")?.value || "");
+      params.set("sev", document.getElementById("sev")?.value || "");
+      params.set("asset", document.getElementById("asset")?.value || "");
+      params.set("label_info", sevAlias.info || "Siaga");
+      params.set("label_warning", sevAlias.warning || "Waspada");
+      params.set("label_alarm", sevAlias.alarm || "Evakuasi");
+
+      window.open("/xweather/monthly-report.pdf?" + params.toString(), "_blank");
     }
 
 
