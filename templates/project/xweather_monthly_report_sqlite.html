@@ -2168,9 +2168,10 @@
       loadMonth();
     })();
 
-    function downloadPdf(){
-      // PDF dibuat oleh server via GET agar tidak mengirim table_html / rows_json besar.
-      // Sertakan timezone + filter aktif supaya hasil PDF sinkron dengan tampilan halaman.
+    async function downloadPdf(){
+      // PDF dibuat oleh server via GET, lalu dipaksa download memakai fetch + Blob.
+      // Ini lebih konsisten untuk Railway/proxy/browser dibanding window.open(),
+      // karena window.open() sering hanya membuka preview PDF di tab baru.
       const month = (document.getElementById("month")?.value || "").trim();
       if (!month){
         alert("Please input month (YYYY-MM). Example: 2026-01");
@@ -2187,10 +2188,54 @@
       params.set("label_info", sevAlias.info || "Siaga");
       params.set("label_warning", sevAlias.warning || "Waspada");
       params.set("label_alarm", sevAlias.alarm || "Evakuasi");
+      params.set("download", "1");
 
-      window.open("/xweather/monthly-report.pdf?" + params.toString(), "_blank");
+      const url = "/xweather/monthly-report.pdf?" + params.toString();
+      const safeTz = tzLabel(tzOffsetHours || 0).replace("+", "plus").replace("-", "minus");
+      const filename = `Monthly_Report_${month}_${safeTz}.pdf`;
+
+      try{
+        setLoading(true, "Preparing PDF download...", `Generating ${filename}`, 15);
+
+        const res = await fetch(url, {
+          method: "GET",
+          cache: "no-store",
+          headers: { "Accept": "application/pdf" }
+        });
+
+        const contentType = (res.headers.get("content-type") || "").toLowerCase();
+
+        if (!res.ok){
+          const text = await res.text();
+          throw new Error(`PDF failed ${res.status}: ${text.slice(0, 240)}`);
+        }
+
+        if (!contentType.includes("application/pdf")){
+          const text = await res.text();
+          throw new Error("Server did not return a PDF. " + text.slice(0, 240));
+        }
+
+        updateLoading("Downloading PDF...", 78, "Preparing PDF download...");
+
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+        updateLoading("PDF download started", 100, "Preparing PDF download...");
+        setTimeout(() => setLoading(false), 350);
+      }catch(err){
+        setLoading(false);
+        const msg = err && err.message ? err.message : "Failed to download PDF";
+        alert(msg);
+      }
     }
-
 
   async function loadExpert(month){
     const tbody = document.getElementById("expertTbody");

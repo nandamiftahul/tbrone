@@ -26,9 +26,11 @@ from dotenv import load_dotenv
 load_dotenv()
 try:
     from weasyprint import HTML, CSS
-except Exception:
+    WEASYPRINT_IMPORT_ERROR = None
+except Exception as e:
     HTML = None
     CSS = None
+    WEASYPRINT_IMPORT_ERROR = str(e)
 # Charts removed: keep PDF generation simple (table + metrics only)
 
 xweather_report_bp = Blueprint("xweather_report", __name__)
@@ -1091,13 +1093,27 @@ def xweather_monthly_report_pdf():
     if HTML is not None:
         try:
             pdf = HTML(string=html, base_url=request.url_root).write_pdf()
+            filename = f'Monthly_Report_{month}_{_pdf_tz_label(offset).replace("+", "plus").replace("-", "minus")}.pdf'
             resp = Response(pdf, mimetype="application/pdf")
-            resp.headers["Content-Disposition"] = f'attachment; filename="Monthly_Report_{month}_{_pdf_tz_label(offset).replace("+", "plus").replace("-", "minus")}.pdf"'
+            resp.headers["Content-Type"] = "application/pdf"
+            resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+            resp.headers["X-Content-Type-Options"] = "nosniff"
+            resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Content-Length"] = str(len(pdf))
             return resp
         except Exception as e:
-            return make_response(html + f"\n<!-- PDF generation failed: {e} -->", 500)
+            resp = make_response(f"PDF generation failed: {e}", 500)
+            resp.headers["Content-Type"] = "text/plain; charset=utf-8"
+            return resp
 
-    return make_response(html + "\n<!-- PDF generation not available (WeasyPrint not installed) -->", 200)
+    resp = make_response(
+        "PDF generation not available. WeasyPrint import failed: "
+        + str(WEASYPRINT_IMPORT_ERROR),
+        500
+    )
+    resp.headers["Content-Type"] = "text/plain; charset=utf-8"
+    return resp
 
 @xweather_report_bp.route("/xweather/monthly-report-editor")
 @login_required
