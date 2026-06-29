@@ -993,9 +993,9 @@ def _pdf_build_html(month, rows, expert_metrics, wbn_stats, offset, dtfmt, filte
     <div class="card"><div class="label">Waspada ke evakuasi</div><div class="value">{'-' if conv_pct is None else f'{conv_pct:.0f}%'}</div></div>
   </div>
   <div class="chart-grid">
-    <div class="panel"><h3>Ranking Semua Area Evakuasi</h3>{_pdf_bar_html(wbn_stats.get('alarm_by_asset'))}</div>
+    <div class="panel"><h3>Highest Lightning Event per Area</h3>{_pdf_bar_html(wbn_stats.get('alarm_by_asset'))}</div>
     <div class="panel"><h3>Severity Mix</h3>{_pdf_bar_html(wbn_stats.get('severity_mix'))}</div>
-    <div class="panel"><h3>Ranking Semua Area Downtime</h3>{_pdf_bar_html(wbn_stats.get('duration_by_asset'), ' min')}</div>
+    <div class="panel"><h3>Highest Lightning Duration per Area</h3>{_pdf_bar_html(wbn_stats.get('duration_by_asset'), ' min')}</div>
     <div class="panel"><h3>Clear Time Review</h3>{_pdf_bar_html(wbn_stats.get('clear_review'))}</div>
     <div class="panel"><h3>Waspada ke Evakuasi</h3>{_pdf_bar_html(wbn_stats.get('warning_conversion'), '%')}</div>
     <div class="panel"><h3>Insight Penting untuk WBN</h3><ul>{insight_items}</ul></div>
