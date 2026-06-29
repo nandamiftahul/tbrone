@@ -9,7 +9,7 @@ psycopg2-binary
 matplotlib
 scipy
 arm_pyart
-numpy==1.26.4
+numpy
 h5py
 pandas
 opencv-python-headless
