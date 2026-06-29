@@ -26,9 +26,14 @@ import pyart
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import login_required
 from routes.auth_utils import role_required
-from scipy.ndimage import generic_filter, median_filter, distance_transform_edt, gaussian_filter
-from scipy.ndimage.measurements import variance
-from scipy.ndimage.filters import uniform_filter
+from scipy.ndimage import (
+    distance_transform_edt,
+    gaussian_filter,
+    generic_filter,
+    median_filter,
+    uniform_filter,
+    variance,
+)
 from scipy.interpolate import griddata
 from scipy.spatial import cKDTree
 import cv2
@@ -3539,4 +3544,3 @@ def radar_accumulation_series():
         })
     except Exception as exc:
         return jsonify({'ok': False, 'error': str(exc)}), 500
-
