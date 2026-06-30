@@ -74,11 +74,11 @@
       <a class="btn secondary" href="{{ url_for('attendance.attendance_list') }}">Records</a>
       <a class="btn secondary" href="{{ url_for('attendance.leave_request') }}">Leave Request</a>
 
-      {% if current_user.role in ['admin', 'hrd', 'manager'] %}
+      {% if current_user.role in approver_roles %}
       <a class="btn secondary" href="{{ url_for('attendance.approvals') }}">Approvals</a>
       {% endif %}
 
-      {% if current_user.role in ['admin', 'hrd'] %}
+      {% if current_user.role in admin_roles %}
       <a class="btn secondary" href="{{ url_for('attendance.employees') }}">Employees</a>
       {% endif %}
     </div>

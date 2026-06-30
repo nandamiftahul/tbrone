@@ -58,12 +58,15 @@
           <p>Pengajuan cuti, sakit, WFH, on-site duty, late work, dan early finish.</p>
         </a>
 
+        {% if current_user.role in ['supervisor','assistant_manager','manager','general_manager','director','ceo','hrd','admin'] %}
         <a class="card" href="/attendance/approvals">
           <div class="icon">🧾</div>
           <h3>Approvals</h3>
           <p>Persetujuan request oleh manager, GM, HRD, atau admin.</p>
         </a>
+        {% endif %}
 
+        {% if current_user.role in ['admin','hrd'] %}
         <a class="card" href="/attendance/employees">
           <div class="icon">👥</div>
           <h3>Employees</h3>
@@ -81,6 +84,7 @@
           <h3>Announcements</h3>
           <p>Pengumuman internal seperti libur, warning, dan info penting.</p>
         </a>
+        {% endif %}
 
         <a class="card" href="/attendance/mobile">
           <div class="icon">📱</div>

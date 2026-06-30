@@ -1,15 +1,53 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, send_file
+from flask import Blueprint, abort, render_template, request, redirect, url_for, flash, jsonify, Response, send_file
 from datetime import datetime, date
 from flask_login import current_user, login_required
 from routes.attendance_models import db, Employee, Attendance, LeaveRequest, Office, Announcement, Shift, User, EMPLOYEE_ROLE_CHOICES, EMPLOYEE_ROLE_LABELS
+from routes.auth_utils import can_access
 import csv
 import io
 import json
 from openpyxl import Workbook
 import base64
 import numpy as np
+from sqlalchemy.exc import IntegrityError
 
 attendance_bp = Blueprint("attendance", __name__, url_prefix="/attendance")
+
+ATTENDANCE_ADMIN_ROLES = {"admin", "hrd"}
+ATTENDANCE_APPROVER_ROLES = {
+    "admin",
+    "hrd",
+    "supervisor",
+    "assistant_manager",
+    "manager",
+    "general_manager",
+    "director",
+    "ceo",
+}
+
+
+@attendance_bp.before_request
+def require_attendance_page_access():
+    if request.endpoint in {"attendance.mobile", "attendance.mobile_api_login", "attendance.mobile_api_logout"}:
+        return None
+    if current_user.is_authenticated and not can_access(current_user, "page", "attendance"):
+        abort(403)
+    return None
+
+
+def _role_allowed(roles):
+    return current_user.is_authenticated and current_user.role in roles
+
+
+def _require_roles(roles):
+    if not _role_allowed(roles):
+        abort(403)
+
+
+def _current_employee():
+    if not current_user.is_authenticated:
+        return None
+    return Employee.query.filter_by(user_id=current_user.id).first()
 
 
 # =========================================================
@@ -53,19 +91,35 @@ def dashboard():
         today=today,
         stats=stats,
         recent_records=recent_records,
-        pending_leave=pending_leave
+        pending_leave=pending_leave,
+        approver_roles=ATTENDANCE_APPROVER_ROLES,
+        admin_roles=ATTENDANCE_ADMIN_ROLES,
     )
 
 # =========================================================
 # CHECK IN / OUT
 # =========================================================
 @attendance_bp.route("/check", methods=["GET", "POST"])
+@login_required
 def attendance_check():
     if request.method == "POST":
-        emp_id = request.form.get("employee_id")
+        if _role_allowed(ATTENDANCE_ADMIN_ROLES):
+            emp_id = request.form.get("employee_id")
+        else:
+            emp = _current_employee()
+            if not emp:
+                flash("Employee profile tidak ditemukan.", "error")
+                return redirect(url_for("attendance.attendance_check"))
+            emp_id = emp.id
         action = request.form.get("action")
         lat = request.form.get("lat")
         lon = request.form.get("lon")
+        if action not in {"check_in", "check_out"}:
+            flash("Action attendance tidak valid.", "error")
+            return redirect(url_for("attendance.attendance_check"))
+        if not Employee.query.filter_by(id=emp_id, is_active=True).first():
+            flash("Employee tidak valid atau tidak aktif.", "error")
+            return redirect(url_for("attendance.attendance_check"))
 
         today = date.today()
 
@@ -92,7 +146,11 @@ def attendance_check():
         flash("Attendance updated")
         return redirect(url_for("attendance.attendance_check"))
 
-    employees = Employee.query.filter_by(is_active=True).all()
+    if _role_allowed(ATTENDANCE_ADMIN_ROLES):
+        employees = Employee.query.filter_by(is_active=True).all()
+    else:
+        emp = _current_employee()
+        employees = [emp] if emp and emp.is_active else []
     return render_template("attendance/check.html", employees=employees)
 
 
@@ -108,6 +166,12 @@ def attendance_list():
     status = request.args.get("status")
 
     query = Attendance.query.join(Employee)
+    if not _role_allowed(ATTENDANCE_ADMIN_ROLES | ATTENDANCE_APPROVER_ROLES):
+        current_emp = _current_employee()
+        if current_emp:
+            query = query.filter(Attendance.employee_id == current_emp.id)
+        else:
+            query = query.filter(False)
 
     if start:
         query = query.filter(Attendance.work_date >= start)
@@ -153,6 +217,12 @@ def _attendance_filtered_query():
     status = request.args.get("status")
 
     query = Attendance.query.join(Employee)
+    if not _role_allowed(ATTENDANCE_ADMIN_ROLES | ATTENDANCE_APPROVER_ROLES):
+        current_emp = _current_employee()
+        if current_emp:
+            query = query.filter(Attendance.employee_id == current_emp.id)
+        else:
+            query = query.filter(False)
 
     if start:
         query = query.filter(Attendance.work_date >= start)
@@ -249,6 +319,7 @@ def attendance_export_xlsx():
 @attendance_bp.route("/api/import", methods=["POST"])
 @login_required
 def attendance_import_json():
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
     f = request.files.get("file")
     overwrite = request.args.get("overwrite") == "1"
 
@@ -322,8 +393,17 @@ def attendance_import_json():
 @login_required
 def leave_request():
     if request.method == "POST":
+        emp = _current_employee()
+        if _role_allowed(ATTENDANCE_ADMIN_ROLES):
+            employee_id = request.form.get("employee_id")
+        elif emp:
+            employee_id = emp.id
+        else:
+            flash("Employee profile tidak ditemukan.", "error")
+            return redirect(url_for("attendance.leave_request"))
+
         r = LeaveRequest(
-            employee_id=request.form.get("employee_id"),
+            employee_id=employee_id,
             type=request.form.get("type"),
             start_date=request.form.get("start_date"),
             end_date=request.form.get("end_date"),
@@ -336,16 +416,22 @@ def leave_request():
         flash("Leave request submitted")
         return redirect(url_for("attendance.leave_request"))
 
-    employees = Employee.query.filter_by(is_active=True).order_by(Employee.name.asc()).all()
-    rows = LeaveRequest.query.order_by(LeaveRequest.id.desc()).limit(50).all()
+    if _role_allowed(ATTENDANCE_ADMIN_ROLES):
+        employees = Employee.query.filter_by(is_active=True).order_by(Employee.name.asc()).all()
+        leave_query = LeaveRequest.query
+    else:
+        emp = _current_employee()
+        employees = [emp] if emp and emp.is_active else []
+        leave_query = LeaveRequest.query.filter_by(employee_id=emp.id) if emp else LeaveRequest.query.filter(False)
+    rows = leave_query.order_by(LeaveRequest.id.desc()).limit(50).all()
 
     stats = {
-        "total": LeaveRequest.query.count(),
-        "pending": LeaveRequest.query.filter(
+        "total": leave_query.count(),
+        "pending": leave_query.filter(
             LeaveRequest.status.in_(["pending", "pending_manager", "pending_hrd"])
         ).count(),
-        "approved": LeaveRequest.query.filter_by(status="approved").count(),
-        "rejected": LeaveRequest.query.filter_by(status="rejected").count(),
+        "approved": leave_query.filter_by(status="approved").count(),
+        "rejected": leave_query.filter_by(status="rejected").count(),
     }
 
     return render_template(
@@ -359,25 +445,33 @@ def leave_request():
 # APPROVALS
 # =========================================================
 @attendance_bp.route("/approvals")
+@login_required
 def approvals():
+    _require_roles(ATTENDANCE_APPROVER_ROLES)
     rows = LeaveRequest.query.order_by(LeaveRequest.id.desc()).all()
     return render_template("attendance/approvals.html", rows=rows)
 
 
 @attendance_bp.route("/approve/<int:rid>", methods=["POST"])
+@login_required
 def approve(rid):
+    _require_roles(ATTENDANCE_APPROVER_ROLES)
     r = LeaveRequest.query.get_or_404(rid)
     r.status = "approved"
-    r.approved_by = current_user.username
+    r.hrd_approved_by = current_user.id
+    r.hrd_approved_at = datetime.utcnow()
     db.session.commit()
     return redirect(url_for("attendance.approvals"))
 
 
 @attendance_bp.route("/reject/<int:rid>", methods=["POST"])
+@login_required
 def reject(rid):
+    _require_roles(ATTENDANCE_APPROVER_ROLES)
     r = LeaveRequest.query.get_or_404(rid)
     r.status = "rejected"
-    r.approved_by = current_user.username
+    r.rejected_by = current_user.id
+    r.rejected_at = datetime.utcnow()
     db.session.commit()
     return redirect(url_for("attendance.approvals"))
 
@@ -386,7 +480,9 @@ def reject(rid):
 # EMPLOYEES
 # =========================================================
 @attendance_bp.route("/employees")
+@login_required
 def employees():
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
     rows = Employee.query.all()
     shifts = Shift.query.all()
     return render_template(
@@ -399,28 +495,64 @@ def employees():
 
 
 @attendance_bp.route("/employees/create", methods=["POST"])
+@login_required
 def employee_create():
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
+    role = request.form.get("role") or "staff"
+    if role not in EMPLOYEE_ROLE_LABELS:
+        flash("Role tidak valid.", "error")
+        return redirect(url_for("attendance.employees"))
+
     e = Employee(
         code=request.form.get("code"),
         name=request.form.get("name"),
         email=request.form.get("email"),
         dept=request.form.get("dept"),
-        role=request.form.get("role"),
+        role=role,
         shift_id=request.form.get("shift_id") or None
     )
     db.session.add(e)
-    db.session.commit()
+    if request.form.get("create_login") == "1":
+        login_username = (request.form.get("login_email") or "").strip().lower()
+        login_password = request.form.get("login_password") or ""
+        if not login_username or not login_password:
+            db.session.rollback()
+            flash("Login email dan initial password wajib diisi saat create login.", "error")
+            return redirect(url_for("attendance.employees"))
+        u = User(
+            name=e.name,
+            email=login_username,
+            role=e.role,
+            is_active=True,
+        )
+        u.set_password(login_password)
+        db.session.add(u)
+        db.session.flush()
+        e.user_id = u.id
+
+    try:
+        db.session.commit()
+        flash("Employee created")
+    except IntegrityError:
+        db.session.rollback()
+        flash("Code, employee email, atau login email sudah dipakai.", "error")
     return redirect(url_for("attendance.employees"))
 
 @attendance_bp.route("/employees/<int:emp_id>/update", methods=["POST"])
+@login_required
 def employee_update(emp_id):
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
     e = Employee.query.get_or_404(emp_id)
+    role = request.form.get("role") or "staff"
+    if role not in EMPLOYEE_ROLE_LABELS:
+        flash("Role tidak valid.", "error")
+        return redirect(url_for("attendance.employees"))
 
     e.code = request.form.get("code")
     e.name = request.form.get("name")
     e.email = request.form.get("email") or None
     e.dept = request.form.get("dept") or None
-    e.role = request.form.get("role") or "staff"
+    e.role = role
     e.shift_id = request.form.get("shift_id") or None
     e.is_active = True if request.form.get("is_active") else False
 
@@ -451,12 +583,18 @@ def employee_update(emp_id):
             db.session.flush()
             e.user_id = u.id
 
-    db.session.commit()
-    flash("Employee and login account updated")
+    try:
+        db.session.commit()
+        flash("Employee and login account updated")
+    except IntegrityError:
+        db.session.rollback()
+        flash("Code, employee email, atau login email sudah dipakai.", "error")
     return redirect(url_for("attendance.employees"))
 
 @attendance_bp.route("/employees/<int:emp_id>/delete", methods=["POST"])
+@login_required
 def employee_delete(emp_id):
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
     e = Employee.query.get_or_404(emp_id)
     db.session.delete(e)
     db.session.commit()
@@ -467,7 +605,9 @@ def employee_delete(emp_id):
 # OFFICE (GEOFENCE)
 # =========================================================
 @attendance_bp.route("/offices", methods=["GET", "POST"])
+@login_required
 def offices():
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
     if request.method == "POST":
         if "create" in request.form:
             o = Office(
@@ -482,7 +622,11 @@ def offices():
             oid = request.form.get("office_id")
             Office.query.update({"is_active": False})
             active = Office.query.get(oid)
-            active.is_active = True
+            if active:
+                active.is_active = True
+            else:
+                flash("Office tidak ditemukan.", "error")
+                return redirect(url_for("attendance.offices"))
 
         db.session.commit()
         return redirect(url_for("attendance.offices"))
@@ -503,6 +647,7 @@ def offices():
 @attendance_bp.route("/announcements", methods=["GET", "POST"])
 @login_required
 def announcements():
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
     if request.method == "POST":
         start_at = request.form.get("start_at") or None
         end_at = request.form.get("end_at") or None
@@ -540,6 +685,7 @@ def announcements():
 @attendance_bp.route("/announcements/<int:aid>/toggle", methods=["POST"])
 @login_required
 def announcement_toggle(aid):
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
     a = Announcement.query.get_or_404(aid)
     a.is_active = not a.is_active
     db.session.commit()
@@ -550,6 +696,7 @@ def announcement_toggle(aid):
 @attendance_bp.route("/announcements/<int:aid>/delete", methods=["POST"])
 @login_required
 def announcement_delete(aid):
+    _require_roles(ATTENDANCE_ADMIN_ROLES)
     a = Announcement.query.get_or_404(aid)
     db.session.delete(a)
     db.session.commit()
@@ -588,6 +735,9 @@ def mobile_api_login():
         return jsonify({"ok": False, "error": "Password salah"}), 401
 
     login_user(user)
+    if not can_access(user, "page", "attendance"):
+        logout_user()
+        return jsonify({"ok": False, "error": "User tidak punya akses Attendance"}), 403
 
     return jsonify({
         "ok": True,
@@ -780,7 +930,7 @@ def mobile_api_leave_my():
 @attendance_bp.route("/api/leave/approvals", methods=["GET"])
 @login_required
 def mobile_api_leave_approvals():
-    if current_user.role not in ["manager", "general_manager", "hrd", "admin"]:
+    if current_user.role not in ATTENDANCE_APPROVER_ROLES:
         return jsonify({"ok": False, "error": "Unauthorized"}), 403
 
     rows = LeaveRequest.query.filter(
@@ -808,7 +958,7 @@ def mobile_api_leave_approvals():
 @attendance_bp.route("/api/leave/<int:rid>/approve", methods=["POST"])
 @login_required
 def mobile_api_leave_approve(rid):
-    if current_user.role not in ["manager", "general_manager", "hrd", "admin"]:
+    if current_user.role not in ATTENDANCE_APPROVER_ROLES:
         return jsonify({"ok": False, "error": "Unauthorized"}), 403
 
     r = LeaveRequest.query.get_or_404(rid)
@@ -823,7 +973,7 @@ def mobile_api_leave_approve(rid):
 @attendance_bp.route("/api/leave/<int:rid>/reject", methods=["POST"])
 @login_required
 def mobile_api_leave_reject(rid):
-    if current_user.role not in ["manager", "general_manager", "hrd", "admin"]:
+    if current_user.role not in ATTENDANCE_APPROVER_ROLES:
         return jsonify({"ok": False, "error": "Unauthorized"}), 403
 
     r = LeaveRequest.query.get_or_404(rid)

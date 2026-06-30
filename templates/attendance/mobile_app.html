@@ -617,6 +617,7 @@
 
   // ---------- state ----------
   let me = null;
+  const APPROVER_ROLES = ["supervisor","assistant_manager","manager","general_manager","director","ceo","hrd","admin"];
   let role = "staff";
   let canApprove = false;
   let activeTab = "home";
@@ -671,7 +672,7 @@
       const j = await api.me();
       me = j;
       role = String(j.user?.role || "staff").toLowerCase();
-      canApprove = ["manager","general_manager","hrd","admin"].includes(role);
+      canApprove = APPROVER_ROLES.includes(role);
       show($("roleChip"), true);
       setText($("roleChip"), role.toUpperCase());
 

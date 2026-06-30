@@ -17,19 +17,19 @@
         {% for r in rows %}
         <tr>
           <td>{{ r.id }}</td>
-          <td class="truncate" title="{{ r.employee.code }} — {{ r.employee.name }}">{{ r.employee.code }} — {{ r.employee.name }}</td>
+          <td class="truncate" title="{{ r.employee.code if r.employee else '' }} — {{ r.employee.name if r.employee else '' }}">{{ r.employee.code if r.employee else '-' }} — {{ r.employee.name if r.employee else '-' }}</td>
           <td><span class="badge">{{ r.type }}</span></td>
           <td>{{ r.start_date }} → {{ r.end_date }}</td>
           <td><span class="badge" style="background:#f7f3f3;color:#665d5d;">{{ r.status }}</span></td>
           <td class="truncate" title="{{ r.reason or '' }}">{{ r.reason or '' }}</td>
           <td class="actions-cell">
-            {% if r.status == 'pending' %}
+            {% if r.status in ['pending', 'pending_manager', 'pending_hrd'] %}
             <div class="actions-row">
-              <form method="post" action="{{ url_for('leave_approve', rid=r.id) }}"><button class="btn btn-sm" type="submit">✓ Approve</button></form>
-              <form method="post" action="{{ url_for('leave_reject', rid=r.id) }}" onsubmit="return confirm('Reject request #{{ r.id }} ({{ r.employee.code }} — {{ r.employee.name }})?');"><button class="btn btn-outline-danger btn-sm" type="submit">✕ Reject</button></form>
+              <form method="post" action="{{ url_for('attendance.approve', rid=r.id) }}"><button class="btn btn-sm" type="submit">Approve</button></form>
+              <form method="post" action="{{ url_for('attendance.reject', rid=r.id) }}" onsubmit="return confirm('Reject request #{{ r.id }}?');"><button class="btn btn-outline-danger btn-sm" type="submit">Reject</button></form>
             </div>
             {% else %}
-            <small class="muted">by {{ r.approved_by or '-' }}</small>
+            <small class="muted">{{ r.status }}</small>
             {% endif %}
           </td>
         </tr>
