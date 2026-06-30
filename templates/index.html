@@ -263,9 +263,41 @@
   transform:translateY(-1px);
   box-shadow:0 12px 24px rgba(242,140,40,.35);
 }
+.settings-btn{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border-radius:14px;
+  border:1px solid rgba(47,35,35,.08);
+  background:#fff;
+  color:#8b5a20;
+  box-shadow:0 8px 18px rgba(82,58,41,.10);
+  transition:.2s ease;
+}
+.settings-btn:hover{
+  transform:translateY(-1px);
+  color:#c96f0c;
+  box-shadow:0 12px 24px rgba(242,140,40,.20);
+}
+.settings-btn svg{
+  width:19px;
+  height:19px;
+  stroke:currentColor;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  fill:none;
+}
   </style>
 </head>
 <body>
+  <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+    <symbol id="icon-gear" viewBox="0 0 24 24">
+      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7"></path>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1"></path>
+    </symbol>
+  </svg>
   <div class="page-wrap">
     <section class="hero">
       <div class="topbar">
@@ -273,6 +305,11 @@
           <span>{{ current_user.name }}</span>
           <small>{{ current_user.role }}</small>
         </div>
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('auth.user_settings') }}" class="settings-btn" title="User Settings" aria-label="User Settings">
+          <svg><use href="#icon-gear"></use></svg>
+        </a>
+        {% endif %}
         <a href="{{ url_for('auth.logout') }}" class="logout-btn">Logout</a>
       </div>
       <div class="hero-grid">

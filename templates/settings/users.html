@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>User Settings · Terrindo One</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --orange:#f28c28;
+      --orange-2:#ff9f3f;
+      --soft:#fff1e2;
+      --dark:#2f2323;
+      --muted:#6b6262;
+      --line:rgba(47,35,35,.10);
+      --bg:#f7f2f1;
+      --danger:#c0392b;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--dark);
+      background:linear-gradient(180deg,#fbf8f7 0%,var(--bg) 100%);
+      min-height:100vh;
+    }
+    a{text-decoration:none;color:inherit}
+    .wrap{max-width:1220px;margin:0 auto;padding:24px}
+    .shell{
+      background:rgba(255,255,255,.94);
+      border:1px solid var(--line);
+      border-radius:30px;
+      box-shadow:0 24px 54px rgba(58,39,31,.08);
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      padding:18px 22px;
+      border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg,#fff,#fcf8f6);
+    }
+    .brand{display:flex;align-items:center;gap:14px;min-width:0}
+    .brand img{height:54px;display:block}
+    .brand h1{margin:0;font-size:21px}
+    .brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
+    .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      padding:11px 15px;
+      border-radius:14px;
+      border:1px solid transparent;
+      background:linear-gradient(180deg,var(--orange-2),var(--orange));
+      color:#fff;
+      font-weight:800;
+      font-size:13px;
+      cursor:pointer;
+      font-family:inherit;
+    }
+    .btn.secondary{background:#fff;color:var(--dark);border-color:var(--line)}
+    .btn.danger{background:#fff;color:var(--danger);border-color:rgba(192,57,43,.35)}
+    .btn svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none}
+    .content{padding:24px}
+    .hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px}
+    .eyebrow{
+      display:inline-flex;
+      padding:7px 12px;
+      border-radius:999px;
+      background:var(--soft);
+      color:#c96f0c;
+      font-size:12px;
+      font-weight:800;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+    }
+    .hero h2{margin:12px 0 8px;font-size:36px;letter-spacing:-.02em}
+    .hero p{margin:0;color:var(--muted);line-height:1.7;max-width:760px}
+    .card{
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:24px;
+      padding:20px;
+      box-shadow:0 12px 30px rgba(0,0,0,.04);
+    }
+    .card + .card{margin-top:14px}
+    .flash{margin-bottom:12px;padding:12px 14px;border-radius:14px;background:var(--soft);color:#9b5a10;font-weight:700}
+    .grid{display:grid;grid-template-columns:1.1fr 1.2fr 160px 170px 170px;gap:12px;align-items:end}
+    label{display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:var(--muted)}
+    input,select{
+      width:100%;
+      padding:12px 13px;
+      border-radius:14px;
+      border:1px solid rgba(47,35,35,.12);
+      background:#fff;
+      color:var(--dark);
+      font:inherit;
+    }
+    .check{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-height:44px;
+      color:var(--dark);
+      font-weight:700;
+    }
+    .check input{width:auto}
+    .tablewrap{overflow:auto;max-height:min(66vh,720px);border:1px solid var(--line);border-radius:18px}
+    table{width:100%;border-collapse:collapse;min-width:1120px}
+    th,td{padding:12px 10px;border-bottom:1px solid rgba(47,35,35,.08);text-align:left;vertical-align:top}
+    th{position:sticky;top:0;background:#fff7ef;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase;z-index:1}
+    .badge{display:inline-flex;padding:5px 10px;border-radius:999px;background:var(--soft);color:#c96f0c;font-size:12px;font-weight:800}
+    .status{display:inline-flex;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800}
+    .status.active{background:#e8f7ee;color:#207245}
+    .status.inactive{background:#f9e6e3;color:#a43224}
+    .muted{color:var(--muted);font-size:13px}
+    .rowform{display:grid;grid-template-columns:1fr 1.2fr 140px 120px 160px auto;gap:8px;align-items:end}
+    .self-note{font-size:12px;color:var(--muted);margin-top:6px}
+    @media (max-width:980px){
+      .grid,.rowform{grid-template-columns:1fr}
+      .topbar{align-items:flex-start;flex-direction:column}
+      .actions{justify-content:flex-start}
+      .content{padding:16px}
+      .hero h2{font-size:30px}
+    }
+  </style>
+</head>
+<body>
+  <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+    <symbol id="icon-home" viewBox="0 0 24 24">
+      <path d="M3 11l9-8 9 8"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path>
+    </symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24">
+      <path d="M12 5v14"></path><path d="M5 12h14"></path>
+    </symbol>
+  </svg>
+
+  <div class="wrap">
+    <div class="shell">
+      <div class="topbar">
+        <div class="brand">
+          <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Terrindo Logo">
+          <div>
+            <h1>User Settings</h1>
+            <p>Kelola username, role, status akun, dan reset password.</p>
+          </div>
+        </div>
+        <div class="actions">
+          <a class="btn secondary" href="{{ url_for('pages.index') }}"><svg><use href="#icon-home"></use></svg>Main Page</a>
+          <a class="btn secondary" href="{{ url_for('auth.logout') }}">Logout</a>
+        </div>
+      </div>
+
+      <div class="content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for cat, msg in messages %}
+              <div class="flash">{{ msg }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="hero">
+          <div>
+            <div class="eyebrow">Admin Only</div>
+            <h2>Login Account Management</h2>
+            <p>Username pada sistem ini memakai kolom email di tabel users. Halaman ini untuk membuat akun, mengganti username, role, status aktif, dan password.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin:0 0 14px;">Create User</h3>
+          <form method="post" action="{{ url_for('auth.user_settings_create') }}">
+            <div class="grid">
+              <div>
+                <label>Name</label>
+                <input name="name" required placeholder="Full name">
+              </div>
+              <div>
+                <label>Username / Email</label>
+                <input name="email" required placeholder="user@company.com">
+              </div>
+              <div>
+                <label>Role</label>
+                <select name="role">
+                  {% for role in roles %}
+                  <option value="{{ role }}">{{ role }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label>Password</label>
+                <input name="password" type="password" required placeholder="Initial password">
+              </div>
+              <div>
+                <label class="check"><input type="checkbox" name="is_active" value="1" checked> Active</label>
+              </div>
+              <div>
+                <button class="btn" type="submit"><svg><use href="#icon-plus"></use></svg>Create</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <form method="get" class="actions" style="justify-content:space-between;margin-bottom:14px;">
+            <h3 style="margin:0;">User List</h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input name="q" value="{{ q or '' }}" placeholder="Search name / username / role" style="min-width:280px;">
+              <button class="btn secondary" type="submit">Search</button>
+              <a class="btn secondary" href="{{ url_for('auth.user_settings') }}">Reset</a>
+            </div>
+          </form>
+
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Username / Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Employee Link</th>
+                  <th>New Password</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for user in users %}
+                {% set emp = employee_by_user.get(user.id) %}
+                <tr>
+                  <td>
+                    <form id="userForm{{ user.id }}" method="post" action="{{ url_for('auth.user_settings_update', user_id=user.id) }}"></form>
+                    <input form="userForm{{ user.id }}" name="name" value="{{ user.name }}" required>
+                  </td>
+                  <td><input form="userForm{{ user.id }}" name="email" value="{{ user.email }}" required></td>
+                    <td>
+                      <select form="userForm{{ user.id }}" name="role" {% if user.id == current_user.id %}disabled{% endif %}>
+                        {% for role in roles %}
+                        <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role }}</option>
+                        {% endfor %}
+                      </select>
+                      {% if user.id == current_user.id %}
+                      <input form="userForm{{ user.id }}" type="hidden" name="role" value="admin">
+                      <div class="self-note">Role akun sendiri dikunci sebagai admin.</div>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="status {{ 'active' if user.is_active else 'inactive' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span>
+                      <label class="check" style="margin-top:8px;">
+                        <input form="userForm{{ user.id }}" type="checkbox" name="is_active" value="1" {% if user.is_active %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}>
+                        Active
+                      </label>
+                      {% if user.id == current_user.id %}
+                      <input form="userForm{{ user.id }}" type="hidden" name="is_active" value="1">
+                      <div class="self-note">Akun sendiri tidak bisa dinonaktifkan.</div>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if emp %}
+                        <strong>{{ emp.name }}</strong><br>
+                        <span class="muted">{{ emp.code }} · {{ emp.dept or '-' }}</span>
+                      {% else %}
+                        <span class="muted">Not linked</span>
+                      {% endif %}
+                    </td>
+                    <td><input form="userForm{{ user.id }}" name="new_password" type="password" placeholder="Kosongkan jika tidak reset"></td>
+                    <td><button form="userForm{{ user.id }}" class="btn" type="submit">Save</button></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="muted" style="margin:12px 0 0;">Akun tidak dihapus dari sini agar relasi attendance dan approval tetap aman. Gunakan status inactive jika akun tidak boleh login.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
