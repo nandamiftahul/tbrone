@@ -21,7 +21,7 @@ from openpyxl import load_workbook
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from flask_login import current_user, login_required
-from routes.auth_utils import role_required
+from routes.auth_utils import project_required, role_required
 from dotenv import load_dotenv
 load_dotenv()
 try:
@@ -1010,11 +1010,13 @@ def _pdf_build_html(month, rows, expert_metrics, wbn_stats, offset, dtfmt, filte
 # Pages (HTML stays the same)
 # =========================================================
 @xweather_report_bp.route("/xweather/monthly-report")
+@project_required("wbn_report")
 def xweather_monthly_report_viewer():
     return render_template("project/xweather_monthly_report_sqlite.html")
 
 
 @xweather_report_bp.route("/xweather/monthly-report.pdf", methods=["GET"])
+@project_required("wbn_report")
 def xweather_monthly_report_pdf():
     # GET-only PDF export. Timezone, date format, and active filters are passed as query params.
     month = (request.args.get("month") or datetime.utcnow().strftime("%Y-%m")).strip()
@@ -1128,6 +1130,7 @@ def xweather_monthly_report_editor():
 # GET /api/xweather/monthly-report?month=YYYY-MM
 # =========================================================
 @xweather_report_bp.route("/api/xweather/monthly-report", methods=["GET"])
+@project_required("wbn_report")
 def api_list_monthly_report():
     month = _month_arg()
     if not month:
@@ -1152,6 +1155,7 @@ def api_list_monthly_report():
 # GET /api/xweather/monthly-report/assets?month=YYYY-MM
 # =========================================================
 @xweather_report_bp.route("/api/xweather/monthly-report/assets", methods=["GET"])
+@project_required("wbn_report")
 def api_monthly_report_assets():
     month = _month_arg()
     if not month:
@@ -1441,6 +1445,7 @@ def api_fill_missing_monthly_report_fields():
 # GET /xweather/monthly-report.csv?month=YYYY-MM
 # =========================================================
 @xweather_report_bp.route("/xweather/monthly-report.csv", methods=["GET"])
+@project_required("wbn_report")
 def monthly_report_csv():
     month = _month_arg()
     if not month:
@@ -1614,6 +1619,7 @@ def api_sync_monthly_report_google_sheet():
 # GET /api/xweather/monthly-report/expert?month=YYYY-MM
 # =========================================================
 @xweather_report_bp.route("/api/xweather/monthly-report/expert", methods=["GET"])
+@project_required("wbn_report")
 def api_monthly_report_expert():
     month = _month_arg()
     if not month:
@@ -1750,6 +1756,7 @@ def api_monthly_report_expert():
     return jsonify({"ok": True, "month": month, "metrics": metrics})
 
 @xweather_report_bp.route("/xweather/monthly-report.xlsx", methods=["GET"])
+@project_required("wbn_report")
 def monthly_report_xlsx():
     month = _month_arg()
     if not month:
@@ -2077,8 +2084,7 @@ def api_delete_golf_location(id):
     return jsonify({"ok": True})
 
 @xweather_report_bp.route("/xweather/golfareamap")
-@login_required
-@role_required("admin")
+@project_required("golf_demo")
 def xweather_golf_area_map_demo():
     init_db()
     return render_template("project/xweather_golf_map_admin.html")

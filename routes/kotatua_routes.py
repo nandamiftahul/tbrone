@@ -3,8 +3,7 @@ import uuid
 from contextlib import contextmanager
 
 from flask import Blueprint, current_app, jsonify, render_template, request
-from flask_login import login_required
-from routes.auth_utils import role_required
+from routes.auth_utils import project_required
 kotatua_bp = Blueprint(
     'kotatua',
     __name__,
@@ -275,15 +274,13 @@ def validate_payload(payload, partial=False):
 
 
 @kotatua_bp.route('/kotatuamap')
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def kotatua_map():
     return render_template('project/kota_tua_dki_highlight_totaldki_with_toggles.html')
 
 
 @kotatua_bp.route('/api/kotatua/layers', methods=['GET'])
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def list_layers():
     try:
         ensure_table()
@@ -305,8 +302,7 @@ def list_layers():
 
 
 @kotatua_bp.route('/api/kotatua/layers', methods=['POST'])
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def create_layer():
     try:
         ensure_table()
@@ -342,8 +338,7 @@ def create_layer():
 
 
 @kotatua_bp.route('/api/kotatua/layers/<layer_id>', methods=['PUT'])
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def update_layer(layer_id):
     try:
         ensure_table()
@@ -400,8 +395,7 @@ def update_layer(layer_id):
 
 
 @kotatua_bp.route('/api/kotatua/layers/<layer_id>', methods=['DELETE'])
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def delete_layer(layer_id):
     try:
         ensure_table()
@@ -420,28 +414,24 @@ def delete_layer(layer_id):
 
 # Backward compatibility with previous custom-areas endpoints.
 @kotatua_bp.route('/api/kotatua/custom-areas', methods=['GET'])
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def list_custom_areas():
     return list_layers()
 
 
 @kotatua_bp.route('/api/kotatua/custom-areas', methods=['POST'])
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def create_custom_area():
     return create_layer()
 
 
 @kotatua_bp.route('/api/kotatua/custom-areas/<area_id>', methods=['PUT'])
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def update_custom_area(area_id):
     return update_layer(area_id)
 
 
 @kotatua_bp.route('/api/kotatua/custom-areas/<area_id>', methods=['DELETE'])
-@login_required
-@role_required("admin")
+@project_required("kotatua")
 def delete_custom_area(area_id):
     return delete_layer(area_id)

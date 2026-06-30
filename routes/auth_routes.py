@@ -5,7 +5,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_
 
 from routes.attendance_models import Employee, User, VALID_ROLES, db
-from routes.auth_utils import PAGE_ACCESS, accessible_page_labels, role_required
+from routes.auth_utils import (
+    access_catalog,
+    access_state_for_user,
+    role_access_keys,
+    role_required,
+    save_user_access_overrides,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -93,8 +99,9 @@ def user_settings():
         users=users,
         employee_by_user=employee_by_user,
         roles=VALID_ROLES,
-        page_access=PAGE_ACCESS,
-        role_access_map={role: accessible_page_labels(role) for role in VALID_ROLES},
+        access_items=access_catalog(),
+        role_access_keys={role: set(role_access_keys(role)) for role in VALID_ROLES},
+        user_access_map={user.id: access_state_for_user(user) for user in users},
         q=q,
     )
 
@@ -120,6 +127,10 @@ def user_settings_create():
     user.set_password(password)
     db.session.add(user)
     try:
+        db.session.flush()
+        selected_keys = set(request.form.getlist("access_key"))
+        if selected_keys:
+            save_user_access_overrides(db, user, selected_keys)
         db.session.commit()
         flash("User baru berhasil dibuat.", "success")
     except IntegrityError:
@@ -171,6 +182,8 @@ def user_settings_update(user_id):
         emp.is_active = is_active
 
     try:
+        if user.id != current_user.id:
+            save_user_access_overrides(db, user, set(request.form.getlist("access_key")))
         db.session.commit()
         flash("User berhasil diperbarui.", "success")
     except IntegrityError:

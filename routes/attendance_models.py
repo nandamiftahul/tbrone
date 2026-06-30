@@ -33,6 +33,20 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, pw)
 
 
+class UserPageAccess(db.Model):
+    __tablename__ = "user_page_access"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "access_key", name="uq_user_page_access_user_key"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    access_key = db.Column(db.String(80), nullable=False)
+    is_allowed = db.Column(db.Boolean, nullable=False, default=True)
+
+    user = db.relationship("User", backref=db.backref("page_access_overrides", cascade="all, delete-orphan"))
+
+
 class Shift(db.Model):
     __tablename__ = "shifts"
     id = db.Column(db.Integer, primary_key=True)

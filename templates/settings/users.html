@@ -112,7 +112,7 @@
     }
     .check input{width:auto}
     .tablewrap{overflow:auto;max-height:min(66vh,720px);border:1px solid var(--line);border-radius:18px}
-    table{width:100%;border-collapse:collapse;min-width:1120px}
+    table{width:100%;border-collapse:collapse;min-width:1420px}
     th,td{padding:12px 10px;border-bottom:1px solid rgba(47,35,35,.08);text-align:left;vertical-align:top}
     th{position:sticky;top:0;background:#fff7ef;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase;z-index:1}
     .badge{display:inline-flex;padding:5px 10px;border-radius:999px;background:var(--soft);color:#c96f0c;font-size:12px;font-weight:800}
@@ -127,6 +127,21 @@
     .access-card strong{display:block;margin-bottom:8px;text-transform:capitalize}
     .access-list{display:flex;gap:6px;flex-wrap:wrap}
     .access-pill{display:inline-flex;padding:5px 8px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:800;color:#8b5a20}
+    .access-checks{display:grid;grid-template-columns:repeat(2,minmax(130px,1fr));gap:7px;min-width:310px}
+    .access-check{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      padding:7px 8px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#fff;
+      font-size:12px;
+      font-weight:800;
+      color:var(--dark);
+    }
+    .access-check small{color:var(--muted);font-weight:700;text-transform:uppercase}
+    .access-check input{width:auto}
     @media (max-width:980px){
       .grid,.rowform{grid-template-columns:1fr}
       .topbar{align-items:flex-start;flex-direction:column}
@@ -186,8 +201,10 @@
             <div class="access-card">
               <strong>{{ role }}</strong>
               <div class="access-list">
-                {% for page in role_access_map.get(role, []) %}
-                <span class="access-pill">{{ page }}</span>
+                {% for item in access_items %}
+                {% if item.access_key in role_access_keys.get(role, []) %}
+                <span class="access-pill">{{ item.label }}</span>
+                {% endif %}
                 {% endfor %}
               </div>
             </div>
@@ -247,7 +264,7 @@
                   <th>Username / Email</th>
                   <th>Role</th>
                   <th>Status</th>
-                  <th>Accessible Pages</th>
+                  <th>Page Access</th>
                   <th>Employee Link</th>
                   <th>New Password</th>
                   <th>Action</th>
@@ -256,6 +273,7 @@
               <tbody>
                 {% for user in users %}
                 {% set emp = employee_by_user.get(user.id) %}
+                {% set user_access = user_access_map.get(user.id, {}) %}
                 <tr>
                   <td>
                     <form id="userForm{{ user.id }}" method="post" action="{{ url_for('auth.user_settings_update', user_id=user.id) }}"></form>
@@ -285,11 +303,27 @@
                       {% endif %}
                     </td>
                     <td>
-                      <div class="access-list">
-                        {% for page in role_access_map.get(user.role, []) %}
-                        <span class="access-pill">{{ page }}</span>
+                      <div class="access-checks">
+                        {% for item in access_items %}
+                        {% set checked = user_access.get(item.access_key, False) %}
+                        <label class="access-check">
+                          <input
+                            form="userForm{{ user.id }}"
+                            type="checkbox"
+                            name="access_key"
+                            value="{{ item.access_key }}"
+                            {% if checked %}checked{% endif %}
+                            {% if user.id == current_user.id %}disabled{% endif %}>
+                          <span>{{ item.label }}<br><small>{{ item.scope }}</small></span>
+                        </label>
+                        {% if user.id == current_user.id and checked %}
+                        <input form="userForm{{ user.id }}" type="hidden" name="access_key" value="{{ item.access_key }}">
+                        {% endif %}
                         {% endfor %}
                       </div>
+                      {% if user.id == current_user.id %}
+                      <div class="self-note">Akses akun sendiri dikunci agar admin tidak terkunci keluar.</div>
+                      {% endif %}
                     </td>
                     <td>
                       {% if emp %}
