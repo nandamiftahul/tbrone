@@ -4,16 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login · Terrindo One</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <style>
     :root{
-      --orange:#F28C28;
-      --orange2:#F6A24A;
-      --navy:#14304A;
-      --blue:#1F4B6E;
-      --dark:#102336;
-      --soft:#FFF4E8;
-      --line:rgba(255,255,255,.18);
+      --orange:#f28c28;
+      --orange-2:#ff9f3f;
+      --ink:#2f2323;
+      --muted:#766d69;
+      --line:#ded7d3;
     }
 
     *{box-sizing:border-box}
@@ -21,240 +22,219 @@
     body{
       margin:0;
       min-height:100vh;
-      display:grid;
-      place-items:center;
-      font-family:Inter, system-ui, -apple-system, sans-serif;
+      font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--ink);
       background:
-        radial-gradient(circle at 18% 18%, rgba(242,140,40,.30), transparent 28%),
-        radial-gradient(circle at 82% 12%, rgba(31,75,110,.38), transparent 24%),
-        linear-gradient(135deg, #102336 0%, #14304A 48%, #1F4B6E 100%);
-      color:white;
+        linear-gradient(90deg,rgba(16,21,24,.46) 0%,rgba(16,21,24,.12) 42%,rgba(255,255,255,.08) 100%),
+        radial-gradient(circle at 66% 32%,rgba(255,255,255,.92) 0 8%,transparent 9%),
+        radial-gradient(circle at 73% 58%,rgba(242,140,40,.55) 0 2px,transparent 3px),
+        radial-gradient(circle at 79% 35%,rgba(242,140,40,.5) 0 2px,transparent 3px),
+        radial-gradient(circle at 62% 71%,rgba(242,140,40,.45) 0 2px,transparent 3px),
+        linear-gradient(135deg,#12455a 0%,#0b7890 30%,#e9f2ee 31%,#f6f0ea 48%,#536c75 49%,#1f3038 100%);
       overflow:hidden;
-      padding:22px;
     }
 
-    .orb{
+    body::before{
+      content:"";
       position:fixed;
-      width:360px;
-      height:360px;
-      border-radius:50%;
-      background:rgba(242,140,40,.16);
-      filter:blur(6px);
-      right:-120px;
-      bottom:-120px;
-    }
-
-    .login-shell{
-      width:min(980px, 100%);
-      display:grid;
-      grid-template-columns:1.05fr .95fr;
-      border:1px solid var(--line);
-      border-radius:34px;
-      overflow:hidden;
-      background:rgba(255,255,255,.08);
-      box-shadow:0 34px 90px rgba(0,0,0,.38);
-      backdrop-filter:blur(18px);
-    }
-
-    .brand-panel{
-      padding:46px;
-      display:flex;
-      flex-direction:column;
-      justify-content:space-between;
+      inset:-8%;
       background:
-        linear-gradient(160deg, rgba(242,140,40,.25), rgba(255,255,255,.04)),
-        rgba(255,255,255,.05);
+        linear-gradient(115deg,transparent 0 43%,rgba(255,255,255,.62) 43.2% 43.7%,transparent 44%),
+        linear-gradient(18deg,transparent 0 52%,rgba(255,255,255,.38) 52.2% 52.55%,transparent 53%),
+        linear-gradient(146deg,transparent 0 62%,rgba(47,35,35,.12) 62.15% 62.4%,transparent 62.7%),
+        repeating-linear-gradient(0deg,rgba(255,255,255,.08) 0 1px,transparent 1px 42px),
+        repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 1px,transparent 1px 42px);
+      transform:rotate(-2deg) scale(1.06);
+      opacity:.78;
+      pointer-events:none;
     }
 
-    .logo-box{
+    body::after{
+      content:"";
+      position:fixed;
+      inset:0;
+      background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.22));
+      pointer-events:none;
+    }
+
+    .page{
+      position:relative;
+      z-index:1;
+      min-height:100vh;
       display:flex;
       align-items:center;
-      gap:14px;
-    }
-
-    .logo-card{
-      width:70px;
-      height:70px;
-      border-radius:20px;
-      background:white;
-      display:grid;
-      place-items:center;
-      box-shadow:0 16px 36px rgba(0,0,0,.25);
-    }
-
-    .logo-card img{
-      width:58px;
-    }
-
-    .brand-name{
-      font-size:18px;
-      font-weight:900;
-    }
-
-    .brand-sub{
-      font-size:13px;
-      color:rgba(255,255,255,.7);
-    }
-
-    .headline h1{
-      font-size:42px;
-      margin:0 0 10px;
-      letter-spacing:-1px;
-    }
-
-    .headline p{
-      color:rgba(255,255,255,.75);
-      font-size:14px;
-    }
-
-    .mini-row{
-      display:grid;
-      grid-template-columns:repeat(3,1fr);
-      gap:10px;
-    }
-
-    .mini{
-      padding:12px;
-      border-radius:16px;
-      background:rgba(255,255,255,.08);
-      font-size:12px;
-      text-align:center;
-    }
-
-    .mini strong{
-      display:block;
-      color:white;
-    }
-
-    .form-panel{
-      padding:46px;
-      background:white;
-      color:#111827;
-      display:flex;
-      align-items:center;
+      padding:clamp(24px,7vw,92px);
     }
 
     .login-card{
-      width:100%;
+      width:min(430px,100%);
+      min-height:520px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      padding:44px 38px;
+      background:rgba(255,255,255,.96);
+      border:1px solid rgba(255,255,255,.74);
+      border-radius:8px;
+      box-shadow:0 30px 80px rgba(20,15,13,.25);
+      backdrop-filter:blur(14px);
     }
 
-    .eyebrow{
-      font-size:12px;
+    .brand{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      margin-bottom:28px;
+    }
+
+    .brand img{
+      width:52px;
+      height:52px;
+      object-fit:contain;
+    }
+
+    .brand strong{
+      font-size:26px;
+      line-height:1;
+      letter-spacing:0;
+    }
+
+    .brand span{
+      display:block;
+      margin-top:4px;
       color:var(--orange);
+      font-size:12px;
       font-weight:800;
-      margin-bottom:10px;
+      letter-spacing:.16em;
+      text-transform:uppercase;
     }
 
-    h2{
-      margin:0 0 6px;
-      font-size:28px;
+    h1{
+      margin:0;
+      text-align:center;
+      font-size:27px;
+      font-weight:600;
+      letter-spacing:0;
+    }
+
+    .subtitle{
+      margin:13px 0 28px;
+      text-align:center;
+      color:var(--muted);
+      font-size:14px;
     }
 
     .flash{
       margin-bottom:14px;
-      padding:10px;
-      border-radius:10px;
-      background:#fee2e2;
-      color:#991b1b;
+      padding:11px 12px;
+      border-radius:8px;
+      background:#fff1e2;
+      border:1px solid rgba(242,140,40,.28);
+      color:#9b5410;
       font-size:13px;
+      font-weight:700;
+    }
+
+    label{
+      display:block;
+      margin:0 0 8px;
+      color:#5d5350;
+      font-size:13px;
+      font-weight:700;
     }
 
     input{
       width:100%;
-      padding:14px;
-      margin-bottom:12px;
-      border-radius:14px;
-      border:1px solid #ddd;
-      background:#f9fafb;
+      min-height:54px;
+      padding:0 16px;
+      margin-bottom:16px;
+      border-radius:4px;
+      border:1px solid var(--line);
+      background:#fff;
+      color:var(--ink);
+      font:inherit;
+      font-size:15px;
     }
 
     input:focus{
       border-color:var(--orange);
       outline:none;
-      box-shadow:0 0 0 4px rgba(242,140,40,.15);
+      box-shadow:0 0 0 4px rgba(242,140,40,.14);
     }
 
     button{
       width:100%;
-      padding:14px;
+      min-height:56px;
       border:0;
-      border-radius:16px;
-      background:linear-gradient(135deg, var(--orange), var(--orange2));
-      color:white;
-      font-weight:bold;
-      font-size:15px;
+      border-radius:4px;
+      background:linear-gradient(180deg,var(--orange-2),var(--orange));
+      color:#fff;
+      font:inherit;
+      font-size:16px;
+      font-weight:800;
       cursor:pointer;
-      box-shadow:0 10px 24px rgba(242,140,40,.3);
+      box-shadow:0 16px 28px rgba(242,140,40,.28);
     }
+
+    button:hover{filter:saturate(1.08) brightness(1.01)}
 
     .footer{
-      margin-top:14px;
+      margin-top:22px;
       text-align:center;
+      color:#9a918d;
       font-size:12px;
-      color:#9ca3af;
+      font-weight:600;
     }
 
-    @media(max-width:800px){
-      .login-shell{
-        grid-template-columns:1fr;
+    @media(max-width:720px){
+      body{overflow:auto}
+      .page{
+        align-items:center;
+        justify-content:center;
+        padding:22px;
       }
-      .brand-panel{
-        display:none;
+      .login-card{
+        min-height:auto;
+        padding:34px 24px;
       }
+      .brand strong{font-size:23px}
     }
   </style>
 </head>
 
 <body>
-  <div class="orb"></div>
-
-  <main class="login-shell">
-    <section class="brand-panel">
-      <div class="logo-box">
-        <div class="logo-card">
-          <img src="{{ url_for('static', filename='terrindo.png') }}">
-        </div>
+  <main class="page">
+    <form class="login-card" method="POST">
+      <div class="brand" aria-label="Terrindo One">
+        <img src="{{ url_for('static', filename='terrindo.png') }}" alt="Terrindo">
         <div>
-          <div class="brand-name">Terrindo One</div>
-          <div class="brand-sub">Internal Platform</div>
+          <strong>Terrindo One</strong>
+          <span>Secure Access</span>
         </div>
       </div>
 
-      <div class="headline">
-        <h1>Terrindo One</h1>
-        <p>Internal operation platform for Terrindo Bumi Raya.</p>
-      </div>
+      <h1>Welcome</h1>
+      <p class="subtitle">Sign in to continue.</p>
 
-      <div class="mini-row">
-        <div class="mini"><strong>People</strong>Attendance</div>
-        <div class="mini"><strong>Workflow</strong>Approval</div>
-        <div class="mini"><strong>System</strong>Terrindo One</div>
-      </div>
-    </section>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
 
-    <section class="form-panel">
-      <form class="login-card" method="POST">
-        <div class="eyebrow">SECURE ACCESS</div>
-        <h2>Sign In</h2>
+      <label for="email">Username</label>
+      <input id="email" type="text" name="email" autocomplete="username" required>
 
-        {% with messages = get_flashed_messages() %}
-          {% if messages %}
-            {% for msg in messages %}
-              <div class="flash">{{ msg }}</div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
+      <label for="password">Password</label>
+      <input id="password" type="password" name="password" autocomplete="current-password" required>
 
-        <input type="text" name="email" placeholder="Username" required>
-        <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Login</button>
 
-        <button type="submit">Login</button>
-
-        <div class="footer">
-          Terrindo Bumi Raya
-        </div>
-      </form>
-    </section>
+      <div class="footer">Terrindo Bumi Raya</div>
+    </form>
   </main>
 </body>
 </html>
