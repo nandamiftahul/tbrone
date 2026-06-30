@@ -306,11 +306,9 @@
           <span>{{ current_user.name }}</span>
           <small>{{ current_user.role }}</small>
         </div>
-        {% if current_user.role == 'admin' %}
-        <a href="{{ url_for('auth.user_settings') }}" class="settings-btn" title="User Settings" aria-label="User Settings">
+        <a href="{{ url_for('auth.user_settings' if current_user.role == 'admin' else 'auth.profile_settings') }}" class="settings-btn" title="Settings" aria-label="Settings">
           <svg><use href="#icon-gear"></use></svg>
         </a>
-        {% endif %}
         <a href="{{ url_for('auth.logout') }}" class="logout-btn">Logout</a>
       </div>
       <div class="hero-grid">

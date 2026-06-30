@@ -75,6 +75,69 @@ def logout():
     return redirect(url_for("auth.login"))
 
 
+@auth_bp.route("/settings/profile", methods=["GET", "POST"])
+@login_required
+def profile_settings():
+    user = db.session.get(User, current_user.id)
+    if not user:
+        logout_user()
+        return redirect(url_for("auth.login"))
+
+    emp = Employee.query.filter_by(user_id=user.id).first()
+
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        email = (request.form.get("email") or "").strip().lower()
+        current_password = request.form.get("current_password") or ""
+        new_password = request.form.get("new_password") or ""
+        confirm_password = request.form.get("confirm_password") or ""
+
+        if not name or not email:
+            flash("Name dan username/email wajib diisi.", "error")
+            return redirect(url_for("auth.profile_settings"))
+
+        if new_password:
+            if not user.check_password(current_password):
+                flash("Current password salah.", "error")
+                return redirect(url_for("auth.profile_settings"))
+            if len(new_password) < 6:
+                flash("Password baru minimal 6 karakter.", "error")
+                return redirect(url_for("auth.profile_settings"))
+            if new_password != confirm_password:
+                flash("Konfirmasi password tidak sama.", "error")
+                return redirect(url_for("auth.profile_settings"))
+            user.set_password(new_password)
+
+        user.name = name
+        user.email = email
+
+        if emp:
+            emp.name = name
+            emp.email = (request.form.get("employee_email") or "").strip().lower() or email
+            emp.phone = (request.form.get("phone") or "").strip() or None
+            emp.address = (request.form.get("address") or "").strip() or None
+            emp.ktp_number = (request.form.get("ktp_number") or "").strip() or None
+            birth_date = (request.form.get("birth_date") or "").strip()
+            if birth_date:
+                try:
+                    emp.birth_date = datetime.strptime(birth_date, "%Y-%m-%d").date()
+                except ValueError:
+                    flash("Format birth date tidak valid.", "error")
+                    return redirect(url_for("auth.profile_settings"))
+            else:
+                emp.birth_date = None
+
+        try:
+            db.session.commit()
+            flash("Profile berhasil diperbarui.", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Username/email sudah dipakai user lain.", "error")
+        return redirect(url_for("auth.profile_settings"))
+
+    return render_template("settings/profile.html", user=user, emp=emp)
+
+
 @auth_bp.route("/settings/users")
 @login_required
 @role_required("admin")
