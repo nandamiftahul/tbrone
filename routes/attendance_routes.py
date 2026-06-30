@@ -1,11 +1,12 @@
-from flask import Blueprint, abort, render_template, request, redirect, url_for, flash, jsonify, Response, send_file
-from datetime import datetime, date
+from flask import Blueprint, abort, render_template, request, redirect, url_for, flash, jsonify, Response, send_file, session
+from datetime import datetime, date, timedelta
 from flask_login import current_user, login_required
-from routes.attendance_models import db, Employee, Attendance, LeaveRequest, Office, Announcement, Shift, User, EMPLOYEE_ROLE_CHOICES, EMPLOYEE_ROLE_LABELS
+from routes.attendance_models import db, Employee, Attendance, LeaveRequest, Office, Announcement, Shift, User, Holiday, EMPLOYEE_ROLE_CHOICES, EMPLOYEE_ROLE_LABELS
 from routes.auth_utils import can_access
 import csv
 import io
 import json
+import secrets
 from openpyxl import Workbook
 import base64
 import numpy as np
@@ -24,13 +25,21 @@ ATTENDANCE_APPROVER_ROLES = {
     "director",
     "ceo",
 }
+MOBILE_FACE_TOKEN_MAX_AGE_SECONDS = 120
+LEAVE_TYPES = {"leave", "sick", "wfh", "on_site", "late_work", "early_finish"}
 
 
 @attendance_bp.before_request
 def require_attendance_page_access():
-    if request.endpoint in {"attendance.mobile", "attendance.mobile_api_login", "attendance.mobile_api_logout"}:
+    if request.endpoint in {"attendance.mobile", "attendance.mobile_api_login"}:
+        return None
+    if (request.endpoint or "").startswith("attendance.mobile_api_") and not current_user.is_authenticated:
+        return jsonify({"ok": False, "error": "Session expired. Silakan login ulang."}), 401
+    if request.endpoint == "attendance.mobile_api_logout":
         return None
     if current_user.is_authenticated and not can_access(current_user, "page", "attendance"):
+        if (request.endpoint or "").startswith("attendance.mobile_api_"):
+            return jsonify({"ok": False, "error": "User tidak punya akses Attendance"}), 403
         abort(403)
     return None
 
@@ -48,6 +57,38 @@ def _current_employee():
     if not current_user.is_authenticated:
         return None
     return Employee.query.filter_by(user_id=current_user.id).first()
+
+
+def _parse_iso_date(value, field_name):
+    try:
+        return date.fromisoformat(str(value or ""))
+    except ValueError:
+        raise ValueError(f"{field_name} tidak valid.")
+
+
+def _issue_face_token(action):
+    token = secrets.token_urlsafe(24)
+    session["attendance_face_token"] = {
+        "token": token,
+        "action": action,
+        "expires_at": (datetime.utcnow() + timedelta(seconds=MOBILE_FACE_TOKEN_MAX_AGE_SECONDS)).isoformat(),
+    }
+    return token
+
+
+def _consume_face_token(token, action):
+    payload = session.pop("attendance_face_token", None)
+    if not payload:
+        return False
+    try:
+        expires_at = datetime.fromisoformat(payload.get("expires_at", ""))
+    except ValueError:
+        return False
+    return (
+        secrets.compare_digest(str(payload.get("token", "")), str(token or ""))
+        and payload.get("action") == action
+        and expires_at >= datetime.utcnow()
+    )
 
 
 # =========================================================
@@ -753,6 +794,7 @@ def mobile_api_login():
 @attendance_bp.route("/api/logout", methods=["POST"])
 @login_required
 def mobile_api_logout():
+    session.pop("attendance_face_token", None)
     logout_user()
     return jsonify({"ok": True})
 
@@ -790,6 +832,13 @@ def mobile_api_attendance_check():
     action = data.get("action")
     lat = data.get("lat")
     lon = data.get("lon")
+    face_token = data.get("face_token")
+
+    if action not in ["check_in", "check_out"]:
+        return jsonify({"ok": False, "error": "Invalid action"}), 400
+
+    if not _consume_face_token(face_token, action):
+        return jsonify({"ok": False, "error": "Face verification expired atau tidak valid. Silakan ulangi verifikasi wajah."}), 403
 
     emp = Employee.query.filter_by(user_id=current_user.id).first()
     if not emp:
@@ -802,6 +851,9 @@ def mobile_api_attendance_check():
         work_date=today
     ).first()
 
+    if not rec and action == "check_out":
+        return jsonify({"ok": False, "error": "Check In harus dilakukan sebelum Check Out."}), 400
+
     if not rec:
         rec = Attendance(
             employee_id=emp.id,
@@ -813,6 +865,8 @@ def mobile_api_attendance_check():
     now = datetime.utcnow()
 
     if action == "check_in":
+        if rec.check_in:
+            return jsonify({"ok": False, "error": "Check In hari ini sudah tercatat."}), 409
         rec.check_in = now
         rec.check_in_lat = lat
         rec.check_in_lon = lon
@@ -820,14 +874,15 @@ def mobile_api_attendance_check():
         rec.check_in_ua = request.headers.get("User-Agent", "")[:255]
 
     elif action == "check_out":
+        if not rec.check_in:
+            return jsonify({"ok": False, "error": "Check In harus dilakukan sebelum Check Out."}), 400
+        if rec.check_out:
+            return jsonify({"ok": False, "error": "Check Out hari ini sudah tercatat."}), 409
         rec.check_out = now
         rec.check_out_lat = lat
         rec.check_out_lon = lon
         rec.check_out_ip = request.remote_addr
         rec.check_out_ua = request.headers.get("User-Agent", "")[:255]
-
-    else:
-        return jsonify({"ok": False, "error": "Invalid action"}), 400
 
     db.session.commit()
 
@@ -875,13 +930,50 @@ def mobile_api_my_attendance():
 @attendance_bp.route("/api/holidays", methods=["GET"])
 @login_required
 def mobile_api_holidays():
-    return jsonify({"ok": True, "rows": []})
+    start = request.args.get("start")
+    end = request.args.get("end")
+    query = Holiday.query
+    if start:
+        try:
+            query = query.filter(Holiday.date >= _parse_iso_date(start, "Start date"))
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+    if end:
+        try:
+            query = query.filter(Holiday.date <= _parse_iso_date(end, "End date"))
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+
+    rows = query.order_by(Holiday.date.asc()).all()
+    return jsonify({
+        "ok": True,
+        "rows": [
+            {
+                "id": h.id,
+                "date": h.date.isoformat() if h.date else "",
+                "name": h.name,
+            }
+            for h in rows
+        ],
+    })
 
 
 @attendance_bp.route("/api/leave/request", methods=["POST"])
 @login_required
 def mobile_api_leave_request():
     data = request.get_json(force=True, silent=True) or {}
+    leave_type = (data.get("type") or "leave").strip()
+    if leave_type not in LEAVE_TYPES:
+        return jsonify({"ok": False, "error": "Tipe leave tidak valid."}), 400
+
+    try:
+        start_date = _parse_iso_date(data.get("start_date"), "Start date")
+        end_date = _parse_iso_date(data.get("end_date"), "End date")
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    if end_date < start_date:
+        return jsonify({"ok": False, "error": "End date harus >= start date."}), 400
 
     emp = Employee.query.filter_by(user_id=current_user.id).first()
     if not emp:
@@ -889,10 +981,10 @@ def mobile_api_leave_request():
 
     r = LeaveRequest(
         employee_id=emp.id,
-        type=data.get("type") or "leave",
-        start_date=data.get("start_date"),
-        end_date=data.get("end_date"),
-        reason=data.get("reason"),
+        type=leave_type,
+        start_date=start_date,
+        end_date=end_date,
+        reason=(data.get("reason") or "").strip() or None,
         status="pending_manager"
     )
 
@@ -1018,7 +1110,10 @@ def mobile_api_profile_update():
     emp.ktp_number = data.get("ktp_number") or None
 
     birth_date = data.get("birth_date")
-    emp.birth_date = date.fromisoformat(birth_date) if birth_date else None
+    try:
+        emp.birth_date = _parse_iso_date(birth_date, "Tanggal lahir") if birth_date else None
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
     db.session.commit()
 
@@ -1165,7 +1260,8 @@ def mobile_api_face_verify():
 
     return jsonify({
         "ok": True,
-        "token": f"face-ok-{current_user.id}-{int(datetime.utcnow().timestamp())}",
+        "token": _issue_face_token(action),
+        "expires_in": MOBILE_FACE_TOKEN_MAX_AGE_SECONDS,
         "distance": distance,
         "message": "Face verified"
     })

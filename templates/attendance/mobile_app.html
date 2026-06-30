@@ -512,6 +512,11 @@
       const j = safeJson(txt);
 
       if(!res.ok || j.ok !== true){
+        if(res.status === 401){
+          me = null; role = "staff"; canApprove = false;
+          show($("viewLogin"), true);
+          showAppShell(false);
+        }
         throw new Error(j.error || `Request failed (${res.status})`);
       }
 
@@ -753,13 +758,22 @@
     $("faceProg").style.display = "none";
     $("faceHint").textContent = hintText || "Pastikan wajah terlihat jelas.";
     $("faceModal").classList.add("show");
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      closeFaceModal();
+      throw new Error("Kamera tidak tersedia. Gunakan HTTPS atau localhost agar browser mengizinkan kamera.");
+    }
   
     const v = $("faceVideo");
-    // prefer front camera
-    faceStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
-      audio: false
-    });
+    try{
+      // prefer front camera
+      faceStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+        audio: false
+      });
+    }catch(e){
+      closeFaceModal();
+      throw new Error("Akses kamera gagal. Izinkan kamera di browser, dan gunakan HTTPS/localhost jika membuka dari HP.");
+    }
     v.srcObject = faceStream;
     await v.play();
   }
@@ -987,7 +1001,7 @@ async function doCheck(action){
               <span style="width:10px"></span>
               <span style="color:rgba(255,255,255,.7)">➡️</span><span style="font-weight:900">${coHm}</span>
             </div>
-            ${note ? `<div style="margin-top:6px; font-size:12px; color:rgba(255,255,255,.6)">${note}</div>` : ""}
+            ${note ? `<div style="margin-top:6px; font-size:12px; color:rgba(255,255,255,.6)">${esc(note)}</div>` : ""}
           </div>
         `;
         $("recordsList").appendChild(el);
@@ -1044,13 +1058,13 @@ async function doCheck(action){
         const card = document.createElement("div");
         card.className = "card";
         card.style.marginBottom = "10px";
-        const t = String(r.type||"").toUpperCase();
-        const st = String(r.status||"");
+        const t = esc(String(r.type||"").toUpperCase());
+        const st = esc(String(r.status||""));
         const reason = (r.reason||"").trim();
         card.innerHTML = `
           <div style="font-weight:1000">${t} — ${st}</div>
-          <div class="muted" style="margin-top:6px;">${r.start_date||""} → ${r.end_date||""}</div>
-          ${reason ? `<div style="margin-top:8px; color:rgba(255,255,255,.78)">${reason}</div>` : ``}
+          <div class="muted" style="margin-top:6px;">${esc(r.start_date||"")} → ${esc(r.end_date||"")}</div>
+          ${reason ? `<div style="margin-top:8px; color:rgba(255,255,255,.78)">${esc(reason)}</div>` : ``}
         `;
         $("myLeaveList").appendChild(card);
       });
@@ -1078,15 +1092,15 @@ async function doCheck(action){
         const card = document.createElement("div");
         card.className = "card";
         card.style.marginBottom = "10px";
-        const name = r.employee_name || r.employee || "-";
-        const type = String(r.type||"").toUpperCase();
+        const name = esc(r.employee_name || r.employee || "-");
+        const type = esc(String(r.type||"").toUpperCase());
         const dept = (r.dept||"").trim();
         const reason = (r.reason||"").trim();
         card.innerHTML = `
           <div style="font-weight:1000">${name} — ${type}</div>
-          <div class="muted" style="margin-top:6px;">${r.start_date||""} → ${r.end_date||""}</div>
-          ${dept ? `<div class="muted" style="margin-top:6px;">Dept: ${dept}</div>` : ``}
-          ${reason ? `<div style="margin-top:8px; color:rgba(255,255,255,.78)">${reason}</div>` : ``}
+          <div class="muted" style="margin-top:6px;">${esc(r.start_date||"")} → ${esc(r.end_date||"")}</div>
+          ${dept ? `<div class="muted" style="margin-top:6px;">Dept: ${esc(dept)}</div>` : ``}
+          ${reason ? `<div style="margin-top:8px; color:rgba(255,255,255,.78)">${esc(reason)}</div>` : ``}
           <div class="row" style="margin-top:12px;">
             <button class="btn outline small" data-act="reject">Reject</button>
             <button class="btn small" data-act="approve">Approve</button>
@@ -1119,14 +1133,14 @@ async function doCheck(action){
     const user = me?.user || {};
     const emp = me?.employee || null;
     const html = `
-      <div class="kv"><div class="k">Name</div><div class="v">${user.name||"-"}</div></div>
-      <div class="kv"><div class="k">Email</div><div class="v">${user.email||"-"}</div></div>
-      <div class="kv"><div class="k">Role</div><div class="v">${(user.role||"-")}</div></div>
+      <div class="kv"><div class="k">Name</div><div class="v">${esc(user.name||"-")}</div></div>
+      <div class="kv"><div class="k">Email</div><div class="v">${esc(user.email||"-")}</div></div>
+      <div class="kv"><div class="k">Role</div><div class="v">${esc(user.role||"-")}</div></div>
       ${emp ? `
         <hr style="border:0; border-top:1px solid rgba(255,255,255,.12); margin:12px 0;">
-        <div class="kv"><div class="k">Employee Code</div><div class="v">${emp.code||"-"}</div></div>
-        <div class="kv"><div class="k">Employee Name</div><div class="v">${emp.name||"-"}</div></div>
-        <div class="kv"><div class="k">Dept</div><div class="v">${emp.dept||"-"}</div></div>
+        <div class="kv"><div class="k">Employee Code</div><div class="v">${esc(emp.code||"-")}</div></div>
+        <div class="kv"><div class="k">Employee Name</div><div class="v">${esc(emp.name||"-")}</div></div>
+        <div class="kv"><div class="k">Dept</div><div class="v">${esc(emp.dept||"-")}</div></div>
       ` : ``}
     `;
     $("profileBox").innerHTML = html;
