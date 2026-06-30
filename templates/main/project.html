@@ -17,6 +17,7 @@
   </style>
 </head>
 <body>
+  {% set accessible_project_pages = accessible_project_pages|default([]) %}
   <div class="wrap">
     <section class="hero">
       <div class="head">
@@ -28,11 +29,21 @@
         </div>
       </div>
       <div class="grid">
+        {% if 'golf_demo' in accessible_project_pages %}
         <a class="card" href="/xweather/golfareamap"><div class="icon">⛳</div><span class="tag">Demo</span><h3>Golf Area Demo</h3><p>Demo area monitoring petir dengan ring alert dan tampilan fokus area.</p></a>
+        {% endif %}
+        {% if 'wbn_report' in accessible_project_pages %}
         <a class="card" href="{{ url_for('xweather_report.xweather_monthly_report_viewer') }}"><div class="icon">📊</div><span class="tag">Report</span><h3>WBN Monthly Report</h3><p>Viewer laporan bulanan lightning alert beserta analisis statistik.</p></a>
+        {% endif %}
+        {% if 'radar' in accessible_project_pages %}
         <a class="card" href="{{ url_for('radar_bp.radar_home') }}"><div class="icon">📡</div><span class="tag">Viewer</span><h3>Radar Viewer</h3><p>Viewer radar cuaca dengan map overlay dan tools analisis pendukung.</p></a>
+        {% endif %}
+        {% if 'hfradar' in accessible_project_pages %}
         <a class="card" href="{{ url_for('hfradar_bp.hfradar_home') }}"><div class="icon">🌊</div><span class="tag">Viewer</span><h3>HF Radar Viewer</h3><p>Viewer HF Radar Ocean Sensing untuk wave, wind, dan current overlay.</p></a>
+        {% endif %}
+        {% if 'kotatua' in accessible_project_pages %}
         <a class="card" href="/kotatuamap"><div class="icon">🗺️</div><span class="tag">Planning</span><h3>Trial Map Zone</h3><p>Map planning dan focus area untuk kebutuhan trial atau simulasi zone.</p></a>
+        {% endif %}
       </div>
       <a class="back" href="/">← Kembali ke Terrindo One</a>
     </section>

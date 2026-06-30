@@ -292,6 +292,7 @@
   </style>
 </head>
 <body>
+  {% set accessible_pages = accessible_pages|default([]) %}
   <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
     <symbol id="icon-gear" viewBox="0 0 24 24">
       <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7"></path>
@@ -336,47 +337,59 @@
 
       <div class="core-panel">
         <div class="core-grid">
+          {% if 'attendance' in accessible_pages %}
           <a class="core-card" href="{{ url_for('pages.attendance_page')}}">
             <div class="icon-box">🗓️</div>
             <h3>Attendance</h3>
             <p>Absensi karyawan, shift, izin, approval, dan kontrol kehadiran dalam satu domain utama.</p>
             <div class="mini-tags"><span>Single login</span><span>Approval</span><span>Shift</span></div>
           </a>
+          {% endif %}
 
+          {% if 'inventory' in accessible_pages %}
           <a class="core-card" href="{{ url_for('pages.inventory_page')}}">
             <div class="icon-box">📦</div>
             <h3>Inventory</h3>
             <p>Manajemen aset, stok barang, pergerakan item, dan histori inventaris perusahaan.</p>
             <div class="mini-tags"><span>Asset</span><span>Stock</span><span>Tracking</span></div>
           </a>
+          {% endif %}
 
+          {% if 'project' in accessible_pages %}
           <a class="core-card" href="{{ url_for('pages.project_page') }}">
             <div class="icon-box">📝</div>
             <h3>Project</h3>
             <p>Portal untuk demo, viewer, report, dan tools project yang sudah berjalan saat ini.</p>
             <div class="mini-tags"><span>Radar</span><span>Report</span><span>Demo tools</span></div>
           </a>
+          {% endif %}
 
+          {% if 'finance' in accessible_pages %}
           <a class="core-card" href="{{ url_for('pages.finance_page')}}">
             <div class="icon-box">💰</div>
             <h3>Finance</h3>
             <p>Pengelolaan expense, budget, biaya proyek, dan kontrol finansial internal perusahaan.</p>
             <div class="mini-tags"><span>Expense</span><span>Budget</span><span>Control</span></div>
           </a>
+          {% endif %}
 
+          {% if 'job' in accessible_pages %}
           <a class="core-card" href="{{ url_for('pages.job_page')}}">
             <div class="icon-box">💼</div>
             <h3>Job</h3>
             <p>Penugasan site duty, training, aktivitas kerja lapangan, dan pengelolaan pekerjaan tim.</p>
             <div class="mini-tags"><span>Assignment</span><span>Training</span><span>Site duty</span></div>
           </a>
+          {% endif %}
 
+          {% if 'wiki' in accessible_pages %}
           <a class="core-card" href="{{ url_for('pages.wiki_page')}}">
             <div class="icon-box">📚</div>
             <h3>Wiki</h3>
             <p>Knowledge base internal berisi manual, flow produk, SOP, dan referensi teknis perusahaan.</p>
             <div class="mini-tags"><span>Manual</span><span>Flow</span><span>Knowledge base</span></div>
           </a>
+          {% endif %}
         </div>
       </div>
     </section>

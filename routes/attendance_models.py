@@ -12,7 +12,9 @@ db = SQLAlchemy()
 # - manager: approves staff leave for their department
 # - general_manager: (reserved/optional) can act as manager-level approver if you want later
 # - hrd: final approver
-VALID_ROLES = ("admin", "staff", "manager", "general_manager", "hrd")
+# - client: external/project client access
+# - guest: limited read-only access
+VALID_ROLES = ("admin", "staff", "manager", "general_manager", "hrd", "client", "guest")
 
 
 class User(UserMixin, db.Model):
@@ -21,7 +23,7 @@ class User(UserMixin, db.Model):
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default="staff")  # admin/staff/manager/general_manager/hrd
+    role = db.Column(db.String(20), default="staff")  # admin/staff/manager/general_manager/hrd/client/guest
     is_active = db.Column(db.Boolean, default=True)
 
     def set_password(self, pw: str):

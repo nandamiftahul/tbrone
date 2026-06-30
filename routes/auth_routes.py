@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_
 
 from routes.attendance_models import Employee, User, VALID_ROLES, db
-from routes.auth_utils import role_required
+from routes.auth_utils import PAGE_ACCESS, accessible_page_labels, role_required
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -93,6 +93,8 @@ def user_settings():
         users=users,
         employee_by_user=employee_by_user,
         roles=VALID_ROLES,
+        page_access=PAGE_ACCESS,
+        role_access_map={role: accessible_page_labels(role) for role in VALID_ROLES},
         q=q,
     )
 
