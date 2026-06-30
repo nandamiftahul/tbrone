@@ -49,10 +49,9 @@
       <div>
         <label>Role</label>
         <select name="role">
-          <option value="staff">staff</option>
-          <option value="manager">manager</option>
-          <option value="general_manager">general manager</option>
-          <option value="hrd">HRD</option>
+          {% for value, label in employee_role_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
         </select>
       </div>
 
@@ -122,7 +121,8 @@
           <td class="truncate" title="{{ r.name }}">{{ r.name }}</td>
           <td class="truncate" title="{{ r.email or '' }}">{{ r.email or '' }}</td>
           <td>{{ r.dept or '' }}</td>
-          <td><span class="badge">{{ r.role or (r.user.role if r.user else '') }}</span></td>
+          {% set role_value = r.role or (r.user.role if r.user else '') %}
+          <td><span class="badge">{{ employee_role_labels.get(role_value, role_value) }}</span></td>
           <td>{{ r.shift.name if r.shift else '' }}</td>
           <td class="truncate" title="{{ r.user.email if r.user else '' }}">{{ r.user.email if r.user else '-' }}</td>
           <td>{{ 'Yes' if r.is_active else 'No' }}</td>
@@ -189,12 +189,11 @@
         </div>
 
         <div>
-          <label>Role</label>
-          <select name="role" id="e_role">
-            <option value="staff">staff</option>
-            <option value="manager">manager</option>
-            <option value="general_manager">general manager</option>
-            <option value="hrd">HRD</option>
+        <label>Role</label>
+        <select name="role" id="e_role">
+            {% for value, label in employee_role_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
           </select>
         </div>
 

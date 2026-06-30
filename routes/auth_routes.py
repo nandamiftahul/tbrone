@@ -6,7 +6,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, or_
 
-from routes.attendance_models import Employee, User, VALID_ROLES, db
+from routes.attendance_models import Employee, ROLE_CHOICES, ROLE_LABELS, User, VALID_ROLES, db
 from routes.auth_utils import (
     access_catalog,
     access_state_for_user,
@@ -101,6 +101,8 @@ def user_settings():
         users=users,
         employee_by_user=employee_by_user,
         roles=VALID_ROLES,
+        role_choices=ROLE_CHOICES,
+        role_labels=ROLE_LABELS,
         access_items=access_catalog(),
         role_access_keys={role: set(role_access_keys(role)) for role in VALID_ROLES},
         user_access_map={user.id: access_state_for_user(user) for user in users},

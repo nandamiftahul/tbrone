@@ -2,14 +2,14 @@ from functools import wraps
 from flask import abort
 from flask_login import current_user, login_required
 
-from routes.attendance_models import VALID_ROLES, UserPageAccess
+from routes.attendance_models import EMPLOYEE_ROLES, VALID_ROLES, UserPageAccess
 
 
 PAGE_ACCESS = {
     "attendance": {
         "label": "Attendance",
         "endpoint": "pages.attendance_page",
-        "roles": ("admin", "hrd", "staff", "manager", "general_manager"),
+        "roles": ("admin", *EMPLOYEE_ROLES),
     },
     "inventory": {
         "label": "Inventory",

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, send_file
 from datetime import datetime, date
 from flask_login import current_user, login_required
-from routes.attendance_models import db, Employee, Attendance, LeaveRequest, Office, Announcement, Shift, User
+from routes.attendance_models import db, Employee, Attendance, LeaveRequest, Office, Announcement, Shift, User, EMPLOYEE_ROLE_CHOICES, EMPLOYEE_ROLE_LABELS
 import csv
 import io
 import json
@@ -389,7 +389,13 @@ def reject(rid):
 def employees():
     rows = Employee.query.all()
     shifts = Shift.query.all()
-    return render_template("attendance/employees.html", rows=rows, shifts=shifts)
+    return render_template(
+        "attendance/employees.html",
+        rows=rows,
+        shifts=shifts,
+        employee_role_choices=EMPLOYEE_ROLE_CHOICES,
+        employee_role_labels=EMPLOYEE_ROLE_LABELS,
+    )
 
 
 @attendance_bp.route("/employees/create", methods=["POST"])

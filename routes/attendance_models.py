@@ -6,15 +6,28 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
-# Roles used by this app:
-# - admin: superuser (full access)
-# - staff: normal employee
-# - manager: approves staff leave for their department
-# - general_manager: (reserved/optional) can act as manager-level approver if you want later
-# - hrd: final approver
-# - client: external/project client access
-# - guest: limited read-only access
-VALID_ROLES = ("admin", "staff", "manager", "general_manager", "hrd", "client", "guest")
+# Roles used by this app.
+EMPLOYEE_ROLE_LABELS = {
+    "staff": "Staff",
+    "supervisor": "Supervisor",
+    "assistant_manager": "Assistant Manager",
+    "manager": "Manager",
+    "general_manager": "General Manager",
+    "director": "Director",
+    "ceo": "CEO",
+    "hrd": "HRD",
+}
+EMPLOYEE_ROLES = tuple(EMPLOYEE_ROLE_LABELS.keys())
+
+ROLE_LABELS = {
+    "admin": "Admin",
+    **EMPLOYEE_ROLE_LABELS,
+    "client": "Client",
+    "guest": "Guest",
+}
+VALID_ROLES = tuple(ROLE_LABELS.keys())
+EMPLOYEE_ROLE_CHOICES = tuple(EMPLOYEE_ROLE_LABELS.items())
+ROLE_CHOICES = tuple(ROLE_LABELS.items())
 
 
 class User(UserMixin, db.Model):
@@ -23,7 +36,7 @@ class User(UserMixin, db.Model):
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default="staff")  # admin/staff/manager/general_manager/hrd/client/guest
+    role = db.Column(db.String(20), default="staff")
     is_active = db.Column(db.Boolean, default=True)
 
     def set_password(self, pw: str):
@@ -64,7 +77,7 @@ class Employee(db.Model):
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True)
     dept = db.Column(db.String(80))
-    role = db.Column(db.String(20), default="staff")  # staff/manager/general_manager/hrd (UI)
+    role = db.Column(db.String(20), default="staff")
     is_active = db.Column(db.Boolean, default=True)
     phone = db.Column(db.String(30))
     address = db.Column(db.String(255))
