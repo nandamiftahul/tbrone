@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_user, logout_user, login_required, current_user
 
@@ -177,7 +179,20 @@ def user_settings_update(user_id):
     emp = Employee.query.filter_by(user_id=user.id).first()
     if emp:
         emp.name = name
-        emp.email = email
+        emp.email = (request.form.get("employee_email") or "").strip().lower() or email
+        emp.dept = (request.form.get("dept") or "").strip() or None
+        emp.phone = (request.form.get("phone") or "").strip() or None
+        emp.address = (request.form.get("address") or "").strip() or None
+        emp.ktp_number = (request.form.get("ktp_number") or "").strip() or None
+        birth_date = (request.form.get("birth_date") or "").strip()
+        if birth_date:
+            try:
+                emp.birth_date = datetime.strptime(birth_date, "%Y-%m-%d").date()
+            except ValueError:
+                flash("Format birth date tidak valid.", "error")
+                return redirect(url_for("auth.user_settings"))
+        else:
+            emp.birth_date = None
         emp.role = role
         emp.is_active = is_active
 

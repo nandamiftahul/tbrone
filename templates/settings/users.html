@@ -17,6 +17,7 @@
       --line:rgba(47,35,35,.10);
       --bg:#f7f2f1;
       --danger:#c0392b;
+      --green:#207245;
     }
     *{box-sizing:border-box}
     body{
@@ -49,24 +50,37 @@
     .brand h1{margin:0;font-size:21px}
     .brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
     .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-    .btn{
+    .btn,.icon-btn{
       display:inline-flex;
       align-items:center;
       justify-content:center;
       gap:8px;
-      padding:11px 15px;
-      border-radius:14px;
       border:1px solid transparent;
-      background:linear-gradient(180deg,var(--orange-2),var(--orange));
-      color:#fff;
       font-weight:800;
-      font-size:13px;
       cursor:pointer;
       font-family:inherit;
+      transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;
+    }
+    .btn{
+      min-height:42px;
+      padding:11px 15px;
+      border-radius:14px;
+      background:linear-gradient(180deg,var(--orange-2),var(--orange));
+      color:#fff;
+      font-size:13px;
     }
     .btn.secondary{background:#fff;color:var(--dark);border-color:var(--line)}
     .btn.danger{background:#fff;color:var(--danger);border-color:rgba(192,57,43,.35)}
-    .btn svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none}
+    .icon-btn{
+      width:42px;
+      height:42px;
+      border-radius:14px;
+      background:#fff;
+      color:var(--dark);
+      border-color:var(--line);
+    }
+    .btn:hover,.icon-btn:hover{transform:translateY(-1px);box-shadow:0 10px 20px rgba(47,35,35,.08)}
+    svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none}
     .content{padding:24px}
     .hero{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px}
     .eyebrow{
@@ -80,7 +94,7 @@
       letter-spacing:.14em;
       text-transform:uppercase;
     }
-    .hero h2{margin:12px 0 8px;font-size:36px;letter-spacing:-.02em}
+    .hero h2{margin:12px 0 8px;font-size:36px}
     .hero p{margin:0;color:var(--muted);line-height:1.7;max-width:760px}
     .card{
       background:#fff;
@@ -92,8 +106,10 @@
     .card + .card{margin-top:14px}
     .flash{margin-bottom:12px;padding:12px 14px;border-radius:14px;background:var(--soft);color:#9b5a10;font-weight:700}
     .grid{display:grid;grid-template-columns:1.1fr 1.2fr 160px 170px 170px;gap:12px;align-items:end}
+    .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .form-grid .wide{grid-column:1/-1}
     label{display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:var(--muted)}
-    input,select{
+    input,select,textarea{
       width:100%;
       padding:12px 13px;
       border-radius:14px;
@@ -102,6 +118,7 @@
       color:var(--dark);
       font:inherit;
     }
+    textarea{min-height:86px;resize:vertical}
     .check{
       display:flex;
       align-items:center;
@@ -109,56 +126,103 @@
       min-height:44px;
       color:var(--dark);
       font-weight:700;
+      margin:0;
     }
-    .check input{width:auto}
+    .check input,.access-check input{width:auto}
     .tablewrap{overflow:auto;max-height:min(66vh,720px);border:1px solid var(--line);border-radius:18px}
-    table{width:100%;border-collapse:collapse;min-width:1420px}
-    th,td{padding:12px 10px;border-bottom:1px solid rgba(47,35,35,.08);text-align:left;vertical-align:top}
+    table{width:100%;border-collapse:collapse;min-width:1040px}
+    th,td{padding:13px 12px;border-bottom:1px solid rgba(47,35,35,.08);text-align:left;vertical-align:middle}
     th{position:sticky;top:0;background:#fff7ef;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase;z-index:1}
+    .user-cell strong{display:block;font-size:14px}
     .badge{display:inline-flex;padding:5px 10px;border-radius:999px;background:var(--soft);color:#c96f0c;font-size:12px;font-weight:800}
     .status{display:inline-flex;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800}
-    .status.active{background:#e8f7ee;color:#207245}
+    .status.active{background:#e8f7ee;color:var(--green)}
     .status.inactive{background:#f9e6e3;color:#a43224}
     .muted{color:var(--muted);font-size:13px}
-    .rowform{display:grid;grid-template-columns:1fr 1.2fr 140px 120px 160px auto;gap:8px;align-items:end}
     .self-note{font-size:12px;color:var(--muted);margin-top:6px}
     .access-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
     .access-card{border:1px solid var(--line);border-radius:16px;padding:12px;background:#fffaf5}
     .access-card strong{display:block;margin-bottom:8px;text-transform:capitalize}
     .access-list{display:flex;gap:6px;flex-wrap:wrap}
     .access-pill{display:inline-flex;padding:5px 8px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:800;color:#8b5a20}
-    .access-checks{display:grid;grid-template-columns:repeat(2,minmax(130px,1fr));gap:7px;min-width:310px}
+    .access-pill.more{background:#f7f2f1;color:var(--muted)}
+    .access-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:9px}
     .access-check{
       display:flex;
       align-items:center;
-      gap:7px;
-      padding:7px 8px;
+      gap:9px;
+      padding:10px 11px;
       border:1px solid var(--line);
-      border-radius:12px;
+      border-radius:14px;
       background:#fff;
-      font-size:12px;
+      font-size:13px;
       font-weight:800;
       color:var(--dark);
     }
     .access-check small{color:var(--muted);font-weight:700;text-transform:uppercase}
-    .access-check input{width:auto}
+    .modal{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(28,21,20,.45);
+      z-index:20;
+    }
+    .modal.is-open{display:flex}
+    .dialog{
+      width:min(920px,100%);
+      max-height:90vh;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border:1px solid rgba(255,255,255,.55);
+      border-radius:24px;
+      box-shadow:0 30px 80px rgba(0,0,0,.24);
+    }
+    .dialog > form{display:flex;flex-direction:column;min-height:0;max-height:90vh}
+    .dialog-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      padding:18px 20px;
+      border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg,#fff,#fff8f0);
+    }
+    .dialog-head h3{margin:0;font-size:18px}
+    .dialog-head p{margin:4px 0 0;color:var(--muted);font-size:13px}
+    .dialog-body{padding:20px;overflow:auto}
+    .dialog-foot{
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      padding:16px 20px;
+      border-top:1px solid var(--line);
+      background:#fff;
+    }
+    .section-title{display:flex;align-items:center;gap:8px;margin:22px 0 12px;font-weight:800}
+    .section-title:first-child{margin-top:0}
     @media (max-width:980px){
-      .grid,.rowform{grid-template-columns:1fr}
+      .grid,.form-grid{grid-template-columns:1fr}
       .topbar{align-items:flex-start;flex-direction:column}
       .actions{justify-content:flex-start}
       .content{padding:16px}
       .hero h2{font-size:30px}
+      .form-grid .wide{grid-column:auto}
     }
   </style>
 </head>
 <body>
   <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
-    <symbol id="icon-home" viewBox="0 0 24 24">
-      <path d="M3 11l9-8 9 8"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path>
-    </symbol>
-    <symbol id="icon-plus" viewBox="0 0 24 24">
-      <path d="M12 5v14"></path><path d="M5 12h14"></path>
-    </symbol>
+    <symbol id="icon-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14"></path><path d="M5 12h14"></path></symbol>
+    <symbol id="icon-gear" viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"></path><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.04.04a2.1 2.1 0 0 1-2.97 2.97l-.04-.04a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.1 1.65V21a2.1 2.1 0 0 1-4.2 0v-.06a1.8 1.8 0 0 0-1.1-1.65 1.8 1.8 0 0 0-1.98.36l-.04.04a2.1 2.1 0 0 1-2.97-2.97l.04-.04A1.8 1.8 0 0 0 3.8 15a1.8 1.8 0 0 0-1.65-1.1H2a2.1 2.1 0 0 1 0-4.2h.06A1.8 1.8 0 0 0 3.7 8.6a1.8 1.8 0 0 0-.36-1.98l-.04-.04A2.1 2.1 0 0 1 6.27 3.6l.04.04a1.8 1.8 0 0 0 1.98.36 1.8 1.8 0 0 0 1.1-1.65V2a2.1 2.1 0 0 1 4.2 0v.06a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 1.98-.36l.04-.04a2.1 2.1 0 0 1 2.97 2.97l-.04.04a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.1H22a2.1 2.1 0 0 1 0 4.2h-.06A1.8 1.8 0 0 0 19.4 15Z"></path></symbol>
+    <symbol id="icon-x" viewBox="0 0 24 24"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="7" r="4"></circle></symbol>
   </svg>
 
   <div class="wrap">
@@ -168,7 +232,7 @@
           <img src="{{ url_for('static', filename='manual/xweather/TypeIconAsset.png') }}" alt="Terrindo Logo">
           <div>
             <h1>User Settings</h1>
-            <p>Kelola username, role, status akun, dan reset password.</p>
+            <p>Kelola username, role, status akun, password, dan akses halaman.</p>
           </div>
         </div>
         <div class="actions">
@@ -190,7 +254,7 @@
           <div>
             <div class="eyebrow">Admin Only</div>
             <h2>Login Account Management</h2>
-            <p>Username pada sistem ini memakai kolom email di tabel users. Halaman ini untuk membuat akun, mengganti username, role, status aktif, dan password.</p>
+            <p>Username sistem memakai kolom email di tabel users. Klik icon gear pada tiap user untuk mengubah detail akun, reset password, dan mengatur akses halaman.</p>
           </div>
         </div>
 
@@ -202,9 +266,9 @@
               <strong>{{ role }}</strong>
               <div class="access-list">
                 {% for item in access_items %}
-                {% if item.access_key in role_access_keys.get(role, []) %}
-                <span class="access-pill">{{ item.label }}</span>
-                {% endif %}
+                  {% if item.access_key in role_access_keys.get(role, []) %}
+                  <span class="access-pill">{{ item.label }}</span>
+                  {% endif %}
                 {% endfor %}
               </div>
             </div>
@@ -260,13 +324,12 @@
             <table>
               <thead>
                 <tr>
-                  <th>Name</th>
+                  <th>User</th>
                   <th>Username / Email</th>
                   <th>Role</th>
                   <th>Status</th>
                   <th>Page Access</th>
                   <th>Employee Link</th>
-                  <th>New Password</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -274,67 +337,51 @@
                 {% for user in users %}
                 {% set emp = employee_by_user.get(user.id) %}
                 {% set user_access = user_access_map.get(user.id, {}) %}
+                {% set access_count = namespace(value=0) %}
+                {% for item in access_items %}
+                  {% if user_access.get(item.access_key, False) %}
+                    {% set access_count.value = access_count.value + 1 %}
+                  {% endif %}
+                {% endfor %}
                 <tr>
-                  <td>
-                    <form id="userForm{{ user.id }}" method="post" action="{{ url_for('auth.user_settings_update', user_id=user.id) }}"></form>
-                    <input form="userForm{{ user.id }}" name="name" value="{{ user.name }}" required>
+                  <td class="user-cell">
+                    <strong>{{ user.name }}</strong>
+                    {% if user.id == current_user.id %}
+                    <span class="muted">Current admin</span>
+                    {% endif %}
                   </td>
-                  <td><input form="userForm{{ user.id }}" name="email" value="{{ user.email }}" required></td>
-                    <td>
-                      <select form="userForm{{ user.id }}" name="role" {% if user.id == current_user.id %}disabled{% endif %}>
-                        {% for role in roles %}
-                        <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role }}</option>
-                        {% endfor %}
-                      </select>
-                      {% if user.id == current_user.id %}
-                      <input form="userForm{{ user.id }}" type="hidden" name="role" value="admin">
-                      <div class="self-note">Role akun sendiri dikunci sebagai admin.</div>
-                      {% endif %}
-                    </td>
-                    <td>
-                      <span class="status {{ 'active' if user.is_active else 'inactive' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span>
-                      <label class="check" style="margin-top:8px;">
-                        <input form="userForm{{ user.id }}" type="checkbox" name="is_active" value="1" {% if user.is_active %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}>
-                        Active
-                      </label>
-                      {% if user.id == current_user.id %}
-                      <input form="userForm{{ user.id }}" type="hidden" name="is_active" value="1">
-                      <div class="self-note">Akun sendiri tidak bisa dinonaktifkan.</div>
-                      {% endif %}
-                    </td>
-                    <td>
-                      <div class="access-checks">
-                        {% for item in access_items %}
-                        {% set checked = user_access.get(item.access_key, False) %}
-                        <label class="access-check">
-                          <input
-                            form="userForm{{ user.id }}"
-                            type="checkbox"
-                            name="access_key"
-                            value="{{ item.access_key }}"
-                            {% if checked %}checked{% endif %}
-                            {% if user.id == current_user.id %}disabled{% endif %}>
-                          <span>{{ item.label }}<br><small>{{ item.scope }}</small></span>
-                        </label>
-                        {% if user.id == current_user.id and checked %}
-                        <input form="userForm{{ user.id }}" type="hidden" name="access_key" value="{{ item.access_key }}">
+                  <td>{{ user.email }}</td>
+                  <td><span class="badge">{{ user.role }}</span></td>
+                  <td><span class="status {{ 'active' if user.is_active else 'inactive' }}">{{ 'Active' if user.is_active else 'Inactive' }}</span></td>
+                  <td>
+                    <div class="access-list">
+                      {% set displayed_access = namespace(value=0) %}
+                      {% for item in access_items %}
+                        {% if user_access.get(item.access_key, False) and displayed_access.value < 3 %}
+                        <span class="access-pill">{{ item.label }}</span>
+                        {% set displayed_access.value = displayed_access.value + 1 %}
                         {% endif %}
-                        {% endfor %}
-                      </div>
-                      {% if user.id == current_user.id %}
-                      <div class="self-note">Akses akun sendiri dikunci agar admin tidak terkunci keluar.</div>
+                      {% endfor %}
+                      {% if access_count.value > 3 %}
+                      <span class="access-pill more">+{{ access_count.value - 3 }} more</span>
+                      {% elif access_count.value == 0 %}
+                      <span class="muted">No access</span>
                       {% endif %}
-                    </td>
-                    <td>
-                      {% if emp %}
-                        <strong>{{ emp.name }}</strong><br>
-                        <span class="muted">{{ emp.code }} · {{ emp.dept or '-' }}</span>
-                      {% else %}
-                        <span class="muted">Not linked</span>
-                      {% endif %}
-                    </td>
-                    <td><input form="userForm{{ user.id }}" name="new_password" type="password" placeholder="Kosongkan jika tidak reset"></td>
-                    <td><button form="userForm{{ user.id }}" class="btn" type="submit">Save</button></td>
+                    </div>
+                  </td>
+                  <td>
+                    {% if emp %}
+                      <strong>{{ emp.name }}</strong><br>
+                      <span class="muted">{{ emp.code }} · {{ emp.dept or '-' }}</span>
+                    {% else %}
+                      <span class="muted">Not linked</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <button class="icon-btn" type="button" title="User settings" aria-label="User settings" data-modal-open="userDialog{{ user.id }}">
+                      <svg><use href="#icon-gear"></use></svg>
+                    </button>
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -345,5 +392,148 @@
       </div>
     </div>
   </div>
+
+  {% for user in users %}
+  {% set emp = employee_by_user.get(user.id) %}
+  {% set user_access = user_access_map.get(user.id, {}) %}
+  <div class="modal" id="userDialog{{ user.id }}" role="dialog" aria-modal="true" aria-labelledby="dialogTitle{{ user.id }}">
+    <div class="dialog">
+      <form method="post" action="{{ url_for('auth.user_settings_update', user_id=user.id) }}">
+        <div class="dialog-head">
+          <div>
+            <h3 id="dialogTitle{{ user.id }}">{{ user.name }}</h3>
+            <p>Edit akun, informasi tambahan, password, dan akses halaman.</p>
+          </div>
+          <button class="icon-btn" type="button" aria-label="Close" data-modal-close>
+            <svg><use href="#icon-x"></use></svg>
+          </button>
+        </div>
+
+        <div class="dialog-body">
+          <div class="section-title"><svg><use href="#icon-user"></use></svg>Account</div>
+          <div class="form-grid">
+            <div>
+              <label>Name</label>
+              <input name="name" value="{{ user.name }}" required>
+            </div>
+            <div>
+              <label>Username / Email</label>
+              <input name="email" value="{{ user.email }}" required>
+            </div>
+            <div>
+              <label>Role</label>
+              <select name="role" {% if user.id == current_user.id %}disabled{% endif %}>
+                {% for role in roles %}
+                <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role }}</option>
+                {% endfor %}
+              </select>
+              {% if user.id == current_user.id %}
+              <input type="hidden" name="role" value="admin">
+              <div class="self-note">Role akun sendiri dikunci sebagai admin.</div>
+              {% endif %}
+            </div>
+            <div>
+              <label>New Password</label>
+              <input name="new_password" type="password" placeholder="Kosongkan jika tidak reset">
+            </div>
+            <div>
+              <label class="check">
+                <input type="checkbox" name="is_active" value="1" {% if user.is_active %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}>
+                Active
+              </label>
+              {% if user.id == current_user.id %}
+              <input type="hidden" name="is_active" value="1">
+              <div class="self-note">Akun sendiri tidak bisa dinonaktifkan.</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="section-title"><svg><use href="#icon-user"></use></svg>Additional Information</div>
+          {% if emp %}
+          <div class="form-grid">
+            <div>
+              <label>Employee Email</label>
+              <input name="employee_email" value="{{ emp.email or user.email }}">
+            </div>
+            <div>
+              <label>Department</label>
+              <input name="dept" value="{{ emp.dept or '' }}">
+            </div>
+            <div>
+              <label>Phone</label>
+              <input name="phone" value="{{ emp.phone or '' }}">
+            </div>
+            <div>
+              <label>Birth Date</label>
+              <input name="birth_date" type="date" value="{{ emp.birth_date.isoformat() if emp.birth_date else '' }}">
+            </div>
+            <div>
+              <label>KTP Number</label>
+              <input name="ktp_number" value="{{ emp.ktp_number or '' }}">
+            </div>
+            <div class="wide">
+              <label>Address</label>
+              <textarea name="address">{{ emp.address or '' }}</textarea>
+            </div>
+          </div>
+          {% else %}
+          <p class="muted" style="margin:0;">User ini belum terhubung dengan data employee, jadi informasi tambahan Attendance belum tersedia.</p>
+          {% endif %}
+
+          <div class="section-title"><svg><use href="#icon-shield"></use></svg>Page Access</div>
+          <div class="access-checks">
+            {% for item in access_items %}
+            {% set checked = user_access.get(item.access_key, False) %}
+            <label class="access-check">
+              <input
+                type="checkbox"
+                name="access_key"
+                value="{{ item.access_key }}"
+                {% if checked %}checked{% endif %}
+                {% if user.id == current_user.id %}disabled{% endif %}>
+              <span>{{ item.label }}<br><small>{{ item.scope }}</small></span>
+            </label>
+            {% if user.id == current_user.id and checked %}
+            <input type="hidden" name="access_key" value="{{ item.access_key }}">
+            {% endif %}
+            {% endfor %}
+          </div>
+          {% if user.id == current_user.id %}
+          <div class="self-note">Akses akun sendiri dikunci agar admin tidak terkunci keluar.</div>
+          {% endif %}
+        </div>
+
+        <div class="dialog-foot">
+          <button class="btn secondary" type="button" data-modal-close>Cancel</button>
+          <button class="btn" type="submit">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+
+  <script>
+    document.querySelectorAll('[data-modal-open]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const modal = document.getElementById(button.dataset.modalOpen);
+        if (modal) modal.classList.add('is-open');
+      });
+    });
+    document.querySelectorAll('[data-modal-close]').forEach((button) => {
+      button.addEventListener('click', () => {
+        button.closest('.modal')?.classList.remove('is-open');
+      });
+    });
+    document.querySelectorAll('.modal').forEach((modal) => {
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) modal.classList.remove('is-open');
+      });
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        document.querySelectorAll('.modal.is-open').forEach((modal) => modal.classList.remove('is-open'));
+      }
+    });
+  </script>
 </body>
 </html>
